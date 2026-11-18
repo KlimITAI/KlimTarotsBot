@@ -20,6 +20,8 @@ import random
 import logging
 import json
 import sqlite3
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, date, timedelta, timezone
 from collections import defaultdict
 from pathlib import Path
@@ -2346,10 +2348,38 @@ async def post_init(app):
             logger.warning("Не удалось установить MenuButtonWebApp: %s", exc)
 
 
+def start_health_server() -> None:
+    """Мини-HTTP сервер для Render Free Web Service (отвечает 200 OK на / и /health)."""
+    port_raw = os.environ.get("PORT", "").strip()
+    if not port_raw.isdigit():
+        return
+    port = int(port_raw)
+
+    class _HealthHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(b"OK - KLIM TAROT BOT")
+
+        def do_HEAD(self):
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, format, *args):
+            return
+
+    server = ThreadingHTTPServer(("0.0.0.0", port), _HealthHandler)
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    logger.info("🌐 Health-сервер запущен на порту %s", port)
+
+
 def main():
+    start_health_server()
     init_stats_db()
     payments.init_payments_db(STATS_DB_PATH)
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    token = (os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("BOT_TOKEN") or "").strip()
     if not token:
         raise ValueError(
             "\n❌ Токен не найден!\n"

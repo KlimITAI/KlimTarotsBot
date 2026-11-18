@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: klim-tarot-bot
+    runtime: python
+    plan: free
+    rootDir: tarot-bot
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -u bot.py
+    healthCheckPath: /health
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: ADMIN_USER_IDS
+        value: "7446803539"
+      - key: PAYMENTS_ENABLED
+        value: "false"
