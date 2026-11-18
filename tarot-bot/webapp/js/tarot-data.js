@@ -12,7 +12,8 @@ export const ALL_CARDS = [
     "story": "Шут стоит на краю обрыва, беззаботно глядя в небо. В руке — посох с узелком, под ногой — пропасть. Он не боится, ведь каждое путешествие начинается с первого шага. Эта карта напоминает: вселенная поддерживает тех, кто решается.",
     "advice": "Доверяйте потоку жизни. Сейчас время прыгнуть — сеть появится сама.",
     "yes_weight": 1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m00.webp"
   },
   {
     "id": "magician",
@@ -24,7 +25,8 @@ export const ALL_CARDS = [
     "story": "Маг стоит за столом, на котором лежат все четыре символа стихий. Одной рукой он указывает вниз, другой — вверх: «Как вверху, так и внизу». У него есть всё необходимое — вопрос лишь в том, воспользуетесь ли вы этим.",
     "advice": "Все инструменты уже в ваших руках. Действуйте решительно.",
     "yes_weight": 1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m01.webp"
   },
   {
     "id": "high_priestess",
@@ -36,7 +38,8 @@ export const ALL_CARDS = [
     "story": "Жрица сидит между двух колонн — чёрной и белой — у завесы с гранатами. Она хранит тайны, которые нельзя постичь умом. Только успокоив разум, вы услышите её послание.",
     "advice": "Доверяйте внутреннему голосу больше, чем чужим словам.",
     "yes_weight": 0,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m02.webp"
   },
   {
     "id": "empress",
@@ -48,7 +51,8 @@ export const ALL_CARDS = [
     "story": "Императрица — воплощение природы. Она сидит среди пшеничных полей, в короне из звёзд. Всё, к чему она прикасается, расцветает. Это время созидания и наслаждения жизнью.",
     "advice": "Позвольте себе процветать. Вы заслуживаете изобилия.",
     "yes_weight": 1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m03.webp"
   },
   {
     "id": "emperor",
@@ -60,7 +64,8 @@ export const ALL_CARDS = [
     "story": "Император восседает на каменном троне с бараньими головами — символ Марса. Он создаёт законы, устанавливает границы. Порядок — его инструмент любви.",
     "advice": "Установите чёткие границы и возьмите ответственность в свои руки.",
     "yes_weight": 1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m04.webp"
   },
   {
     "id": "hierophant",
@@ -72,7 +77,8 @@ export const ALL_CARDS = [
     "story": "Иерофант — духовный учитель, связующее звено между землёй и небесами. У его ног — два послушника. Он передаёт накопленную мудрость поколений.",
     "advice": "Ищите наставника или мудрость в проверенных традициях.",
     "yes_weight": 0,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m05.webp"
   },
   {
     "id": "lovers",
@@ -84,7 +90,8 @@ export const ALL_CARDS = [
     "story": "Мужчина и женщина стоят под благословением ангела. Это не просто романтика — это момент осознанного выбора: кем быть, во что верить, кого любить.",
     "advice": "Следуйте голосу сердца, но не забывайте о разуме.",
     "yes_weight": 1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m06.webp"
   },
   {
     "id": "chariot",
@@ -96,7 +103,8 @@ export const ALL_CARDS = [
     "story": "Возничий правит двумя сфинксами — чёрным и белым. Без поводьев, только силой воли. Победа возможна, только если внутренние противоречия под контролем.",
     "advice": "Сфокусируйтесь на цели. Дисциплина — ваш главный союзник.",
     "yes_weight": 1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m07.webp"
   },
   {
     "id": "strength",
@@ -108,7 +116,8 @@ export const ALL_CARDS = [
     "story": "Женщина нежно открывает пасть льва — не силой, а любовью. Истинная сила — это не подавление, а единение со своей природой.",
     "advice": "Ваша нежность — это сила, а не слабость.",
     "yes_weight": 1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m08.webp"
   },
   {
     "id": "hermit",
@@ -120,7 +129,8 @@ export const ALL_CARDS = [
     "story": "Отшельник стоит на вершине горы со свечой. Он ищет не снаружи — а внутри. Иногда самый важный ответ находится в тишине.",
     "advice": "Найдите время для одиночества и честного разговора с собой.",
     "yes_weight": 0,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m09.webp"
   },
   {
     "id": "wheel",
@@ -132,7 +142,8 @@ export const ALL_CARDS = [
     "story": "Великое колесо вращается. На нём — мудрец, сфинкс, змея и шакал. Всё меняется. То, что сейчас внизу — завтра будет наверху.",
     "advice": "Перемены неизбежны. Используйте этот момент как трамплин.",
     "yes_weight": 1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m10.webp"
   },
   {
     "id": "justice",
@@ -144,7 +155,8 @@ export const ALL_CARDS = [
     "story": "Справедливость держит весы и меч. Вселенная всегда восстанавливает баланс. Карма — не наказание, а корректировка.",
     "advice": "Действуйте честно — это единственная долгосрочная стратегия.",
     "yes_weight": 0,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m11.webp"
   },
   {
     "id": "hanged",
@@ -156,7 +168,8 @@ export const ALL_CARDS = [
     "story": "Человек добровольно висит вниз головой на дереве. Лицо его спокойно — нимб вокруг головы светится. Иногда нужно остановиться, чтобы увидеть больше.",
     "advice": "Эта пауза — не потеря времени, а необходимая инвестиция.",
     "yes_weight": 0,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m12.webp"
   },
   {
     "id": "death",
@@ -168,7 +181,8 @@ export const ALL_CARDS = [
     "story": "Скелет на коне движется через поле. Перед ним — и папа, и король, и дитя. Смерть уравнивает всех. Но за ней — рассвет. Это не конец, а трансформация.",
     "advice": "Отпустите старое. То, что заканчивается — освобождает место для нового.",
     "yes_weight": 0,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m13.webp"
   },
   {
     "id": "temperance",
@@ -180,7 +194,8 @@ export const ALL_CARDS = [
     "story": "Ангел переливает воду между двух кубков. Одна нога в воде, другая на земле. Совершенное равновесие — это не статика, а постоянная тонкая настройка.",
     "advice": "Ищите золотую середину. Крайности сейчас не помогут.",
     "yes_weight": 1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m14.webp"
   },
   {
     "id": "devil",
@@ -192,7 +207,8 @@ export const ALL_CARDS = [
     "story": "Козёл на троне держит двух фигур на цепях. Но цепи свободно надето — они сами выбрали остаться. Любая тюрьма, которую мы строим для себя, имеет дверь.",
     "advice": "Признайте зависимость или привязанность — это первый шаг к свободе.",
     "yes_weight": -1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m15.webp"
   },
   {
     "id": "tower",
@@ -204,7 +220,8 @@ export const ALL_CARDS = [
     "story": "В башню бьёт молния. Люди падают. Но башня была построена на лжи. Разрушение — это милость. Теперь можно строить на правде.",
     "advice": "Всё, что рушится — должно было рухнуть. Это освобождение.",
     "yes_weight": -1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m16.webp"
   },
   {
     "id": "star",
@@ -216,7 +233,8 @@ export const ALL_CARDS = [
     "story": "Обнажённая женщина у пруда льёт воду на землю и в воду. Над ней — восемь звёзд. После бури всегда приходит ясность. Вселенная заботится о вас.",
     "advice": "Доверяйте. Лучшее впереди. Это время восстановления и надежды.",
     "yes_weight": 1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m17.webp"
   },
   {
     "id": "moon",
@@ -228,7 +246,8 @@ export const ALL_CARDS = [
     "story": "Луна светит над двумя башнями. Собака и волк воют. Рак выходит из воды. Путь не ясен, но интуиция знает дорогу. Не верьте всему, что видите.",
     "advice": "Замедлитесь. Не все страхи реальны. Дайте туману рассеяться.",
     "yes_weight": -1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m18.webp"
   },
   {
     "id": "sun",
@@ -240,7 +259,8 @@ export const ALL_CARDS = [
     "story": "Ребёнок на белом коне скачет под ярким солнцем. Подсолнухи тянутся к свету. Это самая счастливая карта колоды. Всё идёт хорошо.",
     "advice": "Радуйтесь! Вы на верном пути. Позвольте себе сиять.",
     "yes_weight": 1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m19.webp"
   },
   {
     "id": "judgement",
@@ -252,7 +272,8 @@ export const ALL_CARDS = [
     "story": "Ангел трубит в горн. Мёртвые восстают из могил. Это не конец света — это момент истины, когда вы наконец слышите свой настоящий зов.",
     "advice": "Прислушайтесь к своему призванию. Пора встать и откликнуться.",
     "yes_weight": 1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m20.webp"
   },
   {
     "id": "world",
@@ -264,7 +285,8 @@ export const ALL_CARDS = [
     "story": "Танцующая фигура в венке из лавра. Четыре существа по углам — стражи четырёх стихий. Это триумф. Круг замкнулся. Вы достигли того, к чему шли.",
     "advice": "Вы у цели. Завершите начатое и позвольте себе праздновать.",
     "yes_weight": 1,
-    "suit": "major"
+    "suit": "major",
+    "img": "./assets/cards/m21.webp"
   },
   {
     "id": "wands_A",
@@ -277,7 +299,8 @@ export const ALL_CARDS = [
     "story": "Туз Жезлов — это искра. Пламя, готовое разгореться в великий костёр.",
     "advice": "Начинайте! Вдохновение не ждёт.",
     "yes_weight": 1,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w01.webp"
   },
   {
     "id": "wands_2",
@@ -290,7 +313,8 @@ export const ALL_CARDS = [
     "story": "Мужчина смотрит вдаль, держа два жезла. Он уже сделал шаг, но видит горизонты.",
     "advice": "Стройте планы шире. Мир больше, чем кажется.",
     "yes_weight": 1,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w02.webp"
   },
   {
     "id": "wands_3",
@@ -303,7 +327,8 @@ export const ALL_CARDS = [
     "story": "Корабли уходят вдаль. Инвестиции приносят плоды.",
     "advice": "Расширяйте горизонты. Ваши усилия дают результат.",
     "yes_weight": 1,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w03.webp"
   },
   {
     "id": "wands_4",
@@ -316,7 +341,8 @@ export const ALL_CARDS = [
     "story": "Гирлянда цветов между четырьмя жезлами. Праздник урожая.",
     "advice": "Отметьте достижение. Вы заслужили этот покой.",
     "yes_weight": 1,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w04.webp"
   },
   {
     "id": "wands_5",
@@ -329,7 +355,8 @@ export const ALL_CARDS = [
     "story": "Пятеро сражаются жезлами. Но это не война — это учебный бой.",
     "advice": "Конкуренция делает вас лучше. Не бойтесь борьбы.",
     "yes_weight": 0,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w05.webp"
   },
   {
     "id": "wands_6",
@@ -342,7 +369,8 @@ export const ALL_CARDS = [
     "story": "Герой едет в венке лавра. Толпа чествует победителя.",
     "advice": "Ваш успех заслужен. Принимайте признание.",
     "yes_weight": 1,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w06.webp"
   },
   {
     "id": "wands_7",
@@ -355,7 +383,8 @@ export const ALL_CARDS = [
     "story": "Человек стоит высоко, отражая удары снизу. Он не отступит.",
     "advice": "Держите позицию. Ваши убеждения стоят защиты.",
     "yes_weight": 1,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w07.webp"
   },
   {
     "id": "wands_8",
@@ -368,7 +397,8 @@ export const ALL_CARDS = [
     "story": "Восемь жезлов летят по воздуху. Всё движется стремительно.",
     "advice": "Действуйте быстро. Момент не ждёт.",
     "yes_weight": 1,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w08.webp"
   },
   {
     "id": "wands_9",
@@ -381,7 +411,8 @@ export const ALL_CARDS = [
     "story": "Израненный воин с трудом держит девять жезлов. Но он стоит.",
     "advice": "Вы почти у цели. Последнее усилие решает всё.",
     "yes_weight": 1,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w09.webp"
   },
   {
     "id": "wands_10",
@@ -394,7 +425,8 @@ export const ALL_CARDS = [
     "story": "Человек сгибается под весом десяти жезлов. Путь тяжёл, но дом близко.",
     "advice": "Возможно, пора делегировать. Не всё должны нести вы.",
     "yes_weight": 0,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w10.webp"
   },
   {
     "id": "wands_P",
@@ -407,7 +439,8 @@ export const ALL_CARDS = [
     "story": "Молодой паж смотрит на жезл с любопытством. Мир полон возможностей.",
     "advice": "Будьте как новичок: открыты всему новому.",
     "yes_weight": 1,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w11.webp"
   },
   {
     "id": "wands_Kn",
@@ -420,7 +453,8 @@ export const ALL_CARDS = [
     "story": "Рыцарь мчится вперёд на скачущем коне. Огонь в глазах.",
     "advice": "Действуйте со страстью, но думайте перед прыжком.",
     "yes_weight": 1,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w12.webp"
   },
   {
     "id": "wands_Q",
@@ -433,7 +467,8 @@ export const ALL_CARDS = [
     "story": "Королева сидит с жезлом и подсолнухом. У её ног — чёрная кошка.",
     "advice": "Доверяйте себе. Ваш опыт — ваша сила.",
     "yes_weight": 1,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w13.webp"
   },
   {
     "id": "wands_K",
@@ -446,7 +481,8 @@ export const ALL_CARDS = [
     "story": "Король правит с жезлом. Саламандры на его троне — символ вечного огня.",
     "advice": "Возьмите инициативу. Вы способны вести других.",
     "yes_weight": 1,
-    "suit": "wands"
+    "suit": "wands",
+    "img": "./assets/cards/w14.webp"
   },
   {
     "id": "cups_A",
@@ -459,7 +495,8 @@ export const ALL_CARDS = [
     "story": "Из кубка появляется рыба — символ бессознательного. Дар из глубин души.",
     "advice": "Откройтесь новым чувствам. Это послание из глубины.",
     "yes_weight": 1,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c01.webp"
   },
   {
     "id": "cups_2",
@@ -472,7 +509,8 @@ export const ALL_CARDS = [
     "story": "Двое обмениваются кубками под крылатым кадуцеем любви.",
     "advice": "Истинная связь — это взаимный обмен.",
     "yes_weight": 1,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c02.webp"
   },
   {
     "id": "cups_3",
@@ -485,7 +523,8 @@ export const ALL_CARDS = [
     "story": "Три фигуры танцуют, подняв кубки. Урожай собран, пришло время праздника.",
     "advice": "Окружите себя теми, кто вас поддерживает.",
     "yes_weight": 1,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c03.webp"
   },
   {
     "id": "cups_4",
@@ -498,7 +537,8 @@ export const ALL_CARDS = [
     "story": "Молодой человек смотрит на три кубка. Четвёртый протянут из облака — но он не замечает.",
     "advice": "Не пропустите возможность, которая уже перед вами.",
     "yes_weight": 0,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c04.webp"
   },
   {
     "id": "cups_5",
@@ -511,7 +551,8 @@ export const ALL_CARDS = [
     "story": "Плащ закрывает лицо. Три кубка пролиты. Но два — ещё стоят.",
     "advice": "Потеря реальна, но не всё потеряно. Посмотрите на то, что осталось.",
     "yes_weight": -1,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c05.webp"
   },
   {
     "id": "cups_6",
@@ -524,7 +565,8 @@ export const ALL_CARDS = [
     "story": "Дети обмениваются цветами в кубках. Прошлое дарит тепло.",
     "advice": "Черпайте силу из добрых воспоминаний, но живите сегодня.",
     "yes_weight": 0,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c06.webp"
   },
   {
     "id": "cups_7",
@@ -537,7 +579,8 @@ export const ALL_CARDS = [
     "story": "Семь кубков парят в тумане. В каждом — новый мираж.",
     "advice": "Не тратьте все силы на фантазии. Выберите одно и сделайте это реальным.",
     "yes_weight": 0,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c07.webp"
   },
   {
     "id": "cups_8",
@@ -550,7 +593,8 @@ export const ALL_CARDS = [
     "story": "Человек уходит от восьми кубков к далёким горам под покровом луны.",
     "advice": "Иногда правильный выбор — уйти. Это смелость, а не слабость.",
     "yes_weight": 0,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c08.webp"
   },
   {
     "id": "cups_9",
@@ -563,7 +607,8 @@ export const ALL_CARDS = [
     "story": "Старик в саду, окружённый девятью кубками. Его желания исполнены.",
     "advice": "Позвольте себе получить желаемое. Вы достойны этого.",
     "yes_weight": 1,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c09.webp"
   },
   {
     "id": "cups_10",
@@ -576,7 +621,8 @@ export const ALL_CARDS = [
     "story": "Семья смотрит на радугу и замок вдали. Успех достигнут — что дальше?",
     "advice": "Ставьте новые цели. Путь продолжается.",
     "yes_weight": 1,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c10.webp"
   },
   {
     "id": "cups_P",
@@ -589,7 +635,8 @@ export const ALL_CARDS = [
     "story": "Молодой паж смотрит на рыбку, выплывшую из кубка. Он открыт чудесам.",
     "advice": "Прислушайтесь к снам и случайным знакам.",
     "yes_weight": 1,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c11.webp"
   },
   {
     "id": "cups_Kn",
@@ -602,7 +649,8 @@ export const ALL_CARDS = [
     "story": "Рыцарь медленно едет на коне, держа кубок как Грааль.",
     "advice": "Следуйте за зовом сердца, но проверяйте реальность.",
     "yes_weight": 1,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c12.webp"
   },
   {
     "id": "cups_Q",
@@ -615,7 +663,8 @@ export const ALL_CARDS = [
     "story": "Королева смотрит в кубок над водой. Она чувствует то, что другие не видят.",
     "advice": "Доверяйте своей чуткости. Вы видите суть.",
     "yes_weight": 1,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c13.webp"
   },
   {
     "id": "cups_K",
@@ -628,7 +677,8 @@ export const ALL_CARDS = [
     "story": "Король восседает на троне у моря. Волны его не пугают — он с ними един.",
     "advice": "Соединяйте сострадание с мудростью.",
     "yes_weight": 1,
-    "suit": "cups"
+    "suit": "cups",
+    "img": "./assets/cards/c14.webp"
   },
   {
     "id": "swords_A",
@@ -641,7 +691,8 @@ export const ALL_CARDS = [
     "story": "Один меч разрубает корону под ясным небом. Это победа правды.",
     "advice": "Истина победит. Говорите прямо.",
     "yes_weight": 1,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s01.webp"
   },
   {
     "id": "swords_2",
@@ -654,7 +705,8 @@ export const ALL_CARDS = [
     "story": "Завязанные глаза, два меча скрещены. Пока обе стороны молчат — мира нет.",
     "advice": "Снимите повязку. Пора взглянуть правде в глаза.",
     "yes_weight": 0,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s02.webp"
   },
   {
     "id": "swords_3",
@@ -667,7 +719,8 @@ export const ALL_CARDS = [
     "story": "Три меча пронзают сердце. Это боль, которую нельзя отрицать.",
     "advice": "Позвольте себе горевать. Это единственный путь к исцелению.",
     "yes_weight": -1,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s03.webp"
   },
   {
     "id": "swords_4",
@@ -680,7 +733,8 @@ export const ALL_CARDS = [
     "story": "Рыцарь лежит под витражом. Три меча на стене, один под ним. Мир после боя.",
     "advice": "Вы заслужили отдых. Позвольте себе восстановиться.",
     "yes_weight": 0,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s04.webp"
   },
   {
     "id": "swords_5",
@@ -693,7 +747,8 @@ export const ALL_CARDS = [
     "story": "Человек держит три меча с победным видом. Но проигравшие в слезах.",
     "advice": "Убедитесь, что цена победы не слишком высока.",
     "yes_weight": -1,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s05.webp"
   },
   {
     "id": "swords_6",
@@ -706,7 +761,8 @@ export const ALL_CARDS = [
     "story": "Перевозчик везёт семью через туманные воды. Позади — буря.",
     "advice": "Иногда лучший выход — сменить место или ситуацию.",
     "yes_weight": 0,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s06.webp"
   },
   {
     "id": "swords_7",
@@ -719,7 +775,8 @@ export const ALL_CARDS = [
     "story": "Вор крадёт мечи под покровом ночи. Не всё то правда, что кажется.",
     "advice": "Проверьте мотивы — свои и чужих.",
     "yes_weight": -1,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s07.webp"
   },
   {
     "id": "swords_8",
@@ -732,7 +789,8 @@ export const ALL_CARDS = [
     "story": "Женщина с завязанными глазами стоит среди мечей. Но оковы не затянуты.",
     "advice": "Вы не так заперты, как думаете. Сделайте шаг вперёд.",
     "yes_weight": -1,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s08.webp"
   },
   {
     "id": "swords_9",
@@ -745,7 +803,8 @@ export const ALL_CARDS = [
     "story": "Человек сидит в постели с руками на лице. Девять мечей над ним.",
     "advice": "Страхи в 3 ночи преувеличены. При свете дня всё иначе.",
     "yes_weight": -1,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s09.webp"
   },
   {
     "id": "swords_10",
@@ -758,7 +817,8 @@ export const ALL_CARDS = [
     "story": "Фигура лежит пронзённая десятью мечами. Но рассвет уже близко.",
     "advice": "Это дно. Дальше — только вверх. Выживший становится сильнее.",
     "yes_weight": -1,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s10.webp"
   },
   {
     "id": "swords_P",
@@ -771,7 +831,8 @@ export const ALL_CARDS = [
     "story": "Паж крадётся, держа меч. Он слушает больше, чем говорит.",
     "advice": "Собирайте информацию перед действием.",
     "yes_weight": 0,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s11.webp"
   },
   {
     "id": "swords_Kn",
@@ -784,7 +845,8 @@ export const ALL_CARDS = [
     "story": "Рыцарь мчится стремительно, меч занесён. Ничто не остановит его.",
     "advice": "Смелость — да. Но уважайте тех, кто рядом.",
     "yes_weight": 0,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s12.webp"
   },
   {
     "id": "swords_Q",
@@ -797,7 +859,8 @@ export const ALL_CARDS = [
     "story": "Королева указывает вдаль. Её взгляд ясен, но несёт тяжесть пережитого.",
     "advice": "Ваш опыт — сила. Не позволяйте боли закрыть вас от мира.",
     "yes_weight": 0,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s13.webp"
   },
   {
     "id": "swords_K",
@@ -810,7 +873,8 @@ export const ALL_CARDS = [
     "story": "Король на троне держит меч прямо вверх. Символ высшей интеллектуальной власти.",
     "advice": "Думайте ясно, говорите прямо. Истина — ваш главный союзник.",
     "yes_weight": 1,
-    "suit": "swords"
+    "suit": "swords",
+    "img": "./assets/cards/s14.webp"
   },
   {
     "id": "pentacles_A",
@@ -823,7 +887,8 @@ export const ALL_CARDS = [
     "story": "Огромный золотой пентакль в руках. Это семя будущего процветания.",
     "advice": "Посадите семя сейчас. Результат придёт со временем.",
     "yes_weight": 1,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p01.webp"
   },
   {
     "id": "pentacles_2",
@@ -836,7 +901,8 @@ export const ALL_CARDS = [
     "story": "Юноша танцует, жонглируя двумя пентаклями на фоне волн.",
     "advice": "Сохраняйте гибкость. Вы справляетесь лучше, чем думаете.",
     "yes_weight": 0,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p02.webp"
   },
   {
     "id": "pentacles_3",
@@ -849,7 +915,8 @@ export const ALL_CARDS = [
     "story": "Мастер обсуждает план с монахом и дворянином.",
     "advice": "Работайте с теми, кто дополняет ваши навыки.",
     "yes_weight": 1,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p03.webp"
   },
   {
     "id": "pentacles_4",
@@ -862,7 +929,8 @@ export const ALL_CARDS = [
     "story": "Горожанин крепко держит пентакли. Он накопил — но боится потерять.",
     "advice": "Стабильность хороша, но не позволяйте страху сковывать вас.",
     "yes_weight": 0,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p04.webp"
   },
   {
     "id": "pentacles_5",
@@ -875,7 +943,8 @@ export const ALL_CARDS = [
     "story": "Двое бедняков бредут мимо освещённого витража.",
     "advice": "Это временно. Просите о помощи — это сила, не слабость.",
     "yes_weight": -1,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p05.webp"
   },
   {
     "id": "pentacles_6",
@@ -888,7 +957,8 @@ export const ALL_CARDS = [
     "story": "Богатый даёт монеты бедным. Деньги текут туда, где их ценят.",
     "advice": "Дайте и получите. Щедрость возвращается.",
     "yes_weight": 1,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p06.webp"
   },
   {
     "id": "pentacles_7",
@@ -901,7 +971,8 @@ export const ALL_CARDS = [
     "story": "Земледелец опирается на лопату, глядя на плоды своего труда.",
     "advice": "Правильные семена дадут плоды. Просто продолжайте.",
     "yes_weight": 1,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p07.webp"
   },
   {
     "id": "pentacles_8",
@@ -914,7 +985,8 @@ export const ALL_CARDS = [
     "story": "Мастер смотрит на весы. Он оценивает свой труд объективно.",
     "advice": "Оцените, что работает, а что нет. Скорректируйте курс.",
     "yes_weight": 0,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p08.webp"
   },
   {
     "id": "pentacles_9",
@@ -927,7 +999,8 @@ export const ALL_CARDS = [
     "story": "Мастер-каменщик трудится в одиночестве. Его труд совершенен.",
     "advice": "Развивайте своё мастерство. Вы на верном пути.",
     "yes_weight": 1,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p09.webp"
   },
   {
     "id": "pentacles_10",
@@ -940,7 +1013,8 @@ export const ALL_CARDS = [
     "story": "Успешный человек в своём саду. Собака у ног, стены города за спиной.",
     "advice": "Вы строите нечто долговечное. Продолжайте.",
     "yes_weight": 1,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p10.webp"
   },
   {
     "id": "pentacles_P",
@@ -953,7 +1027,8 @@ export const ALL_CARDS = [
     "story": "Молодой паж изучает монету. Его путь только начинается.",
     "advice": "Начните учиться. Мастерство требует времени.",
     "yes_weight": 1,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p11.webp"
   },
   {
     "id": "pentacles_Kn",
@@ -966,7 +1041,8 @@ export const ALL_CARDS = [
     "story": "Рыцарь медленно движется с монетой. Методичность — его добродетель.",
     "advice": "Медленно, но верно — это тоже стратегия.",
     "yes_weight": 1,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p12.webp"
   },
   {
     "id": "pentacles_Q",
@@ -979,7 +1055,8 @@ export const ALL_CARDS = [
     "story": "Королева в саду, окружённая природой. Её изобилие естественно.",
     "advice": "Создайте уют. Вы заслуживаете красоты вокруг.",
     "yes_weight": 1,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p13.webp"
   },
   {
     "id": "pentacles_K",
@@ -992,19 +1069,20 @@ export const ALL_CARDS = [
     "story": "Король в пышном саду. Быки на его троне — символ силы и стабильности.",
     "advice": "Думайте о долгосрочном. Строите ли вы наследие?",
     "yes_weight": 1,
-    "suit": "pentacles"
+    "suit": "pentacles",
+    "img": "./assets/cards/p14.webp"
   }
 ];
 
 export const SPREADS = [
   {
-    "name": "🌅 Карта дня",
-    "desc": "Одна карта — послание на сегодня",
+    "name": "🌗 Карта дня и ночи",
+    "desc": "Днём (06:00–21:00) — карта дня, ночью (21:00–06:00) — карта этой ночи",
     "positions": [
-      "Послание этого дня"
+      "Послание этого периода"
     ],
     "category": "quick",
-    "intro": "Сделайте три глубоких вдоха. Задумайтесь о наступающем дне и возьмите карту...",
+    "intro": "Сделайте три глубоких вдоха. Примите послание карт на ваш текущий день или ночь...",
     "key": "card_of_day"
   },
   {

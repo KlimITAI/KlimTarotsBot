@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="stylesheet" href="./css/styles.css?v=8" />
 </head>
 <body>
   <!-- Animated Cosmic Starfield & Nebula Canvas -->
@@ -31,6 +31,11 @@
          Celestial Gold & Constellations (A) + Electric Neon Aura (B)
          ══════════════════════════════════════════════════════════ -->
     <section id="view-hero" class="view active" aria-label="Главный экран">
+      <!-- Atmospheric Looping Welcome Animation on Entry -->
+      <video class="hero-bg-video" autoplay loop muted playsinline preload="auto" poster="./assets/brand-hero.jpg" aria-hidden="true">
+        <source src="./assets/welcome.mp4" type="video/mp4" />
+      </video>
+      <div class="hero-video-veil" aria-hidden="true"></div>
       <div class="hero-container">
         <!-- Style A: Celestial Moon Phases Header -->
         <div class="moon-phases" aria-hidden="true">
@@ -183,7 +188,7 @@
           <!-- Quick Shortcuts right from Hero -->
           <div class="hero-quick-row">
             <button class="hero-chip" data-action="card-of-day">
-              <span class="chip-dot dot-gold"></span>Карта дня
+              <span class="chip-dot dot-gold"></span>Карта дня и ночи
             </button>
             <button class="hero-chip" data-action="oracle">
               <span class="chip-dot dot-cyan"></span>Да / Нет
@@ -212,7 +217,13 @@
           <span class="brand-name" id="topbar-title">KLIM TAROT</span>
         </div>
         <div class="top-bar-actions">
-          <button class="icon-btn" id="btn-sound-toggle" aria-label="Звук" title="Вкл/выкл озвучку">
+          <button class="icon-btn" id="btn-next-track" aria-label="Следующий трек" title="Переключить трек">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M5 5l9 7-9 7V5z" stroke-linejoin="round"/>
+              <path d="M19 5v14" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <button class="icon-btn" id="btn-sound-toggle" aria-label="Звук" title="Вкл/выкл звук">
             <svg id="icon-sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <path d="M11 5L6 9H2v6h4l5 4V5z" stroke-linejoin="round"/>
               <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" stroke-linecap="round"/>
@@ -236,17 +247,22 @@
 
         <!-- ── VIEW 1: MODERN HOME BENTO DASHBOARD ── -->
         <section id="view-home" class="subview">
-          <!-- Brand Atmospheric Banner -->
+          <!-- Brand Atmospheric Banner (Animated Video replacing static image) -->
           <div class="modern-hero-banner" id="banner-daily-card">
-            <img src="./assets/brand-hero.jpg" alt="" class="banner-bg-img" />
+            <video class="banner-bg-img" autoplay loop muted playsinline preload="auto" poster="./assets/brand-hero.jpg" aria-hidden="true">
+              <source src="./assets/welcome.mp4" type="video/mp4" />
+            </video>
             <div class="banner-overlay"></div>
             <div class="banner-content">
-              <div class="banner-badge" id="daily-status-badge">ПОСЛАНИЕ НА СЕГОДНЯ</div>
-              <h2 class="banner-title" id="daily-banner-title">Карта дня</h2>
-              <p class="banner-desc" id="daily-banner-desc">Откройте аркан, который задаёт энергию вашего дня</p>
-              <div class="banner-cta">
-                <span id="daily-banner-cta">Открыть карту</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div class="banner-badge" id="daily-status-badge">🌗 КАРТА ДНЯ И НОЧИ</div>
+              <h2 class="banner-title" id="daily-banner-title">Карта дня и ночи</h2>
+              <p class="banner-desc" id="daily-banner-desc">Днём — послание дня, ночью — карта этой ночи (по вашему времени)</p>
+              <div class="banner-bottom-row">
+                <div class="banner-cta">
+                  <span id="daily-banner-cta">Открыть карту дня</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div class="daily-timer-pill hidden" id="daily-timer-pill"></div>
               </div>
             </div>
           </div>
@@ -294,6 +310,31 @@
                 </div>
               </div>
               <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+
+            <button class="bento-card bento-accent-rose" data-nav="compat">
+              <div class="bento-icon icon-rose">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M12 21s-6.5-4.35-9-8.5C1.2 9.5 2.5 5.5 6 4.7c2-.5 4 .5 6 2.6 2-2.1 4-3.1 6-2.6 3.5.8 4.8 4.8 3 7.8-2.5 4.15-9 8.5-9 8.5z" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="bento-meta">
+                <span class="bento-title">Совместимость</span>
+                <span class="bento-sub">По знакам зодиака</span>
+              </div>
+            </button>
+
+            <button class="bento-card bento-accent-psych" data-nav="psychology">
+              <div class="bento-icon icon-psych">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M12 3c-3.2 0-5.8 2.4-6 5.5-.1 1.6.5 3.1 1.5 4.2.9 1 1.5 2.2 1.5 3.6V17h6v-.7c0-1.4.6-2.6 1.5-3.6 1-1.1 1.6-2.6 1.5-4.2-.2-3.1-2.8-5.5-6-5.5z" stroke-linejoin="round"/>
+                  <path d="M9.5 20h5M10 17v1.5M14 17v1.5" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div class="bento-meta">
+                <span class="bento-title">Психология</span>
+                <span class="bento-sub">Антистресс и гид</span>
+              </div>
             </button>
 
             <button class="bento-card" data-nav="dictionary">
@@ -467,6 +508,64 @@
           <div class="history-list" id="history-list"></div>
         </section>
 
+        <!-- ── VIEW 9: PSYCHOLOGY & TAROT GUIDE ── -->
+        <section id="view-psychology" class="subview">
+          <div class="view-intro">
+            <h2>Психология и Таро</h2>
+            <p>Простые практики от стресса, ясные решения и понимание карт без лишней мистики</p>
+          </div>
+
+          <!-- Compact Interactive Anti-Stress Breathing Card -->
+          <div class="psych-breath-card" id="breath-widget">
+            <div class="breath-left">
+              <div class="breath-ring" id="breath-ring">
+                <span id="breath-counter">4–4–4</span>
+              </div>
+              <div class="breath-meta">
+                <div class="breath-title" id="breath-phase-title">Пауза от стресса · 1 мин</div>
+                <div class="breath-sub" id="breath-phase-sub">Спокойное дыхание перед раскладом или после смены</div>
+              </div>
+            </div>
+            <button class="breath-toggle-btn" id="btn-breath-toggle">Начать</button>
+          </div>
+
+          <div class="pill-tabs" id="psych-cat-tabs"></div>
+          <div class="psych-guides-list" id="psych-guides-list"></div>
+        </section>
+
+        <!-- ── VIEW 10: ZODIAC COMPATIBILITY ── -->
+        <section id="view-compat" class="subview">
+          <div class="view-intro">
+            <h2>Совместимость знаков</h2>
+            <p>Выберите свой знак и знак партнёра — сравним стихии, % союза и карту-талисман</p>
+          </div>
+
+          <div class="compat-picker-block">
+            <div class="compat-picker-head">
+              <span class="field-label" style="margin:0;">Ваш знак зодиака</span>
+              <span class="compat-selected-tag" id="compat-label-a">♈ Овен</span>
+            </div>
+            <div class="zodiac-grid" id="zodiac-grid-a"></div>
+          </div>
+
+          <div class="compat-picker-block">
+            <div class="compat-picker-head">
+              <span class="field-label" style="margin:0;">Знак партнёра</span>
+              <span class="compat-selected-tag" id="compat-label-b">♌ Лев</span>
+            </div>
+            <div class="zodiac-grid" id="zodiac-grid-b"></div>
+          </div>
+
+          <button class="btn-fusion-primary" id="btn-calc-compat" style="width:100%;margin:4px 0 18px;">
+            <span>Узнать совместимость</span>
+            <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+          <div id="compat-result-card" class="compat-result-card hidden"></div>
+        </section>
+
       </main>
 
       <!-- Ultra-Modern Floating Bottom Navigation Dock -->
@@ -491,6 +590,13 @@
           </svg>
           <span>Оракул</span>
         </button>
+        <button class="dock-item" data-tab="psychology">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M12 3c-3.2 0-5.8 2.4-6 5.5-.1 1.6.5 3.1 1.5 4.2.9 1 1.5 2.2 1.5 3.6V17h6v-.7c0-1.4.6-2.6 1.5-3.6 1-1.1 1.6-2.6 1.5-4.2-.2-3.1-2.8-5.5-6-5.5z" stroke-linejoin="round"/>
+            <path d="M9.5 20h5" stroke-linecap="round"/>
+          </svg>
+          <span>Гид</span>
+        </button>
         <button class="dock-item" data-tab="dictionary">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15z" stroke-linejoin="round"/>
@@ -514,6 +620,6 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast hidden"></div>
 
-  <script type="module" src="./js/app.js"></script>
+  <script type="module" src="./js/app.js?v=8"></script>
 </body>
 </html>

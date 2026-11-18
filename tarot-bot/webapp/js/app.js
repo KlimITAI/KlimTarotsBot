@@ -1,4 +1,16 @@
-import { ALL_CARDS, MAJOR_IDS, SPREADS, CATEGORIES, POSITION_LEADS } from './tarot-data.js';
+import { ALL_CARDS, MAJOR_IDS, SPREADS, CATEGORIES, POSITION_LEADS } from './tarot-data.js?v=8';
+import { PSYCH_CATEGORIES, PSYCH_GUIDES } from './psychology-data.js?v=8';
+import { ZODIAC_SIGNS, ELEMENT_LABELS, calculateCompatibility } from './zodiac-data.js?v=8';
+
+const _preloadedImgs = new Set();
+function preloadCardImage(card) {
+  if (!card?.img || _preloadedImgs.has(card.img)) return null;
+  _preloadedImgs.add(card.img);
+  const im = new Image();
+  im.decoding = 'async';
+  im.src = card.img;
+  return im;
+}
 
 /* ════════════════════════════════════════════════════════════════
    1. TELEGRAM WEBAPP BRIDGE
@@ -35,6 +47,15 @@ class SoundEngine {
   constructor() {
     this.enabled = localStorage.getItem('klim_tarot_sound') !== 'off';
     this.ctx = null;
+    this.bgm = null;
+    this.bgmStarted = false;
+    this.bgmTargetVol = 0.16; // Мягкая, тихая фоновая музыка на всё время работы приложения
+    this._fadeTimer = null;
+    this.playlist = [
+      { src: './assets/ambient-1.mp3', name: 'Атмосфера I' },
+      { src: './assets/ambient-2.mp3', name: 'Атмосфера II' },
+    ];
+    this.trackIndex = 0;
   }
 
   _ensureCtx() {
@@ -50,10 +71,92 @@ class SoundEngine {
     return this.ctx;
   }
 
+  _ensureBgm() {
+    if (!this.bgm) {
+      this.bgm = new Audio(this.playlist[this.trackIndex].src);
+      this.bgm.loop = false;
+      this.bgm.preload = 'auto';
+      this.bgm.volume = 0;
+
+      // Плавный автоматический переход к следующему треку по кругу
+      this.bgm.addEventListener('ended', () => {
+        if (!this.enabled) return;
+        this.trackIndex = (this.trackIndex + 1) % this.playlist.length;
+        this._playCurrentTrack(true);
+      });
+    }
+    return this.bgm;
+  }
+
+  _playCurrentTrack(fadeIn = true) {
+    const audio = this._ensureBgm();
+    const track = this.playlist[this.trackIndex];
+    if (!audio.src.endsWith(track.src.replace('./', ''))) {
+      audio.src = track.src;
+      audio.load();
+    }
+    if (fadeIn) audio.volume = 0;
+    return audio.play().then(() => {
+      this.bgmStarted = true;
+      this._fadeBgmTo(this.bgmTargetVol, fadeIn ? 1400 : 400, false);
+    }).catch(() => {});
+  }
+
+  _fadeBgmTo(targetVol, durationMs = 1100, pauseAtZero = false) {
+    const audio = this.bgm;
+    if (!audio) return;
+    if (this._fadeTimer) clearInterval(this._fadeTimer);
+
+    const steps = 22;
+    const stepMs = Math.max(20, Math.floor(durationMs / steps));
+    const startVol = audio.volume;
+    let step = 0;
+
+    this._fadeTimer = setInterval(() => {
+      step += 1;
+      const t = Math.min(1, step / steps);
+      audio.volume = Math.max(0, Math.min(1, startVol + (targetVol - startVol) * t));
+      if (t >= 1) {
+        clearInterval(this._fadeTimer);
+        this._fadeTimer = null;
+        if (pauseAtZero && targetVol <= 0.001) {
+          audio.pause();
+        }
+      }
+    }, stepMs);
+  }
+
+  // Запуск непрерывной фоновой музыки сразу при входе (или при первом касании экрана)
+  startAmbience() {
+    if (!this.enabled) return;
+    const audio = this._ensureBgm();
+    if (!audio.paused && this.bgmStarted) return;
+    this._playCurrentTrack(true);
+  }
+
+  // Ручное переключение между двумя треками
+  nextTrack() {
+    this.trackIndex = (this.trackIndex + 1) % this.playlist.length;
+    if (!this.enabled) {
+      this.enabled = true;
+      localStorage.setItem('klim_tarot_sound', 'on');
+    }
+    const audio = this._ensureBgm();
+    audio.pause();
+    audio.currentTime = 0;
+    this._playCurrentTrack(true);
+    return { index: this.trackIndex + 1, total: this.playlist.length, name: this.playlist[this.trackIndex].name };
+  }
+
   toggle() {
     this.enabled = !this.enabled;
     localStorage.setItem('klim_tarot_sound', this.enabled ? 'on' : 'off');
-    if (this.enabled) this.playTap();
+    if (this.enabled) {
+      this.playTap();
+      this._playCurrentTrack(true);
+    } else if (this.bgm && !this.bgm.paused) {
+      this._fadeBgmTo(0, 350, true);
+    }
     return this.enabled;
   }
 
@@ -320,18 +423,79 @@ function buildSynthesis(spreadName, positions, drawn) {
   return { intro, arc, keyAdvice };
 }
 
-function getTodayKey() {
-  const d = new Date();
+/* ── МЕСТНОЕ ВРЕМЯ ПОЛЬЗОВАТЕЛЯ: КАРТА ДНЯ И НОЧИ + КУЛДАУНЫ ── */
+
+const COOLDOWNS_MS = {
+  spread: 15 * 60 * 1000, // 15 минут между раскладами
+  oracle: 5 * 60 * 1000,  // 5 минут между вопросами Да/Нет
+  friend: 10 * 60 * 1000, // 10 минут между гаданиями для друга
+};
+
+const COOLDOWN_LABELS = {
+  spread: 'Новый расклад',
+  oracle: 'Новый вопрос Оракулу',
+  friend: 'Новое гадание для друга',
+};
+
+function formatLocalDate(d) {
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+}
+
+function formatLocalKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function getUserDayNightPeriod() {
+  const now = new Date(); // Точное местное время устройства пользователя
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const s = now.getSeconds();
+  const isDay = h >= 6 && h < 21;
+
+  // Ночь с 21:00 до 06:00 по местному времени — единый период (не сбрасывается в 00:00)
+  const anchor = new Date(now.getTime());
+  if (h < 6) {
+    anchor.setDate(anchor.getDate() - 1);
+  }
+  const periodKey = `${formatLocalKey(anchor)}-${isDay ? 'day' : 'night'}`;
+
+  const curSecs = h * 3600 + m * 60 + s;
+  const targetSecs = isDay ? 21 * 3600 : (h >= 21 ? 30 * 3600 : 6 * 3600);
+  const diffSecs = Math.max(1, targetSecs - curSecs);
+  const remH = Math.floor(diffSecs / 3600);
+  const remM = Math.floor((diffSecs % 3600) / 60);
+  const remS = diffSecs % 60;
+  const remClock = `${String(remH).padStart(2, '0')}:${String(remM).padStart(2, '0')}:${String(remS).padStart(2, '0')}`;
+  const remText = remH > 0 ? `${remH} ч ${remM} мин` : `${remM} мин`;
+
+  return {
+    isDay,
+    mode: isDay ? 'day' : 'night',
+    periodKey,
+    dateStr: formatLocalDate(now),
+    timeStr: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+    remClock,
+    nextIcon: isDay ? '🌙' : '🌅',
+    nextShortLabel: isDay ? 'Ночная' : 'Дневная',
+    title: isDay ? '🌅 Карта дня' : '🌙 Карта этой ночи',
+    badge: isDay ? 'КАРТА ДНЯ' : 'КАРТА ЭТОЙ НОЧИ',
+    position: isDay ? 'Послание этого дня' : 'Послание этой ночи',
+    promptDesc: isDay
+      ? 'Дневной аркан (06:00–21:00) — энергия и фокус вашего дня'
+      : 'Ночной аркан (21:00–06:00) — подсказка интуиции и снов на эту ночь',
+    nextNote: isDay
+      ? `Карта этой ночи откроется в 21:00 (через ${remText})`
+      : `Карта дня откроется в 06:00 (через ${remText})`,
+  };
+}
+
 function getDailyCard() {
-  const today = getTodayKey();
+  const period = getUserDayNightPeriod();
   try {
-    const saved = JSON.parse(localStorage.getItem('klim_tarot_daily') || 'null');
-    if (saved && saved.date === today) {
+    const saved = JSON.parse(localStorage.getItem('klim_tarot_daily_local') || 'null');
+    if (saved && saved.periodKey === period.periodKey) {
       const card = ALL_CARDS.find((c) => c.id === saved.cardId);
-      if (card) return { card, reversed: saved.reversed, opened: true };
+      if (card) return { card, reversed: saved.reversed, opened: true, period };
     }
   } catch (_) {}
   return null;
@@ -340,12 +504,100 @@ function getDailyCard() {
 function drawAndSaveDailyCard() {
   const existing = getDailyCard();
   if (existing) return existing;
+  const period = getUserDayNightPeriod();
   const [{ card, reversed }] = drawRandomCards(1);
   localStorage.setItem(
-    'klim_tarot_daily',
-    JSON.stringify({ date: getTodayKey(), cardId: card.id, reversed })
+    'klim_tarot_daily_local',
+    JSON.stringify({ periodKey: period.periodKey, cardId: card.id, reversed })
   );
-  return { card, reversed, opened: false };
+  return { card, reversed, opened: false, period };
+}
+
+function getCooldownRemaining(kind) {
+  const limit = COOLDOWNS_MS[kind] || 0;
+  if (!limit) return 0;
+  try {
+    const map = JSON.parse(localStorage.getItem('klim_tarot_cooldowns') || '{}');
+    const lastTs = Number(map[kind] || 0);
+    if (!lastTs) return 0;
+    const rem = limit - (Date.now() - lastTs);
+    return rem > 0 ? rem : 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
+function markCooldown(kind) {
+  try {
+    const map = JSON.parse(localStorage.getItem('klim_tarot_cooldowns') || '{}');
+    map[kind] = Date.now();
+    localStorage.setItem('klim_tarot_cooldowns', JSON.stringify(map));
+  } catch (_) {}
+}
+
+function formatDurationMs(ms) {
+  const totalSec = Math.ceil(ms / 1000);
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  if (mins > 0) return `${mins} мин ${String(secs).padStart(2, '0')} сек`;
+  return `${secs} сек`;
+}
+
+function showCooldownModal(kind, remainingMs) {
+  haptic('warning');
+  const label = COOLDOWN_LABELS[kind] || 'Новое гадание';
+  const period = getUserDayNightPeriod();
+  const body = document.getElementById('modal-body');
+  body.innerHTML = `
+    <div style="text-align:center;padding:8px 0 6px;">
+      <div style="font-size:44px;line-height:1;margin-bottom:10px;">⏳</div>
+      <h2 style="margin:0 0 8px;font-family:var(--font-display);font-size:28px;">Колода отдыхает</h2>
+      <p style="margin:0 0 14px;font-size:14px;color:var(--text-muted);">
+        Чтобы ответы Таро оставались точными, между гаданиями нужен небольшой перерыв.
+      </p>
+      <div class="synthesis-key" style="margin-bottom:14px;">
+        ${escapeHtml(label)} откроется через <strong id="cooldown-live-timer">${formatDurationMs(remainingMs)}</strong>
+      </div>
+      <p style="margin:0 0 16px;font-size:12.5px;color:var(--text-faint);">
+        Сейчас ${escapeHtml(period.timeStr)} · ${escapeHtml(period.nextNote)}
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="btn-glass-secondary" id="cd-open-history">📜 Моя история</button>
+        <button class="btn-glass-secondary" id="cd-open-dict">📖 Словарь карт</button>
+      </div>
+    </div>
+  `;
+  const modal = document.getElementById('card-modal');
+  modal.classList.remove('hidden');
+
+  document.getElementById('cd-open-history').addEventListener('click', () => {
+    modal.classList.add('hidden');
+    navigateTo('history');
+  });
+  document.getElementById('cd-open-dict').addEventListener('click', () => {
+    modal.classList.add('hidden');
+    navigateTo('dictionary');
+  });
+
+  clearInterval(modal._cdTimer);
+  modal._cdTimer = setInterval(() => {
+    if (modal.classList.contains('hidden')) {
+      clearInterval(modal._cdTimer);
+      return;
+    }
+    const rem = getCooldownRemaining(kind);
+    const timerEl = document.getElementById('cooldown-live-timer');
+    if (!timerEl) {
+      clearInterval(modal._cdTimer);
+      return;
+    }
+    if (rem <= 0) {
+      clearInterval(modal._cdTimer);
+      timerEl.textContent = 'уже доступно ✨';
+    } else {
+      timerEl.textContent = formatDurationMs(rem);
+    }
+  }, 1000);
 }
 
 function loadHistory() {
@@ -376,6 +628,9 @@ const state = {
   historyStack: [],
   activeCategory: 'all',
   activeSuit: 'all',
+  activePsychCat: 'all',
+  compatSignA: 'aries',
+  compatSignB: 'leo',
   dictQuery: '',
   drawSession: null, // { spread, friendName, question, needed, pool, picked: [] }
   lastReading: null,
@@ -394,6 +649,8 @@ const VIEW_TITLES = {
   result: 'Толкование',
   oracle: 'Да или Нет',
   friend: 'Для друга',
+  psychology: 'Психология и Таро',
+  compat: 'Совместимость',
   dictionary: 'Словарь карт',
   history: 'История',
 };
@@ -409,6 +666,7 @@ function showToast(msg) {
 function navigateTo(viewName, { push = true } = {}) {
   sound.playTap();
   haptic('light');
+  sound.startAmbience();
 
   if (viewName === 'hero') {
     viewHero.classList.remove('hidden');
@@ -435,19 +693,21 @@ function navigateTo(viewName, { push = true } = {}) {
   topbarTitle.textContent = VIEW_TITLES[viewName] || 'KLIM TAROT';
 
   // Update dock active state
-  const dockTab = ['home', 'spreads', 'oracle', 'dictionary'].includes(viewName) ? viewName : null;
+  const dockTabs = ['home', 'spreads', 'oracle', 'psychology', 'dictionary'];
+  const dockTab = dockTabs.includes(viewName) ? viewName : null;
   document.querySelectorAll('.dock-item').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.tab === dockTab);
   });
 
   // Back button visibility
-  const showBack = !['home', 'spreads', 'oracle', 'dictionary'].includes(viewName);
+  const showBack = !dockTabs.includes(viewName);
   btnBack.classList.toggle('hidden', !showBack);
   if (tg?.BackButton) {
     if (showBack) tg.BackButton.show();
     else tg.BackButton.hide();
   }
 
+  if (viewName !== 'psychology') stopBreathing();
   if (viewName === 'home') refreshHomeBanner();
   if (viewName === 'history') renderHistory();
   if (viewName === 'oracle') resetOracleStage();
@@ -469,22 +729,47 @@ if (tg?.BackButton) {
    ════════════════════════════════════════════════════════════════ */
 
 function refreshHomeBanner() {
+  const period = getUserDayNightPeriod();
   const daily = getDailyCard();
   const badge = document.getElementById('daily-status-badge');
   const title = document.getElementById('daily-banner-title');
   const desc = document.getElementById('daily-banner-desc');
   const cta = document.getElementById('daily-banner-cta');
+  const timerPill = document.getElementById('daily-timer-pill');
+  const heroChip = document.querySelector('.hero-chip[data-action="card-of-day"]');
 
   if (daily) {
-    badge.textContent = 'ВАША КАРТА НА СЕГОДНЯ';
+    badge.textContent = `${period.badge} · ОТКРЫТА`;
     title.textContent = `${daily.card.emoji} ${daily.card.name}`;
-    desc.textContent = daily.reversed ? daily.card.reversed : daily.card.upright;
-    cta.textContent = 'Читать полное послание';
+    desc.textContent = `${period.nextNote}`;
+    cta.textContent = 'Читать послание';
+    if (timerPill) {
+      timerPill.textContent = `${period.nextIcon} ${period.remClock}`;
+      timerPill.classList.remove('hidden');
+    }
+    if (heroChip) {
+      heroChip.innerHTML = `<span class="chip-dot dot-gold"></span>Карта дня и ночи <span class="hero-chip-timer">${period.remClock}</span>`;
+    }
   } else {
-    badge.textContent = 'ПОСЛАНИЕ НА СЕГОДНЯ';
-    title.textContent = 'Карта дня';
-    desc.textContent = 'Откройте аркан, который задаёт энергию вашего дня';
-    cta.textContent = 'Открыть карту';
+    badge.textContent = `🌗 КАРТА ДНЯ И НОЧИ · ${period.timeStr}`;
+    title.textContent = period.title;
+    desc.textContent = period.promptDesc;
+    cta.textContent = period.isDay ? 'Открыть карту дня' : 'Открыть карту ночи';
+    if (timerPill) {
+      timerPill.textContent = `${period.nextIcon} до ${period.isDay ? '21:00' : '06:00'} · ${period.remClock}`;
+      timerPill.classList.remove('hidden');
+    }
+    if (heroChip) {
+      heroChip.innerHTML = `<span class="chip-dot dot-gold"></span>Карта дня и ночи`;
+    }
+  }
+
+  // Обновляем маленькие цифры таймера в списке раскладов, если он открыт
+  const spreadRowTimer = document.getElementById('spread-daily-timer');
+  if (spreadRowTimer) {
+    spreadRowTimer.textContent = daily
+      ? `${period.nextIcon} ${period.remClock}`
+      : '1 к.';
   }
 }
 
@@ -554,12 +839,16 @@ function renderSpreadsList() {
   list.forEach((spread) => {
     const btn = document.createElement('button');
     btn.className = 'spread-row';
+    const isDaily = spread.key === 'card_of_day';
+    const daily = isDaily ? getDailyCard() : null;
+    const period = isDaily ? getUserDayNightPeriod() : null;
+    const pillText = isDaily && daily ? `${period.nextIcon} ${period.remClock}` : `${spread.positions.length} к.`;
     btn.innerHTML = `
       <div class="spread-row-main">
         <span class="spread-row-title">${spread.name}</span>
         <span class="spread-row-desc">${spread.desc}</span>
       </div>
-      <span class="spread-count-pill">${spread.positions.length} к.</span>
+      <span class="spread-count-pill" ${isDaily ? 'id="spread-daily-timer"' : ''}>${pillText}</span>
     `;
     btn.addEventListener('click', () => startDrawSession(spread));
     container.appendChild(btn);
@@ -597,7 +886,7 @@ function renderFriendSpreads() {
 /* ── INTERACTIVE DRAW TABLE ──────────────────────────────────── */
 
 function startDrawSession(spread, { friendName = null } = {}) {
-  // Card of the day is locked once per day
+  // Карта дня и ночи фиксируется на текущий дневной или ночной период по времени пользователя
   if (spread.key === 'card_of_day' && !friendName) {
     openDailyCardReading();
     return;
@@ -626,6 +915,48 @@ function startDrawSession(spread, { friendName = null } = {}) {
   navigateTo('draw');
 }
 
+const TAROT_BACK_SVG = `
+<svg viewBox="0 0 100 164" aria-hidden="true">
+  <rect x="4" y="4" width="92" height="156" rx="8" fill="none" stroke="#f5c969" stroke-width="1.2" opacity="0.9"/>
+  <rect x="9" y="9" width="82" height="146" rx="5" fill="none" stroke="#e040fb" stroke-width="0.7" stroke-dasharray="2.5 2" opacity="0.65"/>
+  <circle cx="50" cy="82" r="21" fill="none" stroke="#f5c969" stroke-width="1.1" opacity="0.88"/>
+  <circle cx="50" cy="82" r="14" fill="none" stroke="#22d3ee" stroke-width="0.7" stroke-dasharray="2 2" opacity="0.7"/>
+  <path d="M50 64 L53.5 78.5 L68 82 L53.5 85.5 L50 100 L46.5 85.5 L32 82 L46.5 78.5 Z" fill="#fde68a" opacity="0.92"/>
+  <path d="M50 22 L52 32 L50 36 L48 32 Z M50 142 L52 132 L50 128 L48 132 Z" fill="#f5c969" opacity="0.8"/>
+  <circle cx="20" cy="24" r="1.6" fill="#22d3ee"/>
+  <circle cx="80" cy="24" r="1.6" fill="#e040fb"/>
+  <circle cx="20" cy="140" r="1.6" fill="#e040fb"/>
+  <circle cx="80" cy="140" r="1.6" fill="#22d3ee"/>
+</svg>`;
+
+function attach3DTilt(el, maxDeg = 14) {
+  if (!el) return;
+  const update = (clientX, clientY) => {
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const px = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const py = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+    const rx = (0.5 - py) * maxDeg * 2;
+    const ry = (px - 0.5) * maxDeg * 2;
+    el.style.setProperty('--rx', `${rx.toFixed(1)}deg`);
+    el.style.setProperty('--ry', `${ry.toFixed(1)}deg`);
+    el.style.setProperty('--gx', `${(px * 100).toFixed(1)}%`);
+    el.style.setProperty('--gy', `${(py * 100).toFixed(1)}%`);
+    el.style.setProperty('--glare-op', '0.78');
+  };
+  const reset = () => {
+    el.style.setProperty('--rx', '0deg');
+    el.style.setProperty('--ry', '0deg');
+    el.style.setProperty('--gx', '50%');
+    el.style.setProperty('--gy', '35%');
+    el.style.setProperty('--glare-op', '0.38');
+  };
+  el.addEventListener('pointermove', (e) => update(e.clientX, e.clientY));
+  el.addEventListener('pointerleave', reset);
+  el.addEventListener('pointerup', reset);
+  el.addEventListener('pointercancel', reset);
+}
+
 function renderDrawState() {
   const s = state.drawSession;
   if (!s) return;
@@ -647,15 +978,21 @@ function renderDrawState() {
     slotsEl.appendChild(slot);
   }
 
-  // Render pickable deck fan
+  // Render curved 3D Tarot fan with ornate gilded backs
   const deckEl = document.getElementById('deck-strip');
   if (deckEl.childElementCount === 0 || s.picked.length === 0) {
     deckEl.innerHTML = '';
+    const mid = (s.pool.length - 1) / 2;
     s.pool.forEach((item, idx) => {
+      const offset = (idx - mid) / Math.max(1, mid);
+      const rot = (offset * 10).toFixed(1);
+      const liftY = (Math.pow(offset, 2) * 16).toFixed(1);
       const cardBtn = document.createElement('button');
       cardBtn.className = 'pickable-card';
       cardBtn.dataset.idx = idx;
-      cardBtn.innerHTML = `<div class="pickable-card-inner"></div>`;
+      cardBtn.style.setProperty('--fan-rot', `${rot}deg`);
+      cardBtn.style.setProperty('--fan-y', `${liftY}px`);
+      cardBtn.innerHTML = `<div class="pickable-card-inner">${TAROT_BACK_SVG}</div>`;
       cardBtn.addEventListener('click', () => pickDeckCard(idx, cardBtn));
       deckEl.appendChild(cardBtn);
     });
@@ -668,7 +1005,9 @@ function pickDeckCard(idx, btnEl) {
   if (btnEl.classList.contains('picked')) return;
 
   btnEl.classList.add('picked');
-  s.picked.push(s.pool[idx]);
+  const chosen = s.pool[idx];
+  s.picked.push(chosen);
+  preloadCardImage(chosen.card);
   sound.playCardPick(s.picked.length - 1);
   haptic('light');
 
@@ -705,7 +1044,9 @@ function autoDrawRemaining() {
     const pickIdx = Math.floor(Math.random() * available.length);
     const el = available.splice(pickIdx, 1)[0];
     const poolIdx = Number(el.dataset.idx);
-    s.picked.push(s.pool[poolIdx]);
+    const chosen = s.pool[poolIdx];
+    s.picked.push(chosen);
+    preloadCardImage(chosen.card);
     const slotIndex = s.picked.length - 1;
     setTimeout(() => {
       el.classList.add('picked');
@@ -724,12 +1065,13 @@ function autoDrawRemaining() {
 
 function openDailyCardReading() {
   const daily = drawAndSaveDailyCard();
-  const spread = SPREADS.find((s) => s.key === 'card_of_day');
+  preloadCardImage(daily.card);
+  const period = daily.period;
   const reading = {
-    spreadKey: spread.key,
-    spreadName: spread.name,
-    spreadDesc: `Карта дня · ${new Date().toLocaleDateString('ru-RU')}`,
-    positions: spread.positions,
+    spreadKey: 'card_of_day',
+    spreadName: period.title,
+    spreadDesc: `${period.dateStr} (${period.timeStr}) · ${period.nextNote}`,
+    positions: [period.position],
     drawn: [{ card: daily.card, reversed: daily.reversed }],
     friendName: null,
     question: '',
@@ -792,8 +1134,12 @@ function renderReadingResult(reading) {
     ${reading.question ? `<div class="result-question-quote">«${escapeHtml(reading.question)}»</div>` : ''}
   `;
 
-  // 3D Flipped Cards Grid
+  // 3D Flipped Authentic Rider-Waite Tarot Cards Grid
   const grid = document.getElementById('revealed-cards-grid');
+  grid.classList.remove('single-card', 'two-cols');
+  if (reading.drawn.length === 1) grid.classList.add('single-card');
+  else if (reading.drawn.length === 2 || reading.drawn.length === 4) grid.classList.add('two-cols');
+
   grid.innerHTML = '';
   reading.drawn.forEach(({ card, reversed }, idx) => {
     const pos = reading.positions[idx] || `Карта ${idx + 1}`;
@@ -801,15 +1147,23 @@ function renderReadingResult(reading) {
     cardEl.className = 'tarot-flip-card';
     cardEl.innerHTML = `
       <div class="tarot-flip-inner">
-        <div class="tarot-face tarot-face-back">✦</div>
+        <div class="tarot-face tarot-face-back">${TAROT_BACK_SVG}</div>
         <div class="tarot-face tarot-face-front ${reversed ? 'reversed' : ''}">
-          <span class="card-pos-tag">${idx + 1}. ${escapeHtml(pos.split('(')[0].trim())}</span>
-          <div class="card-glyph-wrap ${reversed ? 'is-reversed' : ''}">${card.emoji}</div>
-          <div class="card-face-name">${escapeHtml(card.name)}</div>
-          <span class="card-orient-pill ${reversed ? 'rev' : ''}">${reversed ? 'Перевёрнутая' : 'Прямая'}</span>
+          <div class="tarot-art-frame">
+            <img src="${escapeHtml(card.img || '')}" alt="${escapeHtml(card.name)}" class="tarot-art-img ${reversed ? 'is-reversed' : ''}" loading="eager" />
+            <div class="tarot-foil-glare"></div>
+            <div class="tarot-top-chip">
+              <span class="card-pos-tag">${idx + 1}. ${escapeHtml(pos.split('(')[0].trim())}</span>
+              ${reversed ? '<span class="card-rev-dot">🔄</span>' : ''}
+            </div>
+            <div class="tarot-caption-bar">
+              <div class="card-face-name">${escapeHtml(card.name)}</div>
+            </div>
+          </div>
         </div>
       </div>
     `;
+    attach3DTilt(cardEl, 11);
     cardEl.addEventListener('click', () => openCardModal(card, reversed));
     grid.appendChild(cardEl);
 
@@ -897,7 +1251,6 @@ function resetOracleStage() {
 }
 
 function triggerOracle() {
-  const card3d = document.getElementById('oracle-card-3d');
   if (state.oracleFlipped) {
     resetOracleStage();
     sound.playShuffle();
@@ -907,10 +1260,19 @@ function triggerOracle() {
   revealOracleCard();
 }
 
-function revealOracleCard() {
+async function revealOracleCard() {
   const [{ card, reversed }] = drawRandomCards(1);
   let weight = card.yes_weight || 0;
   if (reversed) weight = -weight;
+
+  // Wait briefly for local WebP decode so the card never flips blank
+  const pre = preloadCardImage(card);
+  if (pre && pre.decode) {
+    await Promise.race([
+      pre.decode().catch(() => {}),
+      new Promise((r) => setTimeout(r, 180)),
+    ]);
+  }
 
   const verdict = weight > 0 ? 'ДА' : weight < 0 ? 'НЕТ' : 'ВОЗМОЖНО';
   const verdictClass = weight > 0 ? 'verdict-yes' : weight < 0 ? 'verdict-no' : 'verdict-maybe';
@@ -923,11 +1285,14 @@ function revealOracleCard() {
 
   const front = document.getElementById('oracle-front');
   front.innerHTML = `
-    <span class="oracle-verdict-badge ${verdictClass}">${verdict}</span>
-    <div class="card-glyph-wrap ${reversed ? 'is-reversed' : ''}" style="font-size:56px;">${card.emoji}</div>
-    <div>
-      <div class="card-face-name" style="font-size:21px;">${escapeHtml(card.name)}</div>
-      <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px;">${reversed ? '🔄 Перевёрнутая' : '⬆️ Прямая'}</div>
+    <div class="tarot-art-frame" style="border-radius:14px;">
+      <span class="oracle-verdict-badge ${verdictClass}">${verdict}</span>
+      <img src="${escapeHtml(card.img || '')}" alt="${escapeHtml(card.name)}" class="tarot-art-img ${reversed ? 'is-reversed' : ''}" />
+      <div class="tarot-foil-glare"></div>
+      <div class="tarot-caption-bar" style="padding:24px 10px 10px;">
+        <div class="card-face-name" style="font-size:21px;">${escapeHtml(card.name)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${reversed ? '🔄 Перевёрнутая' : '⬆️ Прямая'}</div>
+      </div>
     </div>
   `;
 
@@ -1012,12 +1377,10 @@ function renderDictGrid() {
     const btn = document.createElement('button');
     btn.className = 'dict-card';
     btn.innerHTML = `
-      <div class="dict-card-top">
-        <span class="dict-emoji">${card.emoji}</span>
-        <span class="dict-num">${escapeHtml(card.num)}</span>
+      <div class="dict-thumb-wrap">
+        <img src="${escapeHtml(card.img || '')}" alt="${escapeHtml(card.name)}" class="dict-thumb-img" loading="lazy" />
       </div>
       <div class="dict-name">${escapeHtml(card.name)}</div>
-      <div class="dict-preview">${escapeHtml(card.upright)}</div>
     `;
     btn.addEventListener('click', () => {
       sound.playTap();
@@ -1030,10 +1393,16 @@ function renderDictGrid() {
 function openCardModal(card, reversed = false) {
   const body = document.getElementById('modal-body');
   body.innerHTML = `
-    <div style="text-align:center;margin-bottom:16px;">
-      <div style="font-size:48px;line-height:1;margin-bottom:8px;${reversed ? 'transform:rotate(180deg);display:inline-block;' : ''}">${card.emoji}</div>
-      <h2 style="margin:0;font-family:var(--font-display);font-size:30px;">${escapeHtml(card.name)}</h2>
-      <div style="font-size:12.5px;color:var(--gold);margin-top:2px;">Аркан ${escapeHtml(card.num)}</div>
+    <div class="modal-card-stage">
+      <div class="modal-tarot-3d" id="modal-tarot-3d">
+        <div class="tarot-art-frame" style="border-radius:11px;">
+          <img src="${escapeHtml(card.img || '')}" alt="${escapeHtml(card.name)}" class="tarot-art-img ${reversed ? 'is-reversed' : ''}" />
+          <div class="tarot-foil-glare"></div>
+        </div>
+      </div>
+      <div class="modal-tilt-hint">Покрутите карту пальцем ✦ 3D-обзор</div>
+      <h2 style="margin:10px 0 2px;font-family:var(--font-display);font-size:28px;">${escapeHtml(card.name)}</h2>
+      <div style="font-size:12.5px;color:var(--gold);">Аркан ${escapeHtml(card.num)} ${reversed ? '· 🔄 Перевёрнутая' : '· ⬆️ Прямая'}</div>
     </div>
     <p class="interp-story">📖 ${escapeHtml(card.story)}</p>
     <div style="margin-bottom:12px;">
@@ -1046,6 +1415,7 @@ function openCardModal(card, reversed = false) {
     </div>
     <div class="synthesis-key">🎯 Совет: ${escapeHtml(card.advice)}</div>
   `;
+  attach3DTilt(document.getElementById('modal-tarot-3d'), 18);
   document.getElementById('card-modal').classList.remove('hidden');
 }
 
@@ -1159,8 +1529,16 @@ function bindEvents() {
   document.getElementById('btn-sound-toggle').addEventListener('click', () => {
     const on = sound.toggle();
     updateSoundIcon();
-    showToast(on ? '🔊 Озвучка включена' : '🔇 Озвучка выключена');
+    showToast(on ? '🔊 Музыка и звуки включены' : '🔇 Звук выключен');
   });
+  const nextBtn = document.getElementById('btn-next-track');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', () => {
+      const info = sound.nextTrack();
+      updateSoundIcon();
+      showToast(`🎵 ${info.name} (${info.index}/${info.total})`);
+    });
+  }
 
   // Home daily banner
   document.getElementById('banner-daily-card').addEventListener('click', openDailyCardReading);
@@ -1238,17 +1616,409 @@ function bindEvents() {
   modal.addEventListener('click', (e) => {
     if (e.target === modal) modal.classList.add('hidden');
   });
+
+  // Psychology anti-stress breathing toggle
+  const breathBtn = document.getElementById('btn-breath-toggle');
+  if (breathBtn) {
+    breathBtn.addEventListener('click', toggleBreathing);
+  }
+
+  // Zodiac compatibility calculate button
+  const compatBtn = document.getElementById('btn-calc-compat');
+  if (compatBtn) {
+    compatBtn.addEventListener('click', runCompatibilityCheck);
+  }
 }
+
+/* ── PSYCHOLOGY & TAROT GUIDE ────────────────────────────────── */
+
+let _breathTimer = null;
+let _breathTick = 0;
+
+function stopBreathing() {
+  if (_breathTimer) {
+    clearInterval(_breathTimer);
+    _breathTimer = null;
+  }
+  const ring = document.getElementById('breath-ring');
+  const counter = document.getElementById('breath-counter');
+  const title = document.getElementById('breath-phase-title');
+  const sub = document.getElementById('breath-phase-sub');
+  const btn = document.getElementById('btn-breath-toggle');
+  if (ring) ring.className = 'breath-ring';
+  if (counter) counter.textContent = '4–4–4';
+  if (title) title.textContent = 'Пауза от стресса · 1 мин';
+  if (sub) sub.textContent = 'Спокойное дыхание перед раскладом или после смены';
+  if (btn) {
+    btn.textContent = 'Начать';
+    btn.classList.remove('active');
+  }
+}
+
+function toggleBreathing() {
+  sound.playTap();
+  haptic('light');
+  if (_breathTimer) {
+    stopBreathing();
+    return;
+  }
+  const ring = document.getElementById('breath-ring');
+  const counter = document.getElementById('breath-counter');
+  const title = document.getElementById('breath-phase-title');
+  const sub = document.getElementById('breath-phase-sub');
+  const btn = document.getElementById('btn-breath-toggle');
+  if (!ring || !btn) return;
+
+  btn.textContent = 'Стоп';
+  btn.classList.add('active');
+  _breathTick = 0;
+
+  const phases = [
+    { cls: 'inhale', label: 'Спокойный вдох', hint: 'Плавно вдыхайте через нос' },
+    { cls: 'hold', label: 'Задержка', hint: 'Отпустите напряжение в плечах' },
+    { cls: 'exhale', label: 'Мягкий выдох', hint: 'Медленно выдыхайте всю усталость' },
+  ];
+
+  const step = () => {
+    const cycleSec = _breathTick % 12;
+    const phaseIdx = Math.floor(cycleSec / 4);
+    const secLeft = 4 - (cycleSec % 4);
+    const p = phases[phaseIdx];
+    ring.className = `breath-ring ${p.cls}`;
+    if (counter) counter.textContent = `${secLeft}с`;
+    if (title) title.textContent = p.label;
+    if (sub) sub.textContent = p.hint;
+    if (cycleSec % 4 === 0) haptic('light');
+    _breathTick += 1;
+    if (_breathTick >= 60) {
+      stopBreathing();
+      showToast('Отлично — 1 минута перезагрузки завершена 🌿');
+    }
+  };
+
+  step();
+  _breathTimer = setInterval(step, 1000);
+}
+
+function renderPsychTabs() {
+  const container = document.getElementById('psych-cat-tabs');
+  if (!container) return;
+  container.innerHTML = '';
+  PSYCH_CATEGORIES.forEach((cat) => {
+    const btn = document.createElement('button');
+    btn.className = `pill-tab ${state.activePsychCat === cat.key ? 'active' : ''}`;
+    btn.textContent = cat.name;
+    btn.addEventListener('click', () => {
+      sound.playTap();
+      state.activePsychCat = cat.key;
+      renderPsychTabs();
+      renderPsychGuides();
+    });
+    container.appendChild(btn);
+  });
+}
+
+function renderPsychGuides() {
+  const container = document.getElementById('psych-guides-list');
+  if (!container) return;
+  const list =
+    state.activePsychCat === 'all'
+      ? PSYCH_GUIDES
+      : PSYCH_GUIDES.filter((g) => g.cat === state.activePsychCat);
+
+  container.innerHTML = '';
+  list.forEach((guide) => {
+    const btn = document.createElement('button');
+    btn.className = 'psych-guide-card';
+    btn.innerHTML = `
+      <div class="psych-guide-top">
+        <span class="psych-guide-badge">${escapeHtml(guide.icon)} ${escapeHtml(guide.badge)}</span>
+        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="psych-guide-title">${escapeHtml(guide.title)}</div>
+      <div class="psych-guide-sub">${escapeHtml(guide.subtitle)}</div>
+    `;
+    btn.addEventListener('click', () => {
+      sound.playTap();
+      haptic('light');
+      openPsychGuideModal(guide);
+    });
+    container.appendChild(btn);
+  });
+}
+
+function openPsychGuideModal(guide) {
+  const body = document.getElementById('modal-body');
+  const cards = (guide.relatedCards || [])
+    .map((id) => ALL_CARDS.find((c) => c.id === id))
+    .filter(Boolean);
+  const spread = SPREADS.find((s) => s.key === guide.recommendedSpread);
+
+  body.innerHTML = `
+    <div style="margin-bottom:10px;">
+      <span class="psych-guide-badge">${escapeHtml(guide.icon)} ${escapeHtml(guide.badge)}</span>
+    </div>
+    <h2 style="margin:0 0 8px;font-family:var(--font-display);font-size:27px;line-height:1.15;">${escapeHtml(guide.title)}</h2>
+    <p style="margin:0 0 12px;font-size:13.5px;line-height:1.55;color:var(--text-muted);">${escapeHtml(guide.summary)}</p>
+
+    <div class="field-label">Что сделать на практике</div>
+    <div class="psych-step-list">
+      ${guide.steps
+        .map(
+          (st, i) => `
+        <div class="psych-step-item">
+          <span class="psych-step-num">${i + 1}</span>
+          <span>${escapeHtml(st)}</span>
+        </div>`
+        )
+        .join('')}
+    </div>
+
+    ${
+      cards.length
+        ? `
+      <div class="field-label">Ключевые арканы по теме (нажмите для разбора)</div>
+      <div class="psych-card-chips" id="psych-modal-cards">
+        ${cards
+          .map(
+            (c) => `<button class="psych-card-chip" data-card-id="${escapeHtml(c.id)}">${escapeHtml(c.emoji)} ${escapeHtml(c.name)}</button>`
+          )
+          .join('')}
+      </div>`
+        : ''
+    }
+
+    ${
+      spread
+        ? `<button class="btn-fusion-primary" id="btn-psych-launch-spread" style="width:100%;margin-top:4px;">${escapeHtml(guide.spreadBtnLabel || `Расклад «${spread.name}»`)}</button>`
+        : ''
+    }
+  `;
+
+  body.querySelectorAll('[data-card-id]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const card = ALL_CARDS.find((c) => c.id === chip.dataset.cardId);
+      if (card) {
+        sound.playTap();
+        openCardModal(card, false);
+      }
+    });
+  });
+
+  const spreadBtn = document.getElementById('btn-psych-launch-spread');
+  if (spreadBtn && spread) {
+    spreadBtn.addEventListener('click', () => {
+      document.getElementById('card-modal').classList.add('hidden');
+      startDrawSession(spread);
+    });
+  }
+
+  document.getElementById('card-modal').classList.remove('hidden');
+}
+
+/* ── ZODIAC COMPATIBILITY ────────────────────────────────────── */
+
+function renderZodiacPickers() {
+  const renderGrid = (containerId, selectedId, onSelect) => {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = '';
+    ZODIAC_SIGNS.forEach((sign) => {
+      const btn = document.createElement('button');
+      btn.className = `zodiac-pill ${selectedId === sign.id ? 'selected' : ''}`;
+      btn.innerHTML = `
+        <span class="zodiac-sym">${sign.symbol}</span>
+        <span class="zodiac-name">${escapeHtml(sign.name)}</span>
+        <span class="zodiac-dates">${escapeHtml(sign.dates)}</span>
+      `;
+      btn.addEventListener('click', () => {
+        sound.playTap();
+        haptic('light');
+        onSelect(sign.id);
+      });
+      el.appendChild(btn);
+    });
+  };
+
+  const signA = ZODIAC_SIGNS.find((s) => s.id === state.compatSignA) || ZODIAC_SIGNS[0];
+  const signB = ZODIAC_SIGNS.find((s) => s.id === state.compatSignB) || ZODIAC_SIGNS[4];
+  const lblA = document.getElementById('compat-label-a');
+  const lblB = document.getElementById('compat-label-b');
+  if (lblA) lblA.textContent = `${signA.symbol} ${signA.name}`;
+  if (lblB) lblB.textContent = `${signB.symbol} ${signB.name}`;
+
+  renderGrid('zodiac-grid-a', state.compatSignA, (id) => {
+    state.compatSignA = id;
+    renderZodiacPickers();
+  });
+  renderGrid('zodiac-grid-b', state.compatSignB, (id) => {
+    state.compatSignB = id;
+    renderZodiacPickers();
+  });
+}
+
+function runCompatibilityCheck() {
+  const signA = ZODIAC_SIGNS.find((s) => s.id === state.compatSignA) || ZODIAC_SIGNS[0];
+  const signB = ZODIAC_SIGNS.find((s) => s.id === state.compatSignB) || ZODIAC_SIGNS[4];
+  const res = calculateCompatibility(signA, signB);
+  const elA = ELEMENT_LABELS[signA.el];
+  const elB = ELEMENT_LABELS[signB.el];
+  const talisman = ALL_CARDS.find((c) => c.id === res.talismanId) || ALL_CARDS[0];
+  preloadCardImage(talisman);
+
+  sound.playCardFlip(true, false);
+  haptic(res.total >= 80 ? 'success' : 'medium');
+
+  const r = 34;
+  const circ = 2 * Math.PI * r;
+  const targetOffset = circ * (1 - res.total / 100);
+
+  const cardEl = document.getElementById('compat-result-card');
+  if (!cardEl) return;
+
+  cardEl.innerHTML = `
+    <div class="compat-hero-row">
+      <div class="compat-pair-info">
+        <div class="compat-pair-title">${signA.symbol} ${escapeHtml(signA.name)} × ${signB.symbol} ${escapeHtml(signB.name)}</div>
+        <div class="compat-pair-sub">${elA.icon} ${elA.name} + ${elB.icon} ${elB.name} · ${escapeHtml(res.tag)}</div>
+        <div class="compat-verdict">${escapeHtml(res.verdict)}</div>
+      </div>
+      <div class="compat-gauge">
+        <svg viewBox="0 0 82 82">
+          <defs>
+            <linearGradient id="compatGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#f43f5e"/>
+              <stop offset="50%" stop-color="#e879f9"/>
+              <stop offset="100%" stop-color="#f5c969"/>
+            </linearGradient>
+          </defs>
+          <circle class="compat-gauge-bg" cx="41" cy="41" r="${r}"/>
+          <circle class="compat-gauge-fill" id="compat-gauge-arc" cx="41" cy="41" r="${r}"
+            stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${circ.toFixed(1)}"/>
+        </svg>
+        <div class="compat-gauge-val">${res.total}%</div>
+      </div>
+    </div>
+
+    <div class="compat-bars">
+      ${[
+        { label: '❤️ Любовь и чувства', val: res.love },
+        { label: '💬 Общение и доверие', val: res.comm },
+        { label: '🏠 Быт и стабильность', val: res.home },
+        { label: '🔥 Страсть и химия', val: res.passion },
+      ]
+        .map(
+          (b) => `
+        <div class="compat-bar-row">
+          <div class="compat-bar-head"><span>${b.label}</span><span>${b.val}%</span></div>
+          <div class="compat-bar-track"><div class="compat-bar-fill" style="width:${b.val}%"></div></div>
+        </div>`
+        )
+        .join('')}
+    </div>
+
+    <div class="compat-text-block">
+      <strong>✦ Сильные стороны союза</strong>
+      ${escapeHtml(res.strength)}
+    </div>
+    <div class="compat-text-block">
+      <strong>🌌 Астрологический аспект</strong>
+      ${escapeHtml(res.aspectNote)}
+    </div>
+    <div class="compat-text-block">
+      <strong>🧭 Совет психолога и Таро</strong>
+      ${escapeHtml(res.watchout)} ${escapeHtml(res.advice)}
+    </div>
+
+    <button class="compat-talisman" id="btn-compat-talisman">
+      <img src="${escapeHtml(talisman.img)}" alt="${escapeHtml(talisman.name)}" />
+      <div>
+        <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--gold-soft);">Карта-талисман пары</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;margin-top:2px;">${escapeHtml(talisman.emoji)} ${escapeHtml(talisman.name)}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Нажмите, чтобы открыть 3D-разбор аркана</div>
+      </div>
+    </button>
+
+    <div class="compat-actions">
+      <button class="btn-glass-secondary" id="btn-share-compat">Поделиться 💌</button>
+      <button class="btn-glass-secondary" id="btn-compat-love-spread">Расклад 💞</button>
+    </div>
+  `;
+
+  cardEl.classList.remove('hidden');
+  requestAnimationFrame(() => {
+    const arc = document.getElementById('compat-gauge-arc');
+    if (arc) arc.style.strokeDashoffset = targetOffset.toFixed(1);
+  });
+
+  document.getElementById('btn-compat-talisman')?.addEventListener('click', () => {
+    sound.playTap();
+    openCardModal(talisman, false);
+  });
+
+  document.getElementById('btn-compat-love-spread')?.addEventListener('click', () => {
+    const loveSpread = SPREADS.find((s) => s.key === 'love_simple');
+    if (loveSpread) startDrawSession(loveSpread);
+  });
+
+  document.getElementById('btn-share-compat')?.addEventListener('click', async () => {
+    sound.playTap();
+    const shareText =
+      `✨ Совместимость ${signA.symbol} ${signA.name} + ${signB.symbol} ${signB.name} — ${res.total}%!\n` +
+      `${res.verdict}\n` +
+      `❤️ Любовь: ${res.love}% · 💬 Доверие: ${res.comm}% · 🏠 Быт: ${res.home}% · 🔥 Страсть: ${res.passion}%\n` +
+      `🃏 Талисман пары: ${talisman.name}\n\n` +
+      `Проверь свою пару в KLIM TAROT 👇`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent('https://t.me/MysticalTarotKlimBot')}&text=${encodeURIComponent(shareText)}`;
+    if (tg?.openTelegramLink) {
+      tg.openTelegramLink(shareUrl);
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(shareText);
+      showToast('Результат скопирован — отправь партнёру 💌');
+    }
+  });
+
+  cardEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Ensure background looping videos & ambient playlist start immediately on entry
+function unlockMediaOnEntry() {
+  document.querySelectorAll('video').forEach((v) => {
+    v.muted = true;
+    v.play().catch(() => {});
+  });
+  sound.startAmbience();
+}
+unlockMediaOnEntry();
+window.addEventListener('pointerdown', unlockMediaOnEntry, { once: true });
+window.addEventListener('touchstart', unlockMediaOnEntry, { once: true });
+
+// Ставим музыку на паузу, если пользователь свернул Telegram
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (sound.bgm && !sound.bgm.paused) sound.bgm.pause();
+  } else if (sound.enabled && sound.bgm) {
+    sound.bgm.play().catch(() => {});
+  }
+});
 
 // Boot
 initCosmosCanvas();
 updateSoundIcon();
 refreshHomeBanner();
+setInterval(refreshHomeBanner, 1000);
 updateHistoryCounter();
 renderFeaturedSpreads();
 renderSpreadTabs();
 renderSpreadsList();
 renderFriendSpreads();
+renderPsychTabs();
+renderPsychGuides();
+renderZodiacPickers();
 renderDictTabs();
 renderDictGrid();
 bindEvents();
+
+// Preload today's card immediately if already drawn
+const _savedDaily = getDailyCard();
+if (_savedDaily?.card) preloadCardImage(_savedDaily.card);
