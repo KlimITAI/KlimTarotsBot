@@ -892,7 +892,7 @@ def yes_no_verdict(card: dict, reversed_card: bool) -> tuple[str, str]:
 
 BASE_DIR = Path(__file__).resolve().parent
 STATS_DB_PATH = BASE_DIR / "stats.db"
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/tarot-bot/webapp/?v=6"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=8"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 _welcome_file_id_cache: dict[tuple[str, float], str] = {}
 
