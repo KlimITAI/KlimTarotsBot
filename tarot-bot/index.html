@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>KLIM TAROT — Telegram Mini App</title>
+  <meta name="theme-color" content="#070614" />
+
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Premium Typography: Cormorant Garamond (Celestial Serif) + Manrope (Modern UI Sans) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+  <!-- Animated Cosmic Starfield & Nebula Canvas -->
+  <canvas id="cosmos-canvas" aria-hidden="true"></canvas>
+  <div class="ambient-glow glow-gold" aria-hidden="true"></div>
+  <div class="ambient-glow glow-magenta" aria-hidden="true"></div>
+  <div class="ambient-glow glow-cyan" aria-hidden="true"></div>
+
+  <!-- Main App Shell -->
+  <div id="app-shell">
+
+    <!-- ══════════════════════════════════════════════════════════
+         VIEW 0: HERO / SPLASH SCREEN (FUSION OF STYLE A + STYLE B)
+         Celestial Gold & Constellations (A) + Electric Neon Aura (B)
+         ══════════════════════════════════════════════════════════ -->
+    <section id="view-hero" class="view active" aria-label="Главный экран">
+      <!-- Atmospheric Looping Welcome Animation on Entry -->
+      <video class="hero-bg-video" autoplay loop muted playsinline preload="auto" poster="./assets/brand-hero.jpg" aria-hidden="true">
+        <source src="./assets/welcome.mp4" type="video/mp4" />
+      </video>
+      <div class="hero-video-veil" aria-hidden="true"></div>
+      <div class="hero-container">
+        <!-- Style A: Celestial Moon Phases Header -->
+        <div class="moon-phases" aria-hidden="true">
+          <svg viewBox="0 0 260 28" class="moon-phases-svg">
+            <defs>
+              <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#fde68a"/>
+                <stop offset="50%" stop-color="#eab308"/>
+                <stop offset="100%" stop-color="#ca8a04"/>
+              </linearGradient>
+              <filter id="softGoldGlow">
+                <feGaussianBlur stdDeviation="1.5" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <g filter="url(#softGoldGlow)" fill="url(#goldGrad)">
+              <!-- Waning Crescent -->
+              <path d="M46 6a8 8 0 1 0 0 16 6.2 6.2 0 1 1 0-16z" opacity="0.72"/>
+              <!-- Last Quarter -->
+              <path d="M84 5a9 9 0 1 0 0 18 4.2 9 0 0 1 0-18z" opacity="0.88"/>
+              <!-- Full Moon (center) -->
+              <circle cx="130" cy="14" r="10"/>
+              <circle cx="130" cy="14" r="12.5" fill="none" stroke="url(#goldGrad)" stroke-width="0.7" opacity="0.5"/>
+              <!-- First Quarter -->
+              <path d="M176 5a9 9 0 1 1 0 18 4.2 9 0 0 0 0-18z" opacity="0.88"/>
+              <!-- Waxing Crescent -->
+              <path d="M214 6a8 8 0 1 1 0 16 6.2 6.2 0 1 0 0-16z" opacity="0.72"/>
+              <!-- Decorative stars -->
+              <circle cx="18" cy="14" r="1.3" opacity="0.55"/>
+              <circle cx="242" cy="14" r="1.3" opacity="0.55"/>
+              <line x1="25" y1="14" x2="34" y2="14" stroke="url(#goldGrad)" stroke-width="0.6" opacity="0.4"/>
+              <line x1="226" y1="14" x2="235" y2="14" stroke="url(#goldGrad)" stroke-width="0.6" opacity="0.4"/>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Style A + B Title Block -->
+        <div class="hero-header">
+          <div class="hero-eyebrow">KLIM TAROT · 78 АРКАНОВ</div>
+          <h1 class="hero-title">Гадание на Таро</h1>
+          <p class="hero-subtitle">Космическая интуиция в современном ритме</p>
+        </div>
+
+        <!-- Style B Refined Neon Energy Capsule (Top) -->
+        <div class="energy-bar-wrap" aria-hidden="true">
+          <div class="energy-bar">
+            <div class="energy-bar-fill"></div>
+          </div>
+        </div>
+
+        <!-- Style A + B Centerpiece: Fanned Celestial-Neon Tarot Cards -->
+        <div class="hero-fan-stage" id="hero-fan-stage">
+          <!-- Neon-Gold Energy Halo -->
+          <div class="fan-aura"></div>
+
+          <!-- Left Card (Crescent Moon + Neon Violet Edge) -->
+          <div class="hero-tarot-card card-left" data-hero-card="0">
+            <div class="hero-card-inner">
+              <div class="card-corner tl"></div><div class="card-corner tr"></div>
+              <div class="card-corner bl"></div><div class="card-corner br"></div>
+              <svg viewBox="0 0 100 160" class="card-sigil-svg">
+                <rect x="7" y="7" width="86" height="146" rx="8" fill="none" stroke="url(#cardGoldA)" stroke-width="1"/>
+                <rect x="12" y="12" width="76" height="136" rx="5" fill="none" stroke="rgba(217,70,239,0.55)" stroke-width="0.8" stroke-dasharray="3 2"/>
+                <path d="M56 54a24 24 0 1 0 0 52 18 18 0 1 1 0-52z" fill="none" stroke="url(#cardGoldA)" stroke-width="1.8"/>
+                <circle cx="50" cy="30" r="2.2" fill="#22d3ee"/>
+                <circle cx="50" cy="130" r="2.2" fill="#e879f9"/>
+                <path d="M26 80h12M62 80h12" stroke="url(#cardGoldA)" stroke-width="0.8" opacity="0.7"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Right Card (Crescent + Neon Cyan Edge) -->
+          <div class="hero-tarot-card card-right" data-hero-card="2">
+            <div class="hero-card-inner">
+              <div class="card-corner tl"></div><div class="card-corner tr"></div>
+              <div class="card-corner bl"></div><div class="card-corner br"></div>
+              <svg viewBox="0 0 100 160" class="card-sigil-svg">
+                <rect x="7" y="7" width="86" height="146" rx="8" fill="none" stroke="url(#cardGoldA)" stroke-width="1"/>
+                <rect x="12" y="12" width="76" height="136" rx="5" fill="none" stroke="rgba(34,211,238,0.6)" stroke-width="0.8" stroke-dasharray="3 2"/>
+                <path d="M44 54a24 24 0 1 1 0 52 18 18 0 1 0 0-52z" fill="none" stroke="url(#cardGoldA)" stroke-width="1.8"/>
+                <circle cx="50" cy="30" r="2.2" fill="#e879f9"/>
+                <circle cx="50" cy="130" r="2.2" fill="#22d3ee"/>
+                <path d="M26 80h12M62 80h12" stroke="url(#cardGoldA)" stroke-width="0.8" opacity="0.7"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Center Card (Celestial Sun + Neon Compass Fusion) -->
+          <div class="hero-tarot-card card-center" data-hero-card="1">
+            <div class="hero-card-inner">
+              <div class="card-corner tl"></div><div class="card-corner tr"></div>
+              <div class="card-corner bl"></div><div class="card-corner br"></div>
+              <svg viewBox="0 0 120 190" class="card-sigil-svg">
+                <defs>
+                  <linearGradient id="cardGoldA" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#fef08a"/>
+                    <stop offset="50%" stop-color="#f59e0b"/>
+                    <stop offset="100%" stop-color="#fde047"/>
+                  </linearGradient>
+                  <linearGradient id="neonFusion" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#e879f9"/>
+                    <stop offset="50%" stop-color="#facc15"/>
+                    <stop offset="100%" stop-color="#22d3ee"/>
+                  </linearGradient>
+                </defs>
+                <!-- Outer Gold Frame + Inner Neon Arc -->
+                <rect x="7" y="7" width="106" height="176" rx="10" fill="none" stroke="url(#cardGoldA)" stroke-width="1.2"/>
+                <rect x="13" y="13" width="94" height="164" rx="7" fill="none" stroke="url(#neonFusion)" stroke-width="0.9" opacity="0.85"/>
+                <!-- Celestial Sunburst Rays -->
+                <g stroke="url(#cardGoldA)" stroke-width="1" opacity="0.85">
+                  <line x1="60" y1="34" x2="60" y2="56"/>
+                  <line x1="60" y1="134" x2="60" y2="156"/>
+                  <line x1="22" y1="95" x2="40" y2="95"/>
+                  <line x1="80" y1="95" x2="98" y2="95"/>
+                  <line x1="32" y1="62" x2="45" y2="75"/>
+                  <line x1="75" y1="115" x2="88" y2="128"/>
+                  <line x1="88" y1="62" x2="75" y2="75"/>
+                  <line x1="45" y1="115" x2="32" y2="128"/>
+                </g>
+                <!-- Neon Energy Lightning Lines (Style B) -->
+                <path d="M60 44 L55 62 L63 66 L60 76" fill="none" stroke="#22d3ee" stroke-width="1.1" opacity="0.8"/>
+                <path d="M60 146 L65 128 L57 124 L60 114" fill="none" stroke="#e879f9" stroke-width="1.1" opacity="0.8"/>
+                <!-- Sacred Circle + Star Compass -->
+                <circle cx="60" cy="95" r="24" fill="rgba(16,12,42,0.85)" stroke="url(#neonFusion)" stroke-width="1.5"/>
+                <circle cx="60" cy="95" r="16" fill="none" stroke="url(#cardGoldA)" stroke-width="1" stroke-dasharray="2 2"/>
+                <path d="M60 76 L64.5 90.5 L79 95 L64.5 99.5 L60 114 L55.5 99.5 L41 95 L55.5 90.5 Z" fill="url(#cardGoldA)"/>
+                <circle cx="60" cy="95" r="4" fill="#0b0920" stroke="#22d3ee" stroke-width="1.2"/>
+                <!-- Corner Stars -->
+                <circle cx="24" cy="28" r="1.6" fill="#fde047"/>
+                <circle cx="96" cy="28" r="1.6" fill="#22d3ee"/>
+                <circle cx="24" cy="162" r="1.6" fill="#e879f9"/>
+                <circle cx="96" cy="162" r="1.6" fill="#fde047"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subtle Prompt -->
+        <p class="hero-hint">Сосредоточьтесь на вопросе · выберите свой путь</p>
+
+        <!-- Style A+B Signature CTA Button -->
+        <div class="hero-actions">
+          <button class="btn-fusion-primary" id="btn-enter-app">
+            <span class="btn-fusion-text">Начать расклад</span>
+            <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+          <!-- Quick Shortcuts right from Hero -->
+          <div class="hero-quick-row">
+            <button class="hero-chip" data-action="card-of-day">
+              <span class="chip-dot dot-gold"></span>Карта дня
+            </button>
+            <button class="hero-chip" data-action="oracle">
+              <span class="chip-dot dot-cyan"></span>Да / Нет
+            </button>
+            <button class="hero-chip" data-action="friend">
+              <span class="chip-dot dot-magenta"></span>Для друга
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════
+         MAIN APP CHROME (ULTRA-MODERN GLASS DESIGN FOR ALL OTHER VIEWS)
+         ══════════════════════════════════════════════════════════ -->
+    <div id="main-chrome" class="hidden">
+      <!-- Top Sticky Header -->
+      <header class="top-bar">
+        <button class="icon-btn hidden" id="btn-back" aria-label="Назад">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="brand-pill" id="btn-to-hero" title="На заставку">
+          <span class="brand-gem"></span>
+          <span class="brand-name" id="topbar-title">KLIM TAROT</span>
+        </div>
+        <div class="top-bar-actions">
+          <button class="icon-btn" id="btn-sound-toggle" aria-label="Звук" title="Вкл/выкл озвучку">
+            <svg id="icon-sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M11 5L6 9H2v6h4l5 4V5z" stroke-linejoin="round"/>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" stroke-linecap="round"/>
+            </svg>
+            <svg id="icon-sound-off" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M11 5L6 9H2v6h4l5 4V5z" stroke-linejoin="round"/>
+              <path d="M23 9l-6 6M17 9l6 6" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <button class="icon-btn" id="btn-history-shortcut" aria-label="История">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M12 7v5l3 2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Scrollable Viewport -->
+      <main id="views-container">
+
+        <!-- ── VIEW 1: MODERN HOME BENTO DASHBOARD ── -->
+        <section id="view-home" class="subview">
+          <!-- Brand Atmospheric Banner (Animated Video replacing static image) -->
+          <div class="modern-hero-banner" id="banner-daily-card">
+            <video class="banner-bg-img" autoplay loop muted playsinline preload="auto" poster="./assets/brand-hero.jpg" aria-hidden="true">
+              <source src="./assets/welcome.mp4" type="video/mp4" />
+            </video>
+            <div class="banner-overlay"></div>
+            <div class="banner-content">
+              <div class="banner-badge" id="daily-status-badge">ПОСЛАНИЕ НА СЕГОДНЯ</div>
+              <h2 class="banner-title" id="daily-banner-title">Карта дня</h2>
+              <p class="banner-desc" id="daily-banner-desc">Откройте аркан, который задаёт энергию вашего дня</p>
+              <div class="banner-cta">
+                <span id="daily-banner-cta">Открыть карту</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modern Bento Grid -->
+          <div class="section-head">
+            <h3>Быстрый доступ</h3>
+          </div>
+          <div class="bento-grid">
+            <button class="bento-card bento-accent-cyan" data-nav="oracle">
+              <div class="bento-icon icon-cyan">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M12 3v18M4 9l8-6 8 6M6 15l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="bento-meta">
+                <span class="bento-title">Да или Нет</span>
+                <span class="bento-sub">Мгновенный оракул</span>
+              </div>
+            </button>
+
+            <button class="bento-card bento-accent-magenta" data-nav="friend">
+              <div class="bento-icon icon-magenta">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M20 12v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="bento-meta">
+                <span class="bento-title">Для друга</span>
+                <span class="bento-sub">Расклад в подарок</span>
+              </div>
+            </button>
+
+            <button class="bento-card bento-wide bento-accent-gold" data-nav="spreads">
+              <div class="bento-wide-left">
+                <div class="bento-icon icon-gold">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="4" y="4" width="11" height="16" rx="2"/>
+                    <path d="M15 7h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-1"/>
+                  </svg>
+                </div>
+                <div class="bento-meta">
+                  <span class="bento-title">Тематические расклады</span>
+                  <span class="bento-sub">21 расклад · Любовь, карьера, год вперёд</span>
+                </div>
+              </div>
+              <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+
+            <button class="bento-card" data-nav="dictionary">
+              <div class="bento-icon icon-violet">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="bento-meta">
+                <span class="bento-title">Словарь карт</span>
+                <span class="bento-sub">Все 78 арканов</span>
+              </div>
+            </button>
+
+            <button class="bento-card" data-nav="history">
+              <div class="bento-icon icon-amber">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="bento-meta">
+                <span class="bento-title">Моя история</span>
+                <span class="bento-sub" id="history-count-label">Сохранённые</span>
+              </div>
+            </button>
+          </div>
+
+          <!-- Popular Spreads Horizontal Shelf -->
+          <div class="section-head">
+            <h3>Популярные расклады</h3>
+            <button class="link-btn" data-nav="spreads">Все 21</button>
+          </div>
+          <div class="featured-spreads-row" id="featured-spreads-row"></div>
+        </section>
+
+        <!-- ── VIEW 2: ALL & THEMED SPREADS ── -->
+        <section id="view-spreads" class="subview">
+          <div class="view-intro">
+            <h2>Библиотека раскладов</h2>
+            <p>Выберите тему или конкретный расклад под ваш запрос</p>
+          </div>
+          <div class="pill-tabs" id="spread-category-tabs"></div>
+          <div class="spreads-list" id="spreads-list"></div>
+        </section>
+
+        <!-- ── VIEW 3: INTERACTIVE DRAW TABLE ── -->
+        <section id="view-draw" class="subview">
+          <div class="draw-header">
+            <div class="draw-badge" id="draw-mode-badge">РАСКЛАД</div>
+            <h2 id="draw-spread-title">Три карты</h2>
+            <p id="draw-spread-intro"></p>
+          </div>
+
+          <!-- Optional Question Input -->
+          <div class="glass-input-wrap" id="draw-question-box">
+            <input type="text" id="draw-question-input" class="glass-input" placeholder="Сформулируйте вопрос (необязательно)..." maxlength="140" />
+          </div>
+
+          <!-- Progress & Drawn Slots -->
+          <div class="draw-progress-bar">
+            <span id="draw-progress-text">Выберите 3 карты из колоды</span>
+            <button class="chip-auto-btn" id="btn-auto-draw">Вытянуть случайно ✨</button>
+          </div>
+
+          <div class="drawn-slots" id="drawn-slots"></div>
+
+          <!-- Interactive Deck Fan -->
+          <div class="deck-picker-area" id="deck-picker-area">
+            <div class="deck-strip" id="deck-strip"></div>
+            <div class="deck-hint">Нажимайте на карты, которые притягивают взгляд</div>
+          </div>
+        </section>
+
+        <!-- ── VIEW 4: READING RESULT & SYNTHESIS ── -->
+        <section id="view-result" class="subview">
+          <div class="result-hero" id="result-hero"></div>
+
+          <!-- Drawn Cards Visual Strip (3D Flipped Cards) -->
+          <div class="revealed-cards-grid" id="revealed-cards-grid"></div>
+
+          <!-- Detailed Human-Language Breakdown -->
+          <div class="section-head">
+            <h3>Подробное толкование</h3>
+          </div>
+          <div class="interpretations-list" id="interpretations-list"></div>
+
+          <!-- Synthesis Card -->
+          <div class="synthesis-card" id="synthesis-card"></div>
+
+          <!-- Result Actions -->
+          <div class="result-actions">
+            <button class="btn-fusion-primary" id="btn-share-reading">
+              <span class="btn-fusion-text" id="btn-share-label">Поделиться раскладом</span>
+            </button>
+            <div class="result-secondary-row">
+              <button class="btn-glass-secondary" id="btn-send-to-bot">Отправить в чат бота</button>
+              <button class="btn-glass-secondary" data-nav="spreads">Другой расклад</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── VIEW 5: YES / NO ORACLE ── -->
+        <section id="view-oracle" class="subview">
+          <div class="view-intro center">
+            <div class="draw-badge">ОРАКУЛ</div>
+            <h2>Да или Нет</h2>
+            <p>Задайте чёткий вопрос и нажмите на карту, чтобы получить прямой ответ</p>
+          </div>
+
+          <div class="glass-input-wrap">
+            <input type="text" id="oracle-question-input" class="glass-input" placeholder="Например: Стоит ли мне согласиться?" maxlength="140" />
+          </div>
+
+          <div class="oracle-stage" id="oracle-stage">
+            <div class="oracle-card-3d" id="oracle-card-3d">
+              <div class="oracle-face oracle-back">
+                <div class="oracle-orb"></div>
+                <span>Нажмите, чтобы открыть ответ</span>
+              </div>
+              <div class="oracle-face oracle-front" id="oracle-front"></div>
+            </div>
+          </div>
+
+          <div class="oracle-verdict-panel hidden" id="oracle-verdict-panel"></div>
+        </section>
+
+        <!-- ── VIEW 6: READING FOR A FRIEND ── -->
+        <section id="view-friend" class="subview">
+          <div class="view-intro">
+            <div class="draw-badge badge-magenta">ПОДАРОК</div>
+            <h2>Гадаю для друга</h2>
+            <p>Сделайте персональный расклад для близкого человека и перешлите ему готовый результат</p>
+          </div>
+
+          <div class="glass-panel">
+            <label class="field-label" for="friend-name-input">Имя человека</label>
+            <input type="text" id="friend-name-input" class="glass-input" placeholder="Например: Анна" maxlength="50" />
+
+            <label class="field-label" style="margin-top:16px;">Выберите расклад для подарка</label>
+            <div class="spreads-list compact" id="friend-spreads-list"></div>
+          </div>
+        </section>
+
+        <!-- ── VIEW 7: 78-CARD DICTIONARY ── -->
+        <section id="view-dictionary" class="subview">
+          <div class="view-intro">
+            <h2>Словарь арканов</h2>
+            <p>Все 78 карт Таро с историями, значениями и советами</p>
+          </div>
+
+          <div class="glass-input-wrap search-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5" stroke-linecap="round"/>
+            </svg>
+            <input type="search" id="dict-search-input" class="glass-input with-icon" placeholder="Поиск карты (например: Солнце, Туз)..." />
+          </div>
+
+          <div class="pill-tabs" id="dict-suit-tabs"></div>
+          <div class="dict-grid" id="dict-grid"></div>
+        </section>
+
+        <!-- ── VIEW 8: HISTORY ── -->
+        <section id="view-history" class="subview">
+          <div class="view-intro row-between">
+            <div>
+              <h2>История гаданий</h2>
+              <p>Ваши сохранённые расклады</p>
+            </div>
+            <button class="chip-danger-btn hidden" id="btn-clear-history">Очистить</button>
+          </div>
+          <div class="history-list" id="history-list"></div>
+        </section>
+
+      </main>
+
+      <!-- Ultra-Modern Floating Bottom Navigation Dock -->
+      <nav class="bottom-dock" aria-label="Навигация">
+        <button class="dock-item active" data-tab="home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9.5z" stroke-linejoin="round"/>
+          </svg>
+          <span>Главная</span>
+        </button>
+        <button class="dock-item" data-tab="spreads">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="4" y="4" width="11" height="16" rx="2"/>
+            <path d="M15 7h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-1"/>
+          </svg>
+          <span>Расклады</span>
+        </button>
+        <button class="dock-item" data-tab="oracle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M12 7l2.5 5L12 17l-2.5-5L12 7z" stroke-linejoin="round"/>
+          </svg>
+          <span>Оракул</span>
+        </button>
+        <button class="dock-item" data-tab="dictionary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15z" stroke-linejoin="round"/>
+          </svg>
+          <span>Колода</span>
+        </button>
+      </nav>
+    </div>
+
+  </div>
+
+  <!-- Card Detail Bottom Sheet Modal -->
+  <div id="card-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <button class="modal-close" id="btn-close-modal" aria-label="Закрыть">✕</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
