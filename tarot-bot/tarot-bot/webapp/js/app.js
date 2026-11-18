@@ -411,18 +411,79 @@ function buildSynthesis(spreadName, positions, drawn) {
   return { intro, arc, keyAdvice };
 }
 
-function getTodayKey() {
-  const d = new Date();
+/* ── МЕСТНОЕ ВРЕМЯ ПОЛЬЗОВАТЕЛЯ: КАРТА ДНЯ И НОЧИ + КУЛДАУНЫ ── */
+
+const COOLDOWNS_MS = {
+  spread: 15 * 60 * 1000, // 15 минут между раскладами
+  oracle: 5 * 60 * 1000,  // 5 минут между вопросами Да/Нет
+  friend: 10 * 60 * 1000, // 10 минут между гаданиями для друга
+};
+
+const COOLDOWN_LABELS = {
+  spread: 'Новый расклад',
+  oracle: 'Новый вопрос Оракулу',
+  friend: 'Новое гадание для друга',
+};
+
+function formatLocalDate(d) {
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+}
+
+function formatLocalKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function getUserDayNightPeriod() {
+  const now = new Date(); // Точное местное время устройства пользователя
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const s = now.getSeconds();
+  const isDay = h >= 6 && h < 21;
+
+  // Ночь с 21:00 до 06:00 по местному времени — единый период (не сбрасывается в 00:00)
+  const anchor = new Date(now.getTime());
+  if (h < 6) {
+    anchor.setDate(anchor.getDate() - 1);
+  }
+  const periodKey = `${formatLocalKey(anchor)}-${isDay ? 'day' : 'night'}`;
+
+  const curSecs = h * 3600 + m * 60 + s;
+  const targetSecs = isDay ? 21 * 3600 : (h >= 21 ? 30 * 3600 : 6 * 3600);
+  const diffSecs = Math.max(1, targetSecs - curSecs);
+  const remH = Math.floor(diffSecs / 3600);
+  const remM = Math.floor((diffSecs % 3600) / 60);
+  const remS = diffSecs % 60;
+  const remClock = `${String(remH).padStart(2, '0')}:${String(remM).padStart(2, '0')}:${String(remS).padStart(2, '0')}`;
+  const remText = remH > 0 ? `${remH} ч ${remM} мин` : `${remM} мин`;
+
+  return {
+    isDay,
+    mode: isDay ? 'day' : 'night',
+    periodKey,
+    dateStr: formatLocalDate(now),
+    timeStr: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+    remClock,
+    nextIcon: isDay ? '🌙' : '🌅',
+    nextShortLabel: isDay ? 'Ночная' : 'Дневная',
+    title: isDay ? '🌅 Карта дня' : '🌙 Карта этой ночи',
+    badge: isDay ? 'КАРТА ДНЯ' : 'КАРТА ЭТОЙ НОЧИ',
+    position: isDay ? 'Послание этого дня' : 'Послание этой ночи',
+    promptDesc: isDay
+      ? 'Дневной аркан (06:00–21:00) — энергия и фокус вашего дня'
+      : 'Ночной аркан (21:00–06:00) — подсказка интуиции и снов на эту ночь',
+    nextNote: isDay
+      ? `Карта этой ночи откроется в 21:00 (через ${remText})`
+      : `Карта дня откроется в 06:00 (через ${remText})`,
+  };
+}
+
 function getDailyCard() {
-  const today = getTodayKey();
+  const period = getUserDayNightPeriod();
   try {
-    const saved = JSON.parse(localStorage.getItem('klim_tarot_daily') || 'null');
-    if (saved && saved.date === today) {
+    const saved = JSON.parse(localStorage.getItem('klim_tarot_daily_local') || 'null');
+    if (saved && saved.periodKey === period.periodKey) {
       const card = ALL_CARDS.find((c) => c.id === saved.cardId);
-      if (card) return { card, reversed: saved.reversed, opened: true };
+      if (card) return { card, reversed: saved.reversed, opened: true, period };
     }
   } catch (_) {}
   return null;
@@ -431,12 +492,100 @@ function getDailyCard() {
 function drawAndSaveDailyCard() {
   const existing = getDailyCard();
   if (existing) return existing;
+  const period = getUserDayNightPeriod();
   const [{ card, reversed }] = drawRandomCards(1);
   localStorage.setItem(
-    'klim_tarot_daily',
-    JSON.stringify({ date: getTodayKey(), cardId: card.id, reversed })
+    'klim_tarot_daily_local',
+    JSON.stringify({ periodKey: period.periodKey, cardId: card.id, reversed })
   );
-  return { card, reversed, opened: false };
+  return { card, reversed, opened: false, period };
+}
+
+function getCooldownRemaining(kind) {
+  const limit = COOLDOWNS_MS[kind] || 0;
+  if (!limit) return 0;
+  try {
+    const map = JSON.parse(localStorage.getItem('klim_tarot_cooldowns') || '{}');
+    const lastTs = Number(map[kind] || 0);
+    if (!lastTs) return 0;
+    const rem = limit - (Date.now() - lastTs);
+    return rem > 0 ? rem : 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
+function markCooldown(kind) {
+  try {
+    const map = JSON.parse(localStorage.getItem('klim_tarot_cooldowns') || '{}');
+    map[kind] = Date.now();
+    localStorage.setItem('klim_tarot_cooldowns', JSON.stringify(map));
+  } catch (_) {}
+}
+
+function formatDurationMs(ms) {
+  const totalSec = Math.ceil(ms / 1000);
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  if (mins > 0) return `${mins} мин ${String(secs).padStart(2, '0')} сек`;
+  return `${secs} сек`;
+}
+
+function showCooldownModal(kind, remainingMs) {
+  haptic('warning');
+  const label = COOLDOWN_LABELS[kind] || 'Новое гадание';
+  const period = getUserDayNightPeriod();
+  const body = document.getElementById('modal-body');
+  body.innerHTML = `
+    <div style="text-align:center;padding:8px 0 6px;">
+      <div style="font-size:44px;line-height:1;margin-bottom:10px;">⏳</div>
+      <h2 style="margin:0 0 8px;font-family:var(--font-display);font-size:28px;">Колода отдыхает</h2>
+      <p style="margin:0 0 14px;font-size:14px;color:var(--text-muted);">
+        Чтобы ответы Таро оставались точными, между гаданиями нужен небольшой перерыв.
+      </p>
+      <div class="synthesis-key" style="margin-bottom:14px;">
+        ${escapeHtml(label)} откроется через <strong id="cooldown-live-timer">${formatDurationMs(remainingMs)}</strong>
+      </div>
+      <p style="margin:0 0 16px;font-size:12.5px;color:var(--text-faint);">
+        Сейчас ${escapeHtml(period.timeStr)} · ${escapeHtml(period.nextNote)}
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="btn-glass-secondary" id="cd-open-history">📜 Моя история</button>
+        <button class="btn-glass-secondary" id="cd-open-dict">📖 Словарь карт</button>
+      </div>
+    </div>
+  `;
+  const modal = document.getElementById('card-modal');
+  modal.classList.remove('hidden');
+
+  document.getElementById('cd-open-history').addEventListener('click', () => {
+    modal.classList.add('hidden');
+    navigateTo('history');
+  });
+  document.getElementById('cd-open-dict').addEventListener('click', () => {
+    modal.classList.add('hidden');
+    navigateTo('dictionary');
+  });
+
+  clearInterval(modal._cdTimer);
+  modal._cdTimer = setInterval(() => {
+    if (modal.classList.contains('hidden')) {
+      clearInterval(modal._cdTimer);
+      return;
+    }
+    const rem = getCooldownRemaining(kind);
+    const timerEl = document.getElementById('cooldown-live-timer');
+    if (!timerEl) {
+      clearInterval(modal._cdTimer);
+      return;
+    }
+    if (rem <= 0) {
+      clearInterval(modal._cdTimer);
+      timerEl.textContent = 'уже доступно ✨';
+    } else {
+      timerEl.textContent = formatDurationMs(rem);
+    }
+  }, 1000);
 }
 
 function loadHistory() {
@@ -561,22 +710,47 @@ if (tg?.BackButton) {
    ════════════════════════════════════════════════════════════════ */
 
 function refreshHomeBanner() {
+  const period = getUserDayNightPeriod();
   const daily = getDailyCard();
   const badge = document.getElementById('daily-status-badge');
   const title = document.getElementById('daily-banner-title');
   const desc = document.getElementById('daily-banner-desc');
   const cta = document.getElementById('daily-banner-cta');
+  const timerPill = document.getElementById('daily-timer-pill');
+  const heroChip = document.querySelector('.hero-chip[data-action="card-of-day"]');
 
   if (daily) {
-    badge.textContent = 'ВАША КАРТА НА СЕГОДНЯ';
+    badge.textContent = `${period.badge} · ОТКРЫТА`;
     title.textContent = `${daily.card.emoji} ${daily.card.name}`;
-    desc.textContent = daily.reversed ? daily.card.reversed : daily.card.upright;
+    desc.textContent = `${period.nextNote}`;
     cta.textContent = 'Читать полное послание';
+    if (timerPill) {
+      timerPill.textContent = `${period.nextIcon} ${period.nextShortLabel} через ${period.remClock}`;
+      timerPill.classList.remove('hidden');
+    }
+    if (heroChip) {
+      heroChip.innerHTML = `<span class="chip-dot dot-gold"></span>Карта дня и ночи <span class="hero-chip-timer">${period.remClock}</span>`;
+    }
   } else {
-    badge.textContent = 'ПОСЛАНИЕ НА СЕГОДНЯ';
-    title.textContent = 'Карта дня';
-    desc.textContent = 'Откройте аркан, который задаёт энергию вашего дня';
-    cta.textContent = 'Открыть карту';
+    badge.textContent = `🌗 КАРТА ДНЯ И НОЧИ · ${period.timeStr}`;
+    title.textContent = period.title;
+    desc.textContent = period.promptDesc;
+    cta.textContent = period.isDay ? 'Открыть карту дня' : 'Открыть карту этой ночи';
+    if (timerPill) {
+      timerPill.textContent = `${period.nextIcon} до ${period.isDay ? '21:00' : '06:00'} · ${period.remClock}`;
+      timerPill.classList.remove('hidden');
+    }
+    if (heroChip) {
+      heroChip.innerHTML = `<span class="chip-dot dot-gold"></span>Карта дня и ночи`;
+    }
+  }
+
+  // Обновляем маленькие цифры таймера в списке раскладов, если он открыт
+  const spreadRowTimer = document.getElementById('spread-daily-timer');
+  if (spreadRowTimer) {
+    spreadRowTimer.textContent = daily
+      ? `${period.nextIcon} ${period.remClock}`
+      : '1 к.';
   }
 }
 
@@ -646,12 +820,16 @@ function renderSpreadsList() {
   list.forEach((spread) => {
     const btn = document.createElement('button');
     btn.className = 'spread-row';
+    const isDaily = spread.key === 'card_of_day';
+    const daily = isDaily ? getDailyCard() : null;
+    const period = isDaily ? getUserDayNightPeriod() : null;
+    const pillText = isDaily && daily ? `${period.nextIcon} ${period.remClock}` : `${spread.positions.length} к.`;
     btn.innerHTML = `
       <div class="spread-row-main">
         <span class="spread-row-title">${spread.name}</span>
         <span class="spread-row-desc">${spread.desc}</span>
       </div>
-      <span class="spread-count-pill">${spread.positions.length} к.</span>
+      <span class="spread-count-pill" ${isDaily ? 'id="spread-daily-timer"' : ''}>${pillText}</span>
     `;
     btn.addEventListener('click', () => startDrawSession(spread));
     container.appendChild(btn);
@@ -689,7 +867,7 @@ function renderFriendSpreads() {
 /* ── INTERACTIVE DRAW TABLE ──────────────────────────────────── */
 
 function startDrawSession(spread, { friendName = null } = {}) {
-  // Card of the day is locked once per day
+  // Карта дня и ночи фиксируется на текущий дневной или ночной период по времени пользователя
   if (spread.key === 'card_of_day' && !friendName) {
     openDailyCardReading();
     return;
@@ -718,6 +896,48 @@ function startDrawSession(spread, { friendName = null } = {}) {
   navigateTo('draw');
 }
 
+const TAROT_BACK_SVG = `
+<svg viewBox="0 0 100 164" aria-hidden="true">
+  <rect x="4" y="4" width="92" height="156" rx="8" fill="none" stroke="#f5c969" stroke-width="1.2" opacity="0.9"/>
+  <rect x="9" y="9" width="82" height="146" rx="5" fill="none" stroke="#e040fb" stroke-width="0.7" stroke-dasharray="2.5 2" opacity="0.65"/>
+  <circle cx="50" cy="82" r="21" fill="none" stroke="#f5c969" stroke-width="1.1" opacity="0.88"/>
+  <circle cx="50" cy="82" r="14" fill="none" stroke="#22d3ee" stroke-width="0.7" stroke-dasharray="2 2" opacity="0.7"/>
+  <path d="M50 64 L53.5 78.5 L68 82 L53.5 85.5 L50 100 L46.5 85.5 L32 82 L46.5 78.5 Z" fill="#fde68a" opacity="0.92"/>
+  <path d="M50 22 L52 32 L50 36 L48 32 Z M50 142 L52 132 L50 128 L48 132 Z" fill="#f5c969" opacity="0.8"/>
+  <circle cx="20" cy="24" r="1.6" fill="#22d3ee"/>
+  <circle cx="80" cy="24" r="1.6" fill="#e040fb"/>
+  <circle cx="20" cy="140" r="1.6" fill="#e040fb"/>
+  <circle cx="80" cy="140" r="1.6" fill="#22d3ee"/>
+</svg>`;
+
+function attach3DTilt(el, maxDeg = 14) {
+  if (!el) return;
+  const update = (clientX, clientY) => {
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const px = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const py = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+    const rx = (0.5 - py) * maxDeg * 2;
+    const ry = (px - 0.5) * maxDeg * 2;
+    el.style.setProperty('--rx', `${rx.toFixed(1)}deg`);
+    el.style.setProperty('--ry', `${ry.toFixed(1)}deg`);
+    el.style.setProperty('--gx', `${(px * 100).toFixed(1)}%`);
+    el.style.setProperty('--gy', `${(py * 100).toFixed(1)}%`);
+    el.style.setProperty('--glare-op', '0.78');
+  };
+  const reset = () => {
+    el.style.setProperty('--rx', '0deg');
+    el.style.setProperty('--ry', '0deg');
+    el.style.setProperty('--gx', '50%');
+    el.style.setProperty('--gy', '35%');
+    el.style.setProperty('--glare-op', '0.38');
+  };
+  el.addEventListener('pointermove', (e) => update(e.clientX, e.clientY));
+  el.addEventListener('pointerleave', reset);
+  el.addEventListener('pointerup', reset);
+  el.addEventListener('pointercancel', reset);
+}
+
 function renderDrawState() {
   const s = state.drawSession;
   if (!s) return;
@@ -739,15 +959,21 @@ function renderDrawState() {
     slotsEl.appendChild(slot);
   }
 
-  // Render pickable deck fan
+  // Render curved 3D Tarot fan with ornate gilded backs
   const deckEl = document.getElementById('deck-strip');
   if (deckEl.childElementCount === 0 || s.picked.length === 0) {
     deckEl.innerHTML = '';
+    const mid = (s.pool.length - 1) / 2;
     s.pool.forEach((item, idx) => {
+      const offset = (idx - mid) / Math.max(1, mid);
+      const rot = (offset * 10).toFixed(1);
+      const liftY = (Math.pow(offset, 2) * 16).toFixed(1);
       const cardBtn = document.createElement('button');
       cardBtn.className = 'pickable-card';
       cardBtn.dataset.idx = idx;
-      cardBtn.innerHTML = `<div class="pickable-card-inner"></div>`;
+      cardBtn.style.setProperty('--fan-rot', `${rot}deg`);
+      cardBtn.style.setProperty('--fan-y', `${liftY}px`);
+      cardBtn.innerHTML = `<div class="pickable-card-inner">${TAROT_BACK_SVG}</div>`;
       cardBtn.addEventListener('click', () => pickDeckCard(idx, cardBtn));
       deckEl.appendChild(cardBtn);
     });
@@ -816,12 +1042,12 @@ function autoDrawRemaining() {
 
 function openDailyCardReading() {
   const daily = drawAndSaveDailyCard();
-  const spread = SPREADS.find((s) => s.key === 'card_of_day');
+  const period = daily.period;
   const reading = {
-    spreadKey: spread.key,
-    spreadName: spread.name,
-    spreadDesc: `Карта дня · ${new Date().toLocaleDateString('ru-RU')}`,
-    positions: spread.positions,
+    spreadKey: 'card_of_day',
+    spreadName: period.title,
+    spreadDesc: `${period.dateStr} (${period.timeStr}) · ${period.nextNote}`,
+    positions: [period.position],
     drawn: [{ card: daily.card, reversed: daily.reversed }],
     friendName: null,
     question: '',
@@ -884,8 +1110,12 @@ function renderReadingResult(reading) {
     ${reading.question ? `<div class="result-question-quote">«${escapeHtml(reading.question)}»</div>` : ''}
   `;
 
-  // 3D Flipped Cards Grid
+  // 3D Flipped Authentic Rider-Waite Tarot Cards Grid
   const grid = document.getElementById('revealed-cards-grid');
+  grid.classList.remove('single-card', 'two-cols');
+  if (reading.drawn.length === 1) grid.classList.add('single-card');
+  else if (reading.drawn.length === 2 || reading.drawn.length === 4) grid.classList.add('two-cols');
+
   grid.innerHTML = '';
   reading.drawn.forEach(({ card, reversed }, idx) => {
     const pos = reading.positions[idx] || `Карта ${idx + 1}`;
@@ -893,15 +1123,23 @@ function renderReadingResult(reading) {
     cardEl.className = 'tarot-flip-card';
     cardEl.innerHTML = `
       <div class="tarot-flip-inner">
-        <div class="tarot-face tarot-face-back">✦</div>
+        <div class="tarot-face tarot-face-back">${TAROT_BACK_SVG}</div>
         <div class="tarot-face tarot-face-front ${reversed ? 'reversed' : ''}">
-          <span class="card-pos-tag">${idx + 1}. ${escapeHtml(pos.split('(')[0].trim())}</span>
-          <div class="card-glyph-wrap ${reversed ? 'is-reversed' : ''}">${card.emoji}</div>
-          <div class="card-face-name">${escapeHtml(card.name)}</div>
-          <span class="card-orient-pill ${reversed ? 'rev' : ''}">${reversed ? 'Перевёрнутая' : 'Прямая'}</span>
+          <div class="tarot-art-frame">
+            <img src="${escapeHtml(card.img || '')}" alt="${escapeHtml(card.name)}" class="tarot-art-img ${reversed ? 'is-reversed' : ''}" loading="eager" />
+            <div class="tarot-foil-glare"></div>
+            <div class="tarot-top-chip">
+              <span class="card-pos-tag">${idx + 1}. ${escapeHtml(pos.split('(')[0].trim())}</span>
+              ${reversed ? '<span class="card-rev-dot">🔄</span>' : ''}
+            </div>
+            <div class="tarot-caption-bar">
+              <div class="card-face-name">${escapeHtml(card.name)}</div>
+            </div>
+          </div>
         </div>
       </div>
     `;
+    attach3DTilt(cardEl, 11);
     cardEl.addEventListener('click', () => openCardModal(card, reversed));
     grid.appendChild(cardEl);
 
@@ -989,7 +1227,6 @@ function resetOracleStage() {
 }
 
 function triggerOracle() {
-  const card3d = document.getElementById('oracle-card-3d');
   if (state.oracleFlipped) {
     resetOracleStage();
     sound.playShuffle();
@@ -1015,11 +1252,14 @@ function revealOracleCard() {
 
   const front = document.getElementById('oracle-front');
   front.innerHTML = `
-    <span class="oracle-verdict-badge ${verdictClass}">${verdict}</span>
-    <div class="card-glyph-wrap ${reversed ? 'is-reversed' : ''}" style="font-size:56px;">${card.emoji}</div>
-    <div>
-      <div class="card-face-name" style="font-size:21px;">${escapeHtml(card.name)}</div>
-      <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px;">${reversed ? '🔄 Перевёрнутая' : '⬆️ Прямая'}</div>
+    <div class="tarot-art-frame" style="border-radius:14px;">
+      <span class="oracle-verdict-badge ${verdictClass}">${verdict}</span>
+      <img src="${escapeHtml(card.img || '')}" alt="${escapeHtml(card.name)}" class="tarot-art-img ${reversed ? 'is-reversed' : ''}" />
+      <div class="tarot-foil-glare"></div>
+      <div class="tarot-caption-bar" style="padding:24px 10px 10px;">
+        <div class="card-face-name" style="font-size:21px;">${escapeHtml(card.name)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${reversed ? '🔄 Перевёрнутая' : '⬆️ Прямая'}</div>
+      </div>
     </div>
   `;
 
@@ -1104,12 +1344,10 @@ function renderDictGrid() {
     const btn = document.createElement('button');
     btn.className = 'dict-card';
     btn.innerHTML = `
-      <div class="dict-card-top">
-        <span class="dict-emoji">${card.emoji}</span>
-        <span class="dict-num">${escapeHtml(card.num)}</span>
+      <div class="dict-thumb-wrap">
+        <img src="${escapeHtml(card.img || '')}" alt="${escapeHtml(card.name)}" class="dict-thumb-img" loading="lazy" />
       </div>
       <div class="dict-name">${escapeHtml(card.name)}</div>
-      <div class="dict-preview">${escapeHtml(card.upright)}</div>
     `;
     btn.addEventListener('click', () => {
       sound.playTap();
@@ -1122,10 +1360,16 @@ function renderDictGrid() {
 function openCardModal(card, reversed = false) {
   const body = document.getElementById('modal-body');
   body.innerHTML = `
-    <div style="text-align:center;margin-bottom:16px;">
-      <div style="font-size:48px;line-height:1;margin-bottom:8px;${reversed ? 'transform:rotate(180deg);display:inline-block;' : ''}">${card.emoji}</div>
-      <h2 style="margin:0;font-family:var(--font-display);font-size:30px;">${escapeHtml(card.name)}</h2>
-      <div style="font-size:12.5px;color:var(--gold);margin-top:2px;">Аркан ${escapeHtml(card.num)}</div>
+    <div class="modal-card-stage">
+      <div class="modal-tarot-3d" id="modal-tarot-3d">
+        <div class="tarot-art-frame" style="border-radius:11px;">
+          <img src="${escapeHtml(card.img || '')}" alt="${escapeHtml(card.name)}" class="tarot-art-img ${reversed ? 'is-reversed' : ''}" />
+          <div class="tarot-foil-glare"></div>
+        </div>
+      </div>
+      <div class="modal-tilt-hint">Покрутите карту пальцем ✦ 3D-обзор</div>
+      <h2 style="margin:10px 0 2px;font-family:var(--font-display);font-size:28px;">${escapeHtml(card.name)}</h2>
+      <div style="font-size:12.5px;color:var(--gold);">Аркан ${escapeHtml(card.num)} ${reversed ? '· 🔄 Перевёрнутая' : '· ⬆️ Прямая'}</div>
     </div>
     <p class="interp-story">📖 ${escapeHtml(card.story)}</p>
     <div style="margin-bottom:12px;">
@@ -1138,6 +1382,7 @@ function openCardModal(card, reversed = false) {
     </div>
     <div class="synthesis-key">🎯 Совет: ${escapeHtml(card.advice)}</div>
   `;
+  attach3DTilt(document.getElementById('modal-tarot-3d'), 18);
   document.getElementById('card-modal').classList.remove('hidden');
 }
 
@@ -1365,6 +1610,7 @@ document.addEventListener('visibilitychange', () => {
 initCosmosCanvas();
 updateSoundIcon();
 refreshHomeBanner();
+setInterval(refreshHomeBanner, 1000);
 updateHistoryCounter();
 renderFeaturedSpreads();
 renderSpreadTabs();

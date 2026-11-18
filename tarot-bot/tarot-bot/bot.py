@@ -15,10 +15,12 @@
 
 import os
 import sys
+import time
 import random
 import logging
 import json
-from datetime import datetime, date
+import sqlite3
+from datetime import datetime, date, timedelta, timezone
 from collections import defaultdict
 from pathlib import Path
 
@@ -28,6 +30,7 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     BotCommand,
+    BotCommandScopeChat,
     WebAppInfo,
     MenuButtonWebApp,
 )
@@ -38,6 +41,7 @@ from telegram.ext import (
     ConversationHandler,
     ContextTypes,
     MessageHandler,
+    TypeHandler,
     filters,
 )
 from telegram.constants import ParseMode
@@ -484,11 +488,11 @@ ALL_CARDS = MAJOR_ARCANA + MINOR_ARCANA  # Итого: 78 карт
 SPREADS = {
     # ── БЫСТРЫЕ ──────────────────────────────────────────
     "card_of_day": {
-        "name": "🌅 Карта дня",
-        "desc": "Одна карта — послание на сегодня",
-        "positions": ["Послание этого дня"],
+        "name": "🌗 Карта дня и ночи",
+        "desc": "Днём по МСК — карта дня, ночью — карта этой ночи",
+        "positions": ["Послание этого периода"],
         "category": "quick",
-        "intro": "Сделайте три глубоких вдоха. Задумайтесь о наступающем дне и возьмите карту...",
+        "intro": "Сделайте три глубоких вдоха. Примите послание на текущий день или ночь по МСК...",
     },
     "three_cards": {
         "name": "🔮 Три карты",
@@ -770,7 +774,74 @@ CATEGORIES = {
 # ─────────────────────────────────────────────────────────
 
 user_history: dict[int, list[dict]] = defaultdict(list)
-user_card_of_day: dict[int, tuple[date, dict]] = {}
+user_card_of_day: dict[int, tuple[str, dict, bool]] = {}
+user_cooldowns: dict[tuple[int, str], float] = {}
+
+MSK_TZ = timezone(timedelta(hours=3))
+COOLDOWNS_SEC = {
+    "spread": 15 * 60,  # 15 минут между раскладами
+    "oracle": 5 * 60,   # 5 минут между вопросами Да/Нет
+    "friend": 10 * 60,  # 10 минут между гаданиями для друга
+}
+
+
+def get_msk_day_night_period() -> dict:
+    """Определяет текущий период по МСК: день (06:00–21:00) или ночь (21:00–06:00)."""
+    now_msk = datetime.now(MSK_TZ)
+    h, m = now_msk.hour, now_msk.minute
+    is_day = 6 <= h < 21
+
+    anchor_date = now_msk.date()
+    if h < 6:
+        anchor_date = anchor_date - timedelta(days=1)
+    period_key = f"{anchor_date.isoformat()}-{'day' if is_day else 'night'}"
+
+    cur_mins = h * 60 + m
+    target_mins = 21 * 60 if is_day else (30 * 60 if h >= 21 else 6 * 60)
+    diff_mins = max(1, target_mins - cur_mins)
+    rem_h, rem_m = divmod(diff_mins, 60)
+    rem_text = f"{rem_h} ч {rem_m} мин" if rem_h else f"{rem_m} мин"
+
+    return {
+        "is_day": is_day,
+        "period_key": period_key,
+        "date_str": now_msk.strftime("%d.%m.%Y"),
+        "time_str": now_msk.strftime("%H:%M МСК"),
+        "rem_short": f"⏳ {rem_h}ч {rem_m:02d}м" if rem_h else f"⏳ {rem_m}м",
+        "title": "🌅 Карта дня" if is_day else "🌙 Карта этой ночи",
+        "message_label": "Послание дня" if is_day else "Послание этой ночи",
+        "already_note": (
+            "_Это ваша карта на этот день — она не меняется до 21:00 МСК._"
+            if is_day
+            else "_Это ваша карта на эту ночь — она не меняется до 06:00 МСК._"
+        ),
+        "next_note": (
+            f"🌙 Карта этой ночи откроется в 21:00 МСК (через {rem_text})."
+            if is_day
+            else f"🌅 Карта дня откроется в 06:00 МСК (через {rem_text})."
+        ),
+    }
+
+
+def check_cooldown(uid: int, kind: str) -> int:
+    """Возвращает оставшиеся секунды перерыва (0, если можно гадать)."""
+    limit = COOLDOWNS_SEC.get(kind, 0)
+    if not limit:
+        return 0
+    last_ts = user_cooldowns.get((uid, kind), 0.0)
+    rem = int(limit - (time.time() - last_ts))
+    return rem if rem > 0 else 0
+
+
+def mark_cooldown(uid: int, kind: str) -> None:
+    user_cooldowns[(uid, kind)] = time.time()
+
+
+def format_cooldown(seconds: int) -> str:
+    mins, secs = divmod(max(1, seconds), 60)
+    if mins > 0:
+        return f"{mins} мин {secs:02d} сек"
+    return f"{secs} сек"
 
 # ─────────────────────────────────────────────────────────
 #  СОСТОЯНИЯ ConversationHandler — ГАДАНИЕ ДЛЯ ДРУГА
@@ -817,9 +888,263 @@ def yes_no_verdict(card: dict, reversed_card: bool) -> tuple[str, str]:
 # ─────────────────────────────────────────────────────────
 
 BASE_DIR = Path(__file__).resolve().parent
+STATS_DB_PATH = BASE_DIR / "stats.db"
 DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/tarot-bot/webapp/"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 _welcome_file_id_cache: dict[tuple[str, float], str] = {}
+
+# Админ-доступ к /stats и /logs (по умолчанию владелец бота)
+_raw_admins = os.environ.get("ADMIN_USER_IDS", "7446803539")
+ADMIN_IDS: set[int] = {int(x.strip()) for x in _raw_admins.split(",") if x.strip().isdigit()}
+
+
+# ─────────────────────────────────────────────────────────
+#  БАЗА ДАННЫХ СТАТИСТИКИ И ЛОГОВ (SQLite)
+# ─────────────────────────────────────────────────────────
+
+def init_stats_db() -> None:
+    with sqlite3.connect(STATS_DB_PATH) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                first_seen TEXT,
+                last_seen TEXT,
+                total_events INTEGER DEFAULT 0
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts TEXT,
+                user_id INTEGER,
+                username TEXT,
+                first_name TEXT,
+                action TEXT,
+                detail TEXT
+            )
+            """
+        )
+        conn.commit()
+
+
+def log_user_event(user, action: str, detail: str = "") -> None:
+    if not user:
+        return
+    now_iso = datetime.now(MSK_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    uid = user.id
+    username = user.username or ""
+    first_name = user.first_name or "Без имени"
+    try:
+        with sqlite3.connect(STATS_DB_PATH) as conn:
+            conn.execute(
+                """
+                INSERT INTO users (user_id, username, first_name, first_seen, last_seen, total_events)
+                VALUES (?, ?, ?, ?, ?, 1)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    username = excluded.username,
+                    first_name = excluded.first_name,
+                    last_seen = excluded.last_seen,
+                    total_events = users.total_events + 1
+                """,
+                (uid, username, first_name, now_iso, now_iso),
+            )
+            conn.execute(
+                """
+                INSERT INTO events (ts, user_id, username, first_name, action, detail)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (now_iso, uid, username, first_name, action, detail[:200]),
+            )
+            conn.commit()
+    except Exception as exc:
+        logger.warning("Ошибка записи в stats.db: %s", exc)
+
+
+def _describe_callback(data: str) -> tuple[str, str]:
+    if data.startswith("spread_"):
+        key = data[7:]
+        return ("Расклад", SPREADS.get(key, {}).get("name", key))
+    if data.startswith("friend_spread_"):
+        key = data[len("friend_spread_"):]
+        return ("Для друга", SPREADS.get(key, {}).get("name", key))
+    if data == "quick_card_of_day":
+        return ("Карта дня и ночи", "")
+    if data == "do_yesno":
+        return ("Оракул Да/Нет", "")
+    if data.startswith("dict_card_"):
+        return ("Словарь карт", data[10:])
+    mapping = {
+        "main_menu": ("Главное меню", ""),
+        "menu_themes": ("Тематические расклады", ""),
+        "menu_all": ("Все расклады", ""),
+        "menu_yesno": ("Меню Да/Нет", ""),
+        "menu_dict": ("Словарь карт", ""),
+        "menu_history": ("История", ""),
+        "menu_friend": ("Режим: Для друга", ""),
+    }
+    return mapping.get(data, ("Кнопка", data))
+
+
+async def track_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Фоновый перехватчик всех действий пользователей для статистики и логов."""
+    user = update.effective_user
+    if not user:
+        return
+    if update.message:
+        msg = update.message
+        if msg.web_app_data:
+            log_user_event(user, "Mini App", "Отправка расклада в чат")
+        elif msg.text:
+            txt = msg.text.strip()
+            if txt.startswith("/stats") or txt.startswith("/logs"):
+                return  # Не засоряем логи просмотрами админки
+            if txt.startswith("/"):
+                log_user_event(user, "Команда", txt.split()[0])
+            else:
+                log_user_event(user, "Сообщение", txt[:60])
+    elif update.callback_query:
+        data = update.callback_query.data or ""
+        if data.startswith("admin_"):
+            return
+        action, detail = _describe_callback(data)
+        log_user_event(user, action, detail)
+
+
+def build_stats_report() -> str:
+    now_msk = datetime.now(MSK_TZ)
+    today_prefix = now_msk.strftime("%Y-%m-%d")
+    day_ago = (now_msk - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    week_ago = (now_msk - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+
+    with sqlite3.connect(STATS_DB_PATH) as conn:
+        total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        active_today = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE last_seen LIKE ?", (f"{today_prefix}%",)
+        ).fetchone()[0]
+        active_24h = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE last_seen >= ?", (day_ago,)
+        ).fetchone()[0]
+        active_7d = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE last_seen >= ?", (week_ago,)
+        ).fetchone()[0]
+        total_events = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+        events_today = conn.execute(
+            "SELECT COUNT(*) FROM events WHERE ts LIKE ?", (f"{today_prefix}%",)
+        ).fetchone()[0]
+
+        top_actions = conn.execute(
+            """
+            SELECT action, detail, COUNT(*) as cnt
+            FROM events
+            GROUP BY action, detail
+            ORDER BY cnt DESC
+            LIMIT 6
+            """
+        ).fetchall()
+
+        recent_users = conn.execute(
+            """
+            SELECT first_name, username, last_seen, total_events
+            FROM users
+            ORDER BY last_seen DESC
+            LIMIT 7
+            """
+        ).fetchall()
+
+    lines = [
+        f"📊 *Статистика KLIM TAROT*",
+        f"_{now_msk.strftime('%d.%m.%Y %H:%M МСК')}_\n",
+        f"👥 *Всего пользователей:* {total_users}",
+        f"🔥 *Активных сегодня:* {active_today}",
+        f"🕐 *За 24 часа:* {active_24h}  |  *За 7 дней:* {active_7d}",
+        f"🔮 *Всего действий:* {total_events} (сегодня: {events_today})",
+    ]
+
+    if top_actions:
+        lines.append("\n🏆 *Популярные действия:*")
+        for action, detail, cnt in top_actions:
+            label = f"{action}: {detail}" if detail else action
+            lines.append(f"• {escape_md(label)} — *{cnt}*")
+
+    if recent_users:
+        lines.append("\n👤 *Последние активные пользователи:*")
+        for fname, uname, lseen, cnt in recent_users:
+            tag = f" (@{escape_md(uname)})" if uname else ""
+            short_ts = lseen[5:16] if len(lseen) >= 16 else lseen
+            lines.append(f"• {escape_md(fname)}{tag} — {cnt} действ. _{short_ts}_")
+
+    return "\n".join(lines)
+
+
+def build_logs_report(limit: int = 20) -> str:
+    limit = max(5, min(40, limit))
+    with sqlite3.connect(STATS_DB_PATH) as conn:
+        rows = conn.execute(
+            """
+            SELECT ts, first_name, username, action, detail
+            FROM events
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+    if not rows:
+        return "📋 *Логи действий*\n\nПока событий нет. После первых нажатий они появятся здесь."
+
+    lines = [f"📋 *Последние {len(rows)} событий (МСК):*\n"]
+    for ts, fname, uname, action, detail in rows:
+        short_ts = ts[11:16] if len(ts) >= 16 else ts
+        short_day = ts[5:10] if len(ts) >= 10 else ""
+        tag = f"@{escape_md(uname)}" if uname else escape_md(fname)
+        what = f"{action}: {detail}" if detail else action
+        lines.append(f"`{short_day} {short_ts}` · {tag} → {escape_md(what)}")
+
+    return "\n".join(lines)
+
+
+def admin_panel_keyboard(active: str = "stats") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🔄 Обновить", callback_data=f"admin_{active}"),
+            InlineKeyboardButton(
+                "📋 Логи" if active == "stats" else "📊 Статистика",
+                callback_data="admin_logs" if active == "stats" else "admin_stats",
+            ),
+        ],
+    ])
+
+
+async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id if update.effective_user else 0
+    if uid not in ADMIN_IDS:
+        await update.message.reply_text("⛔ Эта команда доступна только владельцу бота.")
+        return
+    await update.message.reply_text(
+        build_stats_report(),
+        reply_markup=admin_panel_keyboard("stats"),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def cmd_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id if update.effective_user else 0
+    if uid not in ADMIN_IDS:
+        await update.message.reply_text("⛔ Эта команда доступна только владельцу бота.")
+        return
+    limit = 20
+    if context.args and context.args[0].isdigit():
+        limit = int(context.args[0])
+    await update.message.reply_text(
+        build_logs_report(limit),
+        reply_markup=admin_panel_keyboard("logs"),
+        parse_mode=ParseMode.MARKDOWN,
+    )
 
 
 def find_welcome_media() -> tuple[str | None, Path | None]:
@@ -867,7 +1192,7 @@ def start_keyboard():
     return InlineKeyboardMarkup(rows)
 
 
-def main_menu_keyboard():
+def main_menu_keyboard(uid: int | None = None):
     rows = []
     if WEBAPP_URL:
         rows.append([
@@ -876,8 +1201,13 @@ def main_menu_keyboard():
                 web_app=WebAppInfo(url=WEBAPP_URL),
             )
         ])
+    daily_label = "🌗 Карта дня и ночи"
+    if uid is not None:
+        period = get_msk_day_night_period()
+        if uid in user_card_of_day and user_card_of_day[uid][0] == period["period_key"]:
+            daily_label = f"🌗 Карта дня и ночи ({period['rem_short']})"
     rows.extend([
-        [InlineKeyboardButton("🌅 Карта дня",        callback_data="quick_card_of_day"),
+        [InlineKeyboardButton(daily_label,             callback_data="quick_card_of_day"),
          InlineKeyboardButton("✅ Да или Нет",        callback_data="menu_yesno")],
         [InlineKeyboardButton("🎯 Тематические расклады", callback_data="menu_themes")],
         [InlineKeyboardButton("🔮 Все расклады",      callback_data="menu_all"),
@@ -1014,9 +1344,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("friend_name", None)
+    uid = update.effective_user.id if update.effective_user else None
     await update.message.reply_text(
         "🏠 *Главное меню*",
-        reply_markup=main_menu_keyboard(),
+        reply_markup=main_menu_keyboard(uid),
         parse_mode=ParseMode.MARKDOWN,
     )
     return ConversationHandler.END
@@ -1047,7 +1378,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await safe_edit(
             query,
             "🏠 *Главное меню*\nВыберите действие:",
-            reply_markup=main_menu_keyboard(),
+            reply_markup=main_menu_keyboard(query.from_user.id),
         )
 
     elif data == "menu_themes":
@@ -1116,6 +1447,14 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "menu_history":
         await show_history(query)
+
+    elif data in ("admin_stats", "admin_logs"):
+        if query.from_user.id not in ADMIN_IDS:
+            return
+        if data == "admin_stats":
+            await safe_edit(query, build_stats_report(), reply_markup=admin_panel_keyboard("stats"))
+        else:
+            await safe_edit(query, build_logs_report(20), reply_markup=admin_panel_keyboard("logs"))
 
     # NOTE: menu_friend is handled by the ConversationHandler in main()
 
@@ -1189,6 +1528,7 @@ async def do_friend_spread(query, spread_key: str, friend_name: str, reader_firs
         await safe_edit(query, "❌ Расклад не найден.")
         return
 
+    uid = query.from_user.id
     spread = SPREADS[spread_key]
     n = len(spread["positions"])
     cards = draw_cards(n)
@@ -1196,7 +1536,6 @@ async def do_friend_spread(query, spread_key: str, friend_name: str, reader_firs
     safe_reader = escape_md(reader_first_name)
 
     # Save to history
-    uid = query.from_user.id
     user_history[uid].append({
         "type": f"Для {safe_friend}: {spread['name']}",
         "cards": [c["name"] for c, _ in cards],
@@ -1267,6 +1606,7 @@ async def do_friend_spread(query, spread_key: str, friend_name: str, reader_firs
 # ─────────────────────────────────────────────────────────
 
 async def do_yesno(query):
+    uid = query.from_user.id
     card, rev = draw_cards(1)[0]
     verdict, energy = yes_no_verdict(card, rev)
     orientation = "🔄 перевёрнутая" if rev else "⬆️ прямая"
@@ -1285,12 +1625,11 @@ async def do_yesno(query):
     )
 
     # Сохранить в историю
-    uid = query.from_user.id
     user_history[uid].append({
         "type": "Да/Нет",
         "card": card["name"],
         "reversed": rev,
-        "time": datetime.now().strftime("%d.%m %H:%M"),
+        "time": datetime.now(MSK_TZ).strftime("%d.%m %H:%M"),
     })
 
     keyboard = InlineKeyboardMarkup([
@@ -1302,28 +1641,35 @@ async def do_yesno(query):
 
 
 # ─────────────────────────────────────────────────────────
-#  КАРТА ДНЯ
+#  КАРТА ДНЯ И НОЧИ (ПО МСК)
 # ─────────────────────────────────────────────────────────
 
 async def do_card_of_day(query):
     uid = query.from_user.id
-    today = date.today()
+    period = get_msk_day_night_period()
+    pkey = period["period_key"]
 
-    # Одна карта на весь день для пользователя
-    if uid in user_card_of_day and user_card_of_day[uid][0] == today:
+    # Одна карта на дневной период (06:00–21:00 МСК) и одна на ночной (21:00–06:00 МСК)
+    if uid in user_card_of_day and user_card_of_day[uid][0] == pkey:
         card, rev = user_card_of_day[uid][1], user_card_of_day[uid][2]
         already = True
     else:
         card, rev = draw_cards(1)[0]
-        user_card_of_day[uid] = (today, card, rev)
+        user_card_of_day[uid] = (pkey, card, rev)
         already = False
+        user_history[uid].append({
+            "type": period["title"],
+            "card": card["name"],
+            "reversed": rev,
+            "time": datetime.now(MSK_TZ).strftime("%d.%m %H:%M"),
+        })
 
     orientation = "🔄 перевёрнутая" if rev else "⬆️ прямая"
     meaning = card["reversed"] if rev else card["upright"]
-    note = "_Это ваша карта на сегодня — она не меняется до следующего дня._\n\n" if already else ""
+    note = f"{period['already_note']}\n\n" if already else ""
 
     text = (
-        f"🌅 *Карта дня — {today.strftime('%d.%m.%Y')}*\n\n"
+        f"*{period['title']} — {period['date_str']}* ({period['time_str']})\n\n"
         f"{note}"
         f"{'─' * 28}\n"
         f"{card.get('emoji','🃏')} *{card['name']}* ({card['num']})\n"
@@ -1331,7 +1677,8 @@ async def do_card_of_day(query):
         f"{'─' * 28}\n\n"
         f"💡 *Значение:*\n{meaning}\n\n"
         f"📖 *История карты:*\n{card.get('story', '')}\n\n"
-        f"🎯 *Послание дня:* {card.get('advice', '')}"
+        f"🎯 *{period['message_label']}:* {card.get('advice', '')}\n\n"
+        f"⏳ _{period['next_note']}_"
     )
 
     keyboard = InlineKeyboardMarkup([
@@ -1516,20 +1863,24 @@ def synthesize_reading(spread_name: str, positions: list, cards: list) -> str:
 # ─────────────────────────────────────────────────────────
 
 async def do_spread(query, spread_key: str):
-    if spread_key not in SPREADS:
-        await query.edit_message_text("❌ Расклад не найден.")
+    if spread_key == "card_of_day":
+        await do_card_of_day(query)
         return
 
+    if spread_key not in SPREADS:
+        await safe_edit(query, "❌ Расклад не найден.")
+        return
+
+    uid = query.from_user.id
     spread = SPREADS[spread_key]
     n = len(spread["positions"])
     cards = draw_cards(n)
 
     # Сохранить в историю
-    uid = query.from_user.id
     user_history[uid].append({
         "type": spread["name"],
         "cards": [c["name"] for c, _ in cards],
-        "time": datetime.now().strftime("%d.%m %H:%M"),
+        "time": datetime.now(MSK_TZ).strftime("%d.%m %H:%M"),
     })
 
     # ── Строим текст результата ──────────────────────────
@@ -1736,11 +2087,24 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 # ─────────────────────────────────────────────────────────
 
 async def post_init(app):
-    await app.bot.set_my_commands([
+    public_cmds = [
         BotCommand("start", "🔮 Запустить бот / Mini App"),
         BotCommand("menu", "🏠 Открыть меню"),
         BotCommand("friend", "🎁 Гадание для друга"),
-    ])
+    ]
+    await app.bot.set_my_commands(public_cmds)
+
+    # Личное меню с командами статистики и логов только для владельца бота
+    admin_cmds = public_cmds + [
+        BotCommand("stats", "📊 Статистика пользователей"),
+        BotCommand("logs", "📋 Последние логи действий"),
+    ]
+    for admin_id in ADMIN_IDS:
+        try:
+            await app.bot.set_my_commands(admin_cmds, scope=BotCommandScopeChat(chat_id=admin_id))
+        except Exception as exc:
+            logger.debug("Не удалось задать админ-меню для %s: %s", admin_id, exc)
+
     if WEBAPP_URL:
         try:
             await app.bot.set_chat_menu_button(
@@ -1755,6 +2119,7 @@ async def post_init(app):
 
 
 def main():
+    init_stats_db()
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
         raise ValueError(
@@ -1830,9 +2195,12 @@ def main():
         conversation_timeout=300,
     )
 
+    app.add_handler(TypeHandler(Update, track_update), group=-1)
     app.add_handler(friend_conv)
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("menu", cmd_menu))
+    app.add_handler(CommandHandler("stats", cmd_stats))
+    app.add_handler(CommandHandler("logs", cmd_logs))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data))
     app.add_handler(CallbackQueryHandler(callback_router))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))

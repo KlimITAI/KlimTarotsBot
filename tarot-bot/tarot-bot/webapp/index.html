@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css?v=3" />
+  <link rel="stylesheet" href="./css/styles.css?v=6" />
 </head>
 <body>
   <!-- Animated Cosmic Starfield & Nebula Canvas -->
@@ -188,7 +188,7 @@
           <!-- Quick Shortcuts right from Hero -->
           <div class="hero-quick-row">
             <button class="hero-chip" data-action="card-of-day">
-              <span class="chip-dot dot-gold"></span>Карта дня
+              <span class="chip-dot dot-gold"></span>Карта дня и ночи
             </button>
             <button class="hero-chip" data-action="oracle">
               <span class="chip-dot dot-cyan"></span>Да / Нет
@@ -253,10 +253,11 @@
               <source src="./assets/welcome.mp4" type="video/mp4" />
             </video>
             <div class="banner-overlay"></div>
+            <div class="daily-timer-pill hidden" id="daily-timer-pill"></div>
             <div class="banner-content">
-              <div class="banner-badge" id="daily-status-badge">ПОСЛАНИЕ НА СЕГОДНЯ</div>
-              <h2 class="banner-title" id="daily-banner-title">Карта дня</h2>
-              <p class="banner-desc" id="daily-banner-desc">Откройте аркан, который задаёт энергию вашего дня</p>
+              <div class="banner-badge" id="daily-status-badge">ПОСЛАНИЕ ПО ВАШЕМУ ВРЕМЕНИ</div>
+              <h2 class="banner-title" id="daily-banner-title">Карта дня и ночи</h2>
+              <p class="banner-desc" id="daily-banner-desc">Днём — послание дня, ночью — карта этой ночи (по вашему времени)</p>
               <div class="banner-cta">
                 <span id="daily-banner-cta">Открыть карту</span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -527,6 +528,6 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast hidden"></div>
 
-  <script type="module" src="./js/app.js?v=3"></script>
+  <script type="module" src="./js/app.js?v=6"></script>
 </body>
 </html>

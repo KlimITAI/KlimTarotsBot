@@ -627,6 +627,35 @@ button {
   width: 100%;
 }
 
+.daily-timer-pill {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(8, 7, 22, 0.72);
+  border: 1px solid rgba(245, 201, 105, 0.34);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+  color: var(--gold-soft);
+}
+
+.hero-chip-timer {
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold-soft);
+  opacity: 0.85;
+  margin-left: 2px;
+}
+
 .banner-badge {
   display: inline-block;
   font-size: 10px;
@@ -1114,32 +1143,38 @@ button {
   transform: translateY(-3px);
 }
 
-/* Interactive Deck Strip */
+/* Interactive Deck Fan (Curved 3D Tarot Spread) */
 .deck-picker-area {
-  padding: 16px 0 8px;
+  padding: 12px 0 8px;
   text-align: center;
 }
 
 .deck-strip {
   display: flex;
   overflow-x: auto;
-  padding: 20px 24px 26px;
+  padding: 30px 28px 32px;
   scrollbar-width: none;
   justify-content: flex-start;
   scroll-snap-type: x proximity;
+  perspective: 900px;
 }
 .deck-strip::-webkit-scrollbar { display: none; }
 
 .pickable-card {
-  flex: 0 0 86px;
-  height: 142px;
-  margin-left: -34px;
-  border-radius: 12px;
-  padding: 1.5px;
-  background: linear-gradient(155deg, rgba(245, 201, 105, 0.8), rgba(224, 64, 251, 0.72), rgba(34, 211, 238, 0.78));
-  box-shadow: -4px 10px 24px rgba(0, 0, 0, 0.55);
-  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
+  flex: 0 0 92px;
+  height: 156px;
+  margin-left: -38px;
+  border-radius: 13px;
+  padding: 1.8px;
+  background: linear-gradient(155deg, #fde68a 0%, #c58f2b 38%, rgba(224, 64, 251, 0.85) 72%, #22d3ee 100%);
+  box-shadow:
+    -6px 14px 28px rgba(0, 0, 0, 0.68),
+    0 0 14px rgba(245, 201, 105, 0.16),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5);
+  transform: translateY(var(--fan-y, 0px)) rotate(var(--fan-rot, 0deg));
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease, box-shadow 0.25s ease;
   scroll-snap-align: center;
+  position: relative;
 }
 
 .pickable-card:first-child { margin-left: 0; }
@@ -1147,28 +1182,32 @@ button {
 .pickable-card-inner {
   width: 100%;
   height: 100%;
-  border-radius: 10.5px;
-  background: radial-gradient(circle at 50% 35%, #231a52, #0b0820);
+  border-radius: 11px;
+  background: radial-gradient(circle at 50% 35%, #231854 0%, #0d0924 72%, #070514 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
+  overflow: hidden;
 }
 
-.pickable-card-inner::before {
-  content: '✦';
-  font-size: 24px;
-  color: var(--gold);
-  text-shadow: 0 0 12px rgba(245, 201, 105, 0.7);
+.pickable-card-inner svg {
+  width: 90%;
+  height: 90%;
+  pointer-events: none;
 }
 
 .pickable-card:hover {
-  transform: translateY(-14px) scale(1.05);
-  z-index: 4;
+  transform: translateY(-20px) rotate(0deg) scale(1.07);
+  z-index: 6;
+  box-shadow:
+    0 24px 40px rgba(0, 0, 0, 0.82),
+    0 0 26px rgba(245, 201, 105, 0.45),
+    0 0 18px rgba(34, 211, 238, 0.35);
 }
 
 .pickable-card.picked {
-  transform: translateY(-48px) scale(0.8);
+  transform: translateY(-64px) scale(0.75) rotate(8deg);
   opacity: 0;
   pointer-events: none;
 }
@@ -1179,7 +1218,7 @@ button {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   RESULT VIEW: 3D FLIPPED CARDS + DEEP EXPLANATIONS + SYNTHESIS
+   RESULT VIEW: REALISTIC 3D TAROT CARDS + DYNAMIC TILT & GLARE
    ════════════════════════════════════════════════════════════════ */
 
 .result-hero {
@@ -1213,15 +1252,28 @@ button {
 
 .revealed-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
-  gap: 10px;
-  margin-bottom: 22px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 11px;
+  margin-bottom: 24px;
+}
+
+.revealed-cards-grid.single-card {
+  grid-template-columns: minmax(0, 224px);
+  justify-content: center;
+}
+
+.revealed-cards-grid.two-cols {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .tarot-flip-card {
-  perspective: 900px;
-  height: 174px;
+  perspective: 1100px;
+  aspect-ratio: 10 / 17.6;
   cursor: pointer;
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 0.14s ease-out;
+  will-change: transform;
 }
 
 .tarot-flip-inner {
@@ -1229,7 +1281,7 @@ button {
   width: 100%;
   height: 100%;
   transform-style: preserve-3d;
-  transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .tarot-flip-card.flipped .tarot-flip-inner {
@@ -1245,60 +1297,149 @@ button {
 }
 
 .tarot-face-back {
-  background: radial-gradient(circle at 50% 40%, #241b56, #0a081d);
-  border: 1.5px solid rgba(245, 201, 105, 0.5);
+  background: radial-gradient(circle at 50% 38%, #251a58, #0a071d 80%);
+  border: 1.8px solid rgba(245, 201, 105, 0.65);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.6), inset 0 0 18px rgba(224, 64, 251, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
-  color: var(--gold);
+  padding: 6px;
+}
+
+.tarot-face-back svg {
+  width: 92%;
+  height: 92%;
 }
 
 .tarot-face-front {
   transform: rotateY(180deg);
-  padding: 10px 8px;
-  background: linear-gradient(165deg, rgba(30, 24, 66, 0.96), rgba(11, 9, 28, 0.98));
-  border: 1px solid rgba(245, 201, 105, 0.42);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.45);
+  padding: 5px;
+  background: linear-gradient(155deg, #fde68a 0%, #a16207 32%, #1d1538 52%, #ca8a04 82%, #fef08a 100%);
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.68),
+    0 0 22px rgba(245, 201, 105, 0.22),
+    inset 0 1px 1px rgba(255, 255, 255, 0.55);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  text-align: center;
 }
 
 .tarot-face-front.reversed {
-  border-color: rgba(224, 64, 251, 0.45);
+  background: linear-gradient(155deg, #f0abfc 0%, #7e22ce 34%, #1a1135 55%, #f5c969 85%, #67e8f9 100%);
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.72),
+    0 0 24px rgba(224, 64, 251, 0.3);
+}
+
+.tarot-art-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0c091e;
+  border: 1px solid rgba(253, 230, 138, 0.38);
+  display: flex;
+  flex-direction: column;
+}
+
+.tarot-art-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: contrast(1.06) saturate(1.08);
+  transition: transform 0.3s ease;
+}
+
+.tarot-art-img.is-reversed {
+  transform: rotate(180deg);
+}
+
+/* Dynamic Moving Specular Light + Holographic Foil Sheen */
+.tarot-foil-glare {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      circle at var(--gx, 50%) var(--gy, 35%),
+      rgba(255, 248, 220, 0.42) 0%,
+      rgba(245, 201, 105, 0.16) 28%,
+      rgba(224, 64, 251, 0.08) 50%,
+      transparent 72%
+    ),
+    linear-gradient(
+      125deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.12) 45%,
+      rgba(34, 211, 238, 0.08) 52%,
+      transparent 75%
+    );
+  mix-blend-mode: screen;
+  opacity: var(--glare-op, 0.38);
+  transition: opacity 0.25s ease;
+}
+
+.tarot-caption-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 18px 6px 6px;
+  background: linear-gradient(180deg, transparent 0%, rgba(7, 5, 18, 0.86) 48%, rgba(7, 5, 18, 0.97) 100%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.tarot-top-chip {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  right: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 3px;
+  pointer-events: none;
 }
 
 .card-pos-tag {
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--text-faint);
-  max-width: 100%;
+  color: #fff;
+  background: rgba(7, 5, 18, 0.78);
+  backdrop-filter: blur(6px);
+  padding: 2px 6px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  max-width: 78%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.card-glyph-wrap {
-  font-size: 36px;
-  line-height: 1;
-  filter: drop-shadow(0 4px 12px rgba(245, 201, 105, 0.35));
-}
-
-.card-glyph-wrap.is-reversed {
-  transform: rotate(180deg);
+.card-rev-dot {
+  font-size: 9px;
+  padding: 2px 5px;
+  border-radius: 99px;
+  background: rgba(162, 28, 175, 0.85);
+  color: #fff;
+  font-weight: 700;
 }
 
 .card-face-name {
   font-family: var(--font-display);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.1;
   color: var(--gold-soft);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+
+.single-card .card-face-name {
+  font-size: 20px;
 }
 
 .card-orient-pill {
@@ -1313,6 +1454,37 @@ button {
 .card-orient-pill.rev {
   background: rgba(224, 64, 251, 0.16);
   color: #f0abfc;
+}
+
+/* Full-size 3D Interactive Inspect Card inside Modal */
+.modal-card-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 16px;
+  perspective: 1100px;
+}
+
+.modal-tarot-3d {
+  width: 204px;
+  aspect-ratio: 10 / 17.2;
+  border-radius: 16px;
+  padding: 6px;
+  background: linear-gradient(155deg, #fef08a 0%, #b45309 34%, #1f1640 54%, #eab308 84%, #fef9c3 100%);
+  box-shadow:
+    0 24px 52px rgba(0, 0, 0, 0.82),
+    0 0 36px rgba(245, 201, 105, 0.32),
+    0 0 20px rgba(224, 64, 251, 0.22);
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 0.12s ease-out;
+  touch-action: none;
+  cursor: grab;
+}
+
+.modal-tilt-hint {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--text-faint);
 }
 
 /* Detailed Interpretation Cards */
@@ -1474,8 +1646,8 @@ button {
 }
 
 .oracle-card-3d {
-  width: 210px;
-  height: 318px;
+  width: 214px;
+  height: 364px;
   position: relative;
   transform-style: preserve-3d;
   transition: transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
@@ -1490,7 +1662,7 @@ button {
   position: absolute;
   inset: 0;
   backface-visibility: hidden;
-  border-radius: 22px;
+  border-radius: 20px;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -1501,8 +1673,8 @@ button {
 
 .oracle-back {
   background: radial-gradient(circle at 50% 42%, #241856, #09071a);
-  border: 1.5px solid rgba(34, 211, 238, 0.55);
-  box-shadow: 0 22px 46px rgba(0, 0, 0, 0.65), 0 0 36px rgba(224, 64, 251, 0.28);
+  border: 1.8px solid rgba(245, 201, 105, 0.65);
+  box-shadow: 0 22px 46px rgba(0, 0, 0, 0.7), 0 0 36px rgba(224, 64, 251, 0.28);
   gap: 18px;
   font-size: 13px;
   font-weight: 600;
@@ -1520,23 +1692,29 @@ button {
 
 .oracle-front {
   transform: rotateY(180deg);
-  background: linear-gradient(165deg, #1f1747, #0b091e);
-  border: 1.5px solid rgba(245, 201, 105, 0.6);
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.7), 0 0 36px rgba(245, 201, 105, 0.25);
-  justify-content: space-between;
+  padding: 6px;
+  background: linear-gradient(155deg, #fde68a 0%, #b45309 36%, #1f1640 55%, #eab308 85%, #fef9c3 100%);
+  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.78), 0 0 36px rgba(245, 201, 105, 0.32);
 }
 
 .oracle-verdict-badge {
-  padding: 6px 18px;
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  padding: 5px 16px;
   border-radius: var(--radius-pill);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-.verdict-yes { background: rgba(52, 211, 153, 0.2); color: var(--emerald); border: 1px solid rgba(52, 211, 153, 0.45); }
-.verdict-no { background: rgba(251, 113, 133, 0.2); color: var(--rose); border: 1px solid rgba(251, 113, 133, 0.45); }
-.verdict-maybe { background: rgba(245, 201, 105, 0.2); color: var(--gold); border: 1px solid rgba(245, 201, 105, 0.45); }
+.verdict-yes { background: rgba(6, 78, 59, 0.85); color: #6ee7b7; border: 1px solid rgba(52, 211, 153, 0.65); }
+.verdict-no { background: rgba(136, 19, 55, 0.86); color: #fda4af; border: 1px solid rgba(251, 113, 133, 0.65); }
+.verdict-maybe { background: rgba(113, 63, 18, 0.86); color: #fde68a; border: 1px solid rgba(245, 201, 105, 0.65); }
 
 .oracle-verdict-panel {
   padding: 18px;
@@ -1552,41 +1730,52 @@ button {
 
 .dict-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
 }
 
 .dict-card {
-  text-align: left;
-  padding: 14px;
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  text-align: center;
+  padding: 5px;
+  border-radius: 13px;
+  background: linear-gradient(155deg, rgba(245, 201, 105, 0.42), rgba(255, 255, 255, 0.06));
+  border: 1px solid rgba(245, 201, 105, 0.25);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  transition: border-color 0.2s ease, transform 0.15s ease;
-}
-
-.dict-card:active { transform: scale(0.97); }
-.dict-card:hover { border-color: rgba(245, 201, 105, 0.4); }
-
-.dict-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.dict-emoji { font-size: 24px; }
-.dict-num { font-size: 11px; font-weight: 700; color: var(--gold); }
-.dict-name { font-size: 14px; font-weight: 700; color: var(--text-main); }
-.dict-preview {
-  font-size: 11.5px;
-  color: var(--text-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  gap: 5px;
   overflow: hidden;
+  transition: border-color 0.2s ease, transform 0.18s ease, box-shadow 0.2s ease;
+}
+
+.dict-card:active { transform: scale(0.96); }
+.dict-card:hover {
+  border-color: rgba(245, 201, 105, 0.72);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+}
+
+.dict-thumb-wrap {
+  width: 100%;
+  aspect-ratio: 10 / 16.6;
+  border-radius: 9px;
+  overflow: hidden;
+  background: #0b091e;
+  position: relative;
+}
+
+.dict-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.dict-name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--gold-soft);
+  padding: 1px 2px 3px;
 }
 
 .history-list {
