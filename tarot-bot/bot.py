@@ -892,9 +892,11 @@ def yes_no_verdict(card: dict, reversed_card: bool) -> tuple[str, str]:
 
 BASE_DIR = Path(__file__).resolve().parent
 STATS_DB_PATH = BASE_DIR / "stats.db"
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=8"
+PROMO_SHARE_PATH = BASE_DIR / "assets" / "promo-share.mp4"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=9"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 _welcome_file_id_cache: dict[tuple[str, float], str] = {}
+_promo_video_file_id: str | None = None
 
 # Админ-доступ к /stats и /logs (по умолчанию владелец бота)
 _raw_admins = os.environ.get("ADMIN_USER_IDS", "7446803539")
@@ -2113,13 +2115,44 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Принимает сохранённый расклад, отправленный из Telegram Mini App."""
+    """Принимает сохранённый расклад из Mini App и отправляет с промо-видео (со звуком)."""
+    global _promo_video_file_id
     raw = update.effective_message.web_app_data.data
     try:
         payload = json.loads(raw)
         summary = payload.get("summary") or raw
     except Exception:
         summary = raw
+
+    if "MysticalTarotKlimBot" not in summary:
+        summary = f"{summary}\n\n🔮 Попробуй сам в KLIM TAROT:\nhttps://t.me/MysticalTarotKlimBot"
+
+    if PROMO_SHARE_PATH.exists():
+        try:
+            caption = summary if len(summary) <= 1020 else (summary[:1017] + "...")
+            if _promo_video_file_id:
+                sent = await update.effective_message.reply_video(
+                    video=_promo_video_file_id,
+                    caption=caption,
+                    reply_markup=start_keyboard(),
+                    supports_streaming=True,
+                )
+            else:
+                with PROMO_SHARE_PATH.open("rb") as vf:
+                    sent = await update.effective_message.reply_video(
+                        video=vf,
+                        caption=caption,
+                        reply_markup=start_keyboard(),
+                        supports_streaming=True,
+                    )
+                if sent and sent.video:
+                    _promo_video_file_id = sent.video.file_id
+            if len(summary) > 1020:
+                await update.effective_message.reply_text(summary[1017:])
+            return
+        except Exception as exc:
+            logger.warning("Не удалось отправить promo-share.mp4: %s", exc)
+
     await update.effective_message.reply_text(
         summary,
         reply_markup=start_keyboard(),

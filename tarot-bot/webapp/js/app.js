@@ -2,6 +2,28 @@ import { ALL_CARDS, MAJOR_IDS, SPREADS, CATEGORIES, POSITION_LEADS } from './tar
 import { PSYCH_CATEGORIES, PSYCH_GUIDES } from './psychology-data.js?v=8';
 import { ZODIAC_SIGNS, ELEMENT_LABELS, calculateCompatibility } from './zodiac-data.js?v=8';
 
+const BOT_INVITE_URL = 'https://t.me/MysticalTarotKlimBot';
+const PROMO_VIDEO_URL = 'https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-share.mp4';
+
+async function shareContentWithPromo(rawText) {
+  sound.playTap();
+  const base = (rawText || '').trim();
+  const hasBotLink = base.includes('MysticalTarotKlimBot');
+  const fullText = hasBotLink
+    ? base
+    : `${base}\n\n🔮 Попробуй сам в KLIM TAROT:\n${BOT_INVITE_URL}`;
+
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(PROMO_VIDEO_URL)}&text=${encodeURIComponent(fullText)}`;
+  if (tg?.openTelegramLink) {
+    tg.openTelegramLink(shareUrl);
+    return;
+  }
+  if (navigator.clipboard) {
+    await navigator.clipboard.writeText(`${fullText}\n${PROMO_VIDEO_URL}`);
+    showToast('Текст и видео-ссылка скопированы — отправь другу 💌');
+  }
+}
+
 const _preloadedImgs = new Set();
 function preloadCardImage(card) {
   if (!card?.img || _preloadedImgs.has(card.img)) return null;
@@ -1309,9 +1331,21 @@ async function revealOracleCard() {
     <p class="interp-story">📖 ${escapeHtml(card.story)}</p>
     <p class="interp-meaning">💡 ${escapeHtml(reversed ? card.reversed : card.upright)}</p>
     <div class="interp-advice">🎯 Совет: ${escapeHtml(card.advice)}</div>
-    <button class="btn-glass-secondary" id="btn-oracle-again" style="width:100%;margin-top:14px;">Задать другой вопрос 🔄</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;">
+      <button class="btn-glass-secondary" id="btn-share-oracle">Поделиться 💌</button>
+      <button class="btn-glass-secondary" id="btn-oracle-again">Ещё вопрос 🔄</button>
+    </div>
   `;
   panel.classList.remove('hidden');
+  document.getElementById('btn-share-oracle').addEventListener('click', () => {
+    const qLine = question ? `❓ Вопрос: «${question}»\n` : '';
+    const txt =
+      `🔮 Оракул Да/Нет — ответ: ${verdict}\n` +
+      qLine +
+      `🃏 Аркан: ${card.emoji} ${card.name} (${reversed ? 'перевёрнутая' : 'прямая'})\n` +
+      `🎯 Совет: ${card.advice}`;
+    shareContentWithPromo(txt);
+  });
   document.getElementById('btn-oracle-again').addEventListener('click', () => {
     resetOracleStage();
     sound.playTap();
@@ -1574,17 +1608,9 @@ function bindEvents() {
   });
 
   // Share reading
-  document.getElementById('btn-share-reading').addEventListener('click', async () => {
+  document.getElementById('btn-share-reading').addEventListener('click', () => {
     if (!state.lastReading) return;
-    sound.playTap();
-    const text = formatReadingAsPlainText(state.lastReading);
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent('https://t.me/MysticalTarotKlimBot')}&text=${encodeURIComponent(text)}`;
-    if (tg?.openTelegramLink) {
-      tg.openTelegramLink(shareUrl);
-    } else if (navigator.clipboard) {
-      await navigator.clipboard.writeText(text);
-      showToast('Расклад скопирован — можно переслать другу 💌');
-    }
+    shareContentWithPromo(formatReadingAsPlainText(state.lastReading));
   });
 
   // Send reading back to bot chat
@@ -1793,7 +1819,16 @@ function openPsychGuideModal(guide) {
         ? `<button class="btn-fusion-primary" id="btn-psych-launch-spread" style="width:100%;margin-top:4px;">${escapeHtml(guide.spreadBtnLabel || `Расклад «${spread.name}»`)}</button>`
         : ''
     }
+    <button class="btn-glass-secondary" id="btn-share-psych" style="width:100%;margin-top:8px;">Поделиться практикой 💌</button>
   `;
+
+  document.getElementById('btn-share-psych')?.addEventListener('click', () => {
+    const txt =
+      `${guide.icon} ${guide.title}\n` +
+      `${guide.summary}\n\n` +
+      guide.steps.map((s, idx) => `${idx + 1}. ${s}`).join('\n');
+    shareContentWithPromo(txt);
+  });
 
   body.querySelectorAll('[data-card-id]').forEach((chip) => {
     chip.addEventListener('click', () => {
@@ -1961,21 +1996,14 @@ function runCompatibilityCheck() {
     if (loveSpread) startDrawSession(loveSpread);
   });
 
-  document.getElementById('btn-share-compat')?.addEventListener('click', async () => {
-    sound.playTap();
+  document.getElementById('btn-share-compat')?.addEventListener('click', () => {
     const shareText =
       `✨ Совместимость ${signA.symbol} ${signA.name} + ${signB.symbol} ${signB.name} — ${res.total}%!\n` +
       `${res.verdict}\n` +
       `❤️ Любовь: ${res.love}% · 💬 Доверие: ${res.comm}% · 🏠 Быт: ${res.home}% · 🔥 Страсть: ${res.passion}%\n` +
       `🃏 Талисман пары: ${talisman.name}\n\n` +
-      `Проверь свою пару в KLIM TAROT 👇`;
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent('https://t.me/MysticalTarotKlimBot')}&text=${encodeURIComponent(shareText)}`;
-    if (tg?.openTelegramLink) {
-      tg.openTelegramLink(shareUrl);
-    } else if (navigator.clipboard) {
-      await navigator.clipboard.writeText(shareText);
-      showToast('Результат скопирован — отправь партнёру 💌');
-    }
+      `Проверь свою пару в KLIM TAROT 👇\n${BOT_INVITE_URL}`;
+    shareContentWithPromo(shareText);
   });
 
   cardEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
