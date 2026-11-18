@@ -3,24 +3,27 @@ import { PSYCH_CATEGORIES, PSYCH_GUIDES } from './psychology-data.js?v=8';
 import { ZODIAC_SIGNS, ELEMENT_LABELS, calculateCompatibility } from './zodiac-data.js?v=8';
 
 const BOT_INVITE_URL = 'https://t.me/MysticalTarotKlimBot';
-const PROMO_SHARE_URL = 'https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/share.html';
 
-async function shareContentWithPromo(rawText) {
+async function shareContentWithPromo(rawText, inlineCode = '') {
   sound.playTap();
+  const code = String(inlineCode || '').slice(0, 240);
+
+  // Нативный видео-шеринг в Telegram через Inline Mode (отправляет реальное MP4 со звуком + подпись + кнопку)
+  if (tg?.switchInlineQuery) {
+    try {
+      tg.switchInlineQuery(code, ['users', 'groups', 'channels']);
+      return;
+    } catch (_) {}
+  }
+
+  // Резервный вариант, если открыто в обычном браузере вне Telegram
   const base = (rawText || '').trim();
-  const hasBotLink = base.includes('MysticalTarotKlimBot');
-  const fullText = hasBotLink
+  const fullText = base.includes('MysticalTarotKlimBot')
     ? base
     : `${base}\n\n🔮 Попробуй сам в KLIM TAROT:\n${BOT_INVITE_URL}`;
-
-  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(PROMO_SHARE_URL)}&text=${encodeURIComponent(fullText)}`;
-  if (tg?.openTelegramLink) {
-    tg.openTelegramLink(shareUrl);
-    return;
-  }
   if (navigator.clipboard) {
-    await navigator.clipboard.writeText(`${fullText}\n${PROMO_SHARE_URL}`);
-    showToast('Текст и видео-ссылка скопированы — отправь другу 💌');
+    await navigator.clipboard.writeText(fullText);
+    showToast('Результат скопирован — отправь другу 💌');
   }
 }
 
@@ -1344,7 +1347,9 @@ async function revealOracleCard() {
       qLine +
       `🃏 Аркан: ${card.emoji} ${card.name} (${reversed ? 'перевёрнутая' : 'прямая'})\n` +
       `🎯 Совет: ${card.advice}`;
-    shareContentWithPromo(txt);
+    const qSafe = (question || '').replace(/\|/g, ' ').slice(0, 80);
+    const code = `oracle:${verdict}|${card.id}|${reversed ? 1 : 0}|${qSafe}`;
+    shareContentWithPromo(txt, code);
   });
   document.getElementById('btn-oracle-again').addEventListener('click', () => {
     resetOracleStage();
@@ -1610,7 +1615,15 @@ function bindEvents() {
   // Share reading
   document.getElementById('btn-share-reading').addEventListener('click', () => {
     if (!state.lastReading) return;
-    shareContentWithPromo(formatReadingAsPlainText(state.lastReading));
+    const r = state.lastReading;
+    const sName = String(r.spreadName || 'Расклад').replace(/\|/g, ' ').slice(0, 40);
+    const fName = String(r.friendName || '').replace(/\|/g, ' ').slice(0, 24);
+    const cardsStr = (r.drawn || [])
+      .slice(0, 6)
+      .map((item) => `${item.card.id}:${item.reversed ? 1 : 0}`)
+      .join(',');
+    const code = `read:${sName}|${fName}|${cardsStr}`;
+    shareContentWithPromo(formatReadingAsPlainText(r), code);
   });
 
   // Send reading back to bot chat
@@ -1827,7 +1840,7 @@ function openPsychGuideModal(guide) {
       `${guide.icon} ${guide.title}\n` +
       `${guide.summary}\n\n` +
       guide.steps.map((s, idx) => `${idx + 1}. ${s}`).join('\n');
-    shareContentWithPromo(txt);
+    shareContentWithPromo(txt, `psych:${guide.id}`);
   });
 
   body.querySelectorAll('[data-card-id]').forEach((chip) => {
@@ -2003,7 +2016,8 @@ function runCompatibilityCheck() {
       `❤️ Любовь: ${res.love}% · 💬 Доверие: ${res.comm}% · 🏠 Быт: ${res.home}% · 🔥 Страсть: ${res.passion}%\n` +
       `🃏 Талисман пары: ${talisman.name}\n\n` +
       `Проверь свою пару в KLIM TAROT 👇\n${BOT_INVITE_URL}`;
-    shareContentWithPromo(shareText);
+    const code = `compat:${signA.id}:${signB.id}:${res.total}:${res.love}:${res.comm}:${res.home}:${res.passion}:${talisman.id}`;
+    shareContentWithPromo(shareText, code);
   });
 
   cardEl.scrollIntoView({ behavior: 'smooth', block: 'start' });

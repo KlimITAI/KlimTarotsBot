@@ -29,6 +29,8 @@ from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    InlineQueryResultVideo,
+    InlineQueryResultCachedVideo,
     BotCommand,
     BotCommandScopeChat,
     WebAppInfo,
@@ -40,6 +42,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     ConversationHandler,
     ContextTypes,
+    InlineQueryHandler,
     MessageHandler,
     PreCheckoutQueryHandler,
     TypeHandler,
@@ -893,7 +896,9 @@ def yes_no_verdict(card: dict, reversed_card: bool) -> tuple[str, str]:
 BASE_DIR = Path(__file__).resolve().parent
 STATS_DB_PATH = BASE_DIR / "stats.db"
 PROMO_SHARE_PATH = BASE_DIR / "assets" / "promo-share.mp4"
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=10"
+PROMO_VIDEO_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-share.mp4"
+PROMO_POSTER_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-poster.jpg"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=11"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 _welcome_file_id_cache: dict[tuple[str, float], str] = {}
 _promo_video_file_id: str | None = None
@@ -2168,6 +2173,159 @@ async def handle_web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
 
 
+ZODIAC_RU = {
+    "aries": ("♈", "Овен"),
+    "taurus": ("♉", "Телец"),
+    "gemini": ("♊", "Близнецы"),
+    "cancer": ("♋", "Рак"),
+    "leo": ("♌", "Лев"),
+    "virgo": ("♍", "Дева"),
+    "libra": ("♎", "Весы"),
+    "scorpio": ("♏", "Скорпион"),
+    "sagittarius": ("♐", "Стрелец"),
+    "capricorn": ("♑", "Козерог"),
+    "aquarius": ("♒", "Водолей"),
+    "pisces": ("♓", "Рыбы"),
+}
+
+PSYCH_RU = {
+    "how-tarot-works": ("🧠", "Почему Таро работает без мистики", "Карта работает как зеркало: помогает услышать собственные мысли и увидеть главный шаг."),
+    "after-shift-stress": ("🌿", "Как выдохнуть после тяжёлой смены", "Минута дыхания 4–4–4 и одна карта на восстановление быстро снимают напряжение."),
+    "hard-decision": ("🧭", "Застрял перед сложным выбором", "Разложите сомнения на конкретные позиции — туман уйдёт и вернётся ясность."),
+    "money-stability": ("💼", "Тревога о деньгах и работе", "Масть Пентаклей помогает перевести волнение в спокойный план конкретных шагов."),
+    "relationship-clarity": ("💞", "Не накручивать себя в отношениях", "Отделите факты от домыслов и посмотрите на ситуацию с обеих сторон."),
+    "scary-cards-myth": ("⚡", "Если выпали Башня, Смерть или Дьявол", "В Таро нет плохих карт — эти арканы показывают, от какого лишнего груза пора освободиться."),
+    "four-elements-cheat-sheet": ("✦", "4 стихии Таро = 4 стороны психики", "Жезлы — энергия, Кубки — чувства, Мечи — мысли, Пентакли — деньги и опора."),
+}
+
+
+def build_inline_share_payload(query_str: str) -> tuple[str, str, str]:
+    """Собирает (title, description, caption) для нативного видео-шеринга через Inline Mode."""
+    q = (query_str or "").strip()
+    card_by_id = {c["id"]: c for c in ALL_CARDS}
+    footer = "\n\n🔮 Проверь свой расклад в @MysticalTarotKlimBot"
+
+    if q.startswith("compat:"):
+        parts = q.split(":")
+        # compat:signA:signB:total:love:comm:home:passion:talismanId
+        if len(parts) >= 9:
+            sa = ZODIAC_RU.get(parts[1], ("✨", parts[1]))
+            sb = ZODIAC_RU.get(parts[2], ("✨", parts[2]))
+            total, love, comm, home, passion = parts[3], parts[4], parts[5], parts[6], parts[7]
+            tal = card_by_id.get(parts[8])
+            tal_name = f"{tal.get('emoji', '🃏')} {tal['name']}" if tal else "Звезда"
+            t_num = int(total) if total.isdigit() else 85
+            verdict = (
+                "Идеальное притяжение ✨" if t_num >= 90
+                else "Очень сильная совместимость 💫" if t_num >= 82
+                else "Хороший союз при взаимном уважении 🌿" if t_num >= 74
+                else "Яркий союз противоположностей ⚡"
+            )
+            title = f"❤️ {sa[0]} {sa[1]} + {sb[0]} {sb[1]} — {total}%"
+            desc = "Нажмите, чтобы отправить с видео со звуком 🎬"
+            caption = (
+                f"✨ Совместимость {sa[0]} {sa[1]} + {sb[0]} {sb[1]} — {total}%!\n"
+                f"{verdict}\n\n"
+                f"❤️ Любовь: {love}% · 💬 Доверие: {comm}%\n"
+                f"🏠 Быт: {home}% · 🔥 Страсть: {passion}%\n"
+                f"🃏 Талисман пары: {tal_name}"
+                f"{footer}"
+            )
+            return title, desc, caption
+
+    if q.startswith("read:"):
+        parts = q.split("|")
+        # read:<spreadName>|<friendName>|<card1:0,card2:1,...>
+        spread_name = parts[0][5:].strip() or "Расклад Таро"
+        friend_name = parts[1].strip() if len(parts) > 1 else ""
+        cards_raw = parts[2].strip() if len(parts) > 2 else ""
+        lines = [f"🔮 {spread_name}" + (f" (для {friend_name})" if friend_name else "")]
+        last_advice = ""
+        for item in [x for x in cards_raw.split(",") if x][:6]:
+            cid, *rest = item.split(":")
+            rev = rest and rest[0] == "1"
+            c = card_by_id.get(cid)
+            if c:
+                pos = "🔄" if rev else "⬆️"
+                lines.append(f"• {c.get('emoji', '🃏')} {c['name']} {pos}")
+                last_advice = c.get("advice", last_advice)
+        if last_advice:
+            lines.append(f"\n🎯 Совет: {last_advice}")
+        caption = "\n".join(lines) + footer
+        return f"🔮 {spread_name} (с видео 🎬)", "Нажмите, чтобы отправить расклад с видео", caption[:1020]
+
+    if q.startswith("oracle:"):
+        parts = q.split("|")
+        # oracle:<verdict>|<cardId>|<rev>|<question>
+        verdict = parts[0][7:].strip() or "ДА"
+        c = card_by_id.get(parts[1].strip()) if len(parts) > 1 else None
+        rev = len(parts) > 2 and parts[2].strip() == "1"
+        question = parts[3].strip() if len(parts) > 3 else ""
+        lines = [f"🔮 Оракул Да/Нет — ответ: {verdict}"]
+        if question:
+            lines.append(f"❓ «{question}»")
+        if c:
+            lines.append(f"🃏 Аркан: {c.get('emoji', '🃏')} {c['name']} ({'перевёрнутая' if rev else 'прямая'})")
+            lines.append(f"🎯 Совет: {c.get('advice', '')}")
+        caption = "\n".join(lines) + footer
+        return f"🔮 Оракул: {verdict} (с видео 🎬)", "Нажмите, чтобы отправить ответ с видео", caption[:1020]
+
+    if q.startswith("psych:"):
+        gid = q[6:].strip()
+        icon, gtitle, gsum = PSYCH_RU.get(gid, ("🧠", "Психология и Таро", "Простые практики от стресса и разбор арканов."))
+        caption = f"{icon} {gtitle}\n\n{gsum}{footer}"
+        return f"{icon} {gtitle} (с видео 🎬)", "Нажмите, чтобы отправить практику с видео", caption[:1020]
+
+    # По умолчанию — приглашение в KLIM TAROT с промо-видео
+    caption = (
+        "✨ KLIM TAROT — твой карманный таролог прямо в Telegram!\n\n"
+        "🌗 Карта дня и ночи · ❤️ Совместимость знаков · 🔮 21 расклад · 🧠 Антистресс-гид"
+        f"{footer}"
+    )
+    return "🔮 KLIM TAROT — отправить промо-видео 🎬", "Нажмите, чтобы отправить видео со звуком", caption
+
+
+async def handle_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Отправляет нативное промо-видео со звуком и подписью при нажатии «Поделиться»."""
+    iq = update.inline_query
+    if not iq:
+        return
+    title, desc, caption = build_inline_share_payload(iq.query)
+    markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔮 Открыть KLIM TAROT", url="https://t.me/MysticalTarotKlimBot")]
+    ])
+    res_id = f"klim_{abs(hash(iq.query or 'default')) % 10**9}"
+
+    if _promo_video_file_id:
+        item = InlineQueryResultCachedVideo(
+            id=res_id,
+            video_file_id=_promo_video_file_id,
+            title=title,
+            description=desc,
+            caption=caption,
+            reply_markup=markup,
+        )
+    else:
+        item = InlineQueryResultVideo(
+            id=res_id,
+            video_url=PROMO_VIDEO_PUBLIC_URL,
+            mime_type="video/mp4",
+            thumbnail_url=PROMO_POSTER_PUBLIC_URL,
+            title=title,
+            description=desc,
+            caption=caption,
+            video_width=540,
+            video_height=960,
+            video_duration=6,
+            reply_markup=markup,
+        )
+
+    try:
+        await iq.answer([item], cache_time=5, is_personal=True)
+    except Exception as exc:
+        logger.warning("Ошибка ответа на inline_query: %s", exc)
+
+
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logger.error("Ошибка при обработке update:", exc_info=context.error)
 
@@ -2298,6 +2456,7 @@ def main():
     app.add_handler(PreCheckoutQueryHandler(payments.handle_pre_checkout))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, payments.handle_successful_payment))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data))
+    app.add_handler(InlineQueryHandler(handle_inline_query))
     app.add_handler(CallbackQueryHandler(callback_router))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_error_handler(error_handler)
