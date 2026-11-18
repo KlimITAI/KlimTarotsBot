@@ -893,7 +893,7 @@ def yes_no_verdict(card: dict, reversed_card: bool) -> tuple[str, str]:
 BASE_DIR = Path(__file__).resolve().parent
 STATS_DB_PATH = BASE_DIR / "stats.db"
 PROMO_SHARE_PATH = BASE_DIR / "assets" / "promo-share.mp4"
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=9"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=10"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 _welcome_file_id_cache: dict[tuple[str, float], str] = {}
 _promo_video_file_id: str | None = None
@@ -1193,25 +1193,33 @@ async def cmd_grant(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def find_welcome_media() -> tuple[str | None, Path | None]:
     """
-    Ищет GIF/MP4 анимацию для приветствия при /start.
-    Проверяет tarot-bot/assets/ и папку на рабочем столе.
-    Если GIF пока не добавлен — использует фирменную обложку brand-hero.jpg.
+    Ищет анимацию приветствия (welcome.mp4 с открытием двери) для /start.
+    Строго исключает promo-share.mp4, который используется только для «Поделиться».
     """
+    explicit = [
+        BASE_DIR / "assets" / "welcome.mp4",
+        BASE_DIR / "webapp" / "assets" / "welcome.mp4",
+        BASE_DIR / "assets" / "welcome.gif",
+    ]
+    for p in explicit:
+        if p.exists():
+            return ("animation", p)
+
     search_dirs = [
         BASE_DIR / "assets",
         BASE_DIR / "webapp" / "assets",
-        Path(r"C:\Users\proda\OneDrive\Рабочий стол\Новая папка"),
     ]
-    # Сначала ищем GIF / MP4 анимацию
     for d in search_dirs:
         if not d.exists():
             continue
         for ext in ("*.gif", "*.mp4"):
-            matches = sorted(d.glob(ext), key=lambda p: p.stat().st_mtime, reverse=True)
+            matches = [
+                p for p in sorted(d.glob(ext), key=lambda x: x.stat().st_mtime, reverse=True)
+                if "promo" not in p.name.lower()
+            ]
             if matches:
                 return ("animation", matches[0])
 
-    # Запасной вариант — фирменная обложка KLIM TAROTS BOT
     hero_img = BASE_DIR / "webapp" / "assets" / "brand-hero.jpg"
     if hero_img.exists():
         return ("photo", hero_img)
@@ -1335,7 +1343,8 @@ def friend_spreads_keyboard():
 
 WELCOME_TEXT = (
     "✨ *Добро пожаловать в KLIM TAROT* ✨\n\n"
-    "Все *78 карт Таро*, *21 расклад*, Оракул Да/Нет, гадание для друга, "
+    "Все *78 карт Таро*, *21 расклад*, Карта дня и ночи, Оракул Да/Нет, "
+    "гадание для друга, *совместимость по знакам зодиака*, *гид по психологии и антистрессу*, "
     "интерактивный выбор карт с 3D-переворотом и озвучкой — "
     "теперь прямо в удобном *Mini App*!\n\n"
     "🔮 *Нажмите кнопку ниже*, чтобы открыть колоду и сделать свой расклад."

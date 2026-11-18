@@ -3,7 +3,7 @@ import { PSYCH_CATEGORIES, PSYCH_GUIDES } from './psychology-data.js?v=8';
 import { ZODIAC_SIGNS, ELEMENT_LABELS, calculateCompatibility } from './zodiac-data.js?v=8';
 
 const BOT_INVITE_URL = 'https://t.me/MysticalTarotKlimBot';
-const PROMO_VIDEO_URL = 'https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-share.mp4';
+const PROMO_SHARE_URL = 'https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/share.html';
 
 async function shareContentWithPromo(rawText) {
   sound.playTap();
@@ -13,13 +13,13 @@ async function shareContentWithPromo(rawText) {
     ? base
     : `${base}\n\n🔮 Попробуй сам в KLIM TAROT:\n${BOT_INVITE_URL}`;
 
-  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(PROMO_VIDEO_URL)}&text=${encodeURIComponent(fullText)}`;
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(PROMO_SHARE_URL)}&text=${encodeURIComponent(fullText)}`;
   if (tg?.openTelegramLink) {
     tg.openTelegramLink(shareUrl);
     return;
   }
   if (navigator.clipboard) {
-    await navigator.clipboard.writeText(`${fullText}\n${PROMO_VIDEO_URL}`);
+    await navigator.clipboard.writeText(`${fullText}\n${PROMO_SHARE_URL}`);
     showToast('Текст и видео-ссылка скопированы — отправь другу 💌');
   }
 }
