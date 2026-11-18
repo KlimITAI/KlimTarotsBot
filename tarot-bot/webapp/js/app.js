@@ -3,24 +3,20 @@ import { PSYCH_CATEGORIES, PSYCH_GUIDES } from './psychology-data.js?v=8';
 import { ZODIAC_SIGNS, ELEMENT_LABELS, calculateCompatibility } from './zodiac-data.js?v=8';
 
 const BOT_INVITE_URL = 'https://t.me/MysticalTarotKlimBot';
+const DEFAULT_SHARE_CTA =
+  '✨ Интересно, что карты покажут тебе сегодня? Карта дня, совместимость и 21 расклад бесплатно — гадания тут 👇\n🔮 KLIM TAROT · @MysticalTarotKlimBot';
 
-async function shareContentWithPromo(rawText, inlineCode = '') {
+async function shareContentWithPromo(rawText, customCta = '') {
   sound.playTap();
-  const code = String(inlineCode || '').slice(0, 240);
-
-  // Нативный видео-шеринг в Telegram через Inline Mode (отправляет реальное MP4 со звуком + подпись + кнопку)
-  if (tg?.switchInlineQuery) {
-    try {
-      tg.switchInlineQuery(code, ['users', 'groups', 'channels']);
-      return;
-    } catch (_) {}
-  }
-
-  // Резервный вариант, если открыто в обычном браузере вне Telegram
   const base = (rawText || '').trim();
-  const fullText = base.includes('MysticalTarotKlimBot')
-    ? base
-    : `${base}\n\n🔮 Попробуй сам в KLIM TAROT:\n${BOT_INVITE_URL}`;
+  const cta = customCta || DEFAULT_SHARE_CTA;
+  const fullText = base.includes('@MysticalTarotKlimBot') ? base : `${base}\n\n${cta}`;
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(BOT_INVITE_URL)}&text=${encodeURIComponent(fullText)}`;
+
+  if (tg?.openTelegramLink) {
+    tg.openTelegramLink(shareUrl);
+    return;
+  }
   if (navigator.clipboard) {
     await navigator.clipboard.writeText(fullText);
     showToast('Результат скопирован — отправь другу 💌');
@@ -1347,9 +1343,10 @@ async function revealOracleCard() {
       qLine +
       `🃏 Аркан: ${card.emoji} ${card.name} (${reversed ? 'перевёрнутая' : 'прямая'})\n` +
       `🎯 Совет: ${card.advice}`;
-    const qSafe = (question || '').replace(/\|/g, ' ').slice(0, 80);
-    const code = `oracle:${verdict}|${card.id}|${reversed ? 1 : 0}|${qSafe}`;
-    shareContentWithPromo(txt, code);
+    shareContentWithPromo(
+      txt,
+      '✨ Задай свой вопрос Оракулу бесплатно — гадания тут 👇\n🔮 KLIM TAROT · @MysticalTarotKlimBot'
+    );
   });
   document.getElementById('btn-oracle-again').addEventListener('click', () => {
     resetOracleStage();
@@ -1615,15 +1612,7 @@ function bindEvents() {
   // Share reading
   document.getElementById('btn-share-reading').addEventListener('click', () => {
     if (!state.lastReading) return;
-    const r = state.lastReading;
-    const sName = String(r.spreadName || 'Расклад').replace(/\|/g, ' ').slice(0, 40);
-    const fName = String(r.friendName || '').replace(/\|/g, ' ').slice(0, 24);
-    const cardsStr = (r.drawn || [])
-      .slice(0, 6)
-      .map((item) => `${item.card.id}:${item.reversed ? 1 : 0}`)
-      .join(',');
-    const code = `read:${sName}|${fName}|${cardsStr}`;
-    shareContentWithPromo(formatReadingAsPlainText(r), code);
+    shareContentWithPromo(formatReadingAsPlainText(state.lastReading));
   });
 
   // Send reading back to bot chat
@@ -1840,7 +1829,10 @@ function openPsychGuideModal(guide) {
       `${guide.icon} ${guide.title}\n` +
       `${guide.summary}\n\n` +
       guide.steps.map((s, idx) => `${idx + 1}. ${s}`).join('\n');
-    shareContentWithPromo(txt, `psych:${guide.id}`);
+    shareContentWithPromo(
+      txt,
+      '🌿 Больше практик, карта дня и Таро бесплатно — гадания тут 👇\n🔮 KLIM TAROT · @MysticalTarotKlimBot'
+    );
   });
 
   body.querySelectorAll('[data-card-id]').forEach((chip) => {
@@ -2014,10 +2006,11 @@ function runCompatibilityCheck() {
       `✨ Совместимость ${signA.symbol} ${signA.name} + ${signB.symbol} ${signB.name} — ${res.total}%!\n` +
       `${res.verdict}\n` +
       `❤️ Любовь: ${res.love}% · 💬 Доверие: ${res.comm}% · 🏠 Быт: ${res.home}% · 🔥 Страсть: ${res.passion}%\n` +
-      `🃏 Талисман пары: ${talisman.name}\n\n` +
-      `Проверь свою пару в KLIM TAROT 👇\n${BOT_INVITE_URL}`;
-    const code = `compat:${signA.id}:${signB.id}:${res.total}:${res.love}:${res.comm}:${res.home}:${res.passion}:${talisman.id}`;
-    shareContentWithPromo(shareText, code);
+      `🃏 Талисман пары: ${talisman.name}`;
+    shareContentWithPromo(
+      shareText,
+      '💘 А сколько % у вас? Проверь свою пару и карту дня бесплатно — гадания тут 👇\n🔮 KLIM TAROT · @MysticalTarotKlimBot'
+    );
   });
 
   cardEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
