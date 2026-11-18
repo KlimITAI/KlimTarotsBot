@@ -36,9 +36,14 @@ class SoundEngine {
     this.enabled = localStorage.getItem('klim_tarot_sound') !== 'off';
     this.ctx = null;
     this.bgm = null;
-    this.bgmActive = false;
-    this.bgmTargetVol = 0.18; // Тихий, атмосферный фон для ритуала гадания
+    this.bgmStarted = false;
+    this.bgmTargetVol = 0.16; // Мягкая, тихая фоновая музыка на всё время работы приложения
     this._fadeTimer = null;
+    this.playlist = [
+      { src: './assets/ambient-1.mp3', name: 'Атмосфера I' },
+      { src: './assets/ambient-2.mp3', name: 'Атмосфера II' },
+    ];
+    this.trackIndex = 0;
   }
 
   _ensureCtx() {
@@ -56,25 +61,33 @@ class SoundEngine {
 
   _ensureBgm() {
     if (!this.bgm) {
-      this.bgm = new Audio('./assets/ritual-music.mp3');
+      this.bgm = new Audio(this.playlist[this.trackIndex].src);
       this.bgm.loop = false;
       this.bgm.preload = 'auto';
       this.bgm.volume = 0;
-      this.bgmStartSec = 31.2; // Старт сразу с баса и основного ритма (пропускаем тихое вступление)
-      this.bgmLoopEndSec = 158.0; // Конец основной части перед затуханием (2:38)
 
-      this.bgm.addEventListener('loadedmetadata', () => {
-        if (this.bgm.currentTime < this.bgmStartSec) {
-          try { this.bgm.currentTime = this.bgmStartSec; } catch (_) {}
-        }
-      });
-      this.bgm.addEventListener('timeupdate', () => {
-        if (this.bgm.currentTime >= this.bgmLoopEndSec) {
-          this.bgm.currentTime = this.bgmStartSec;
-        }
+      // Плавный автоматический переход к следующему треку по кругу
+      this.bgm.addEventListener('ended', () => {
+        if (!this.enabled) return;
+        this.trackIndex = (this.trackIndex + 1) % this.playlist.length;
+        this._playCurrentTrack(true);
       });
     }
     return this.bgm;
+  }
+
+  _playCurrentTrack(fadeIn = true) {
+    const audio = this._ensureBgm();
+    const track = this.playlist[this.trackIndex];
+    if (!audio.src.endsWith(track.src.replace('./', ''))) {
+      audio.src = track.src;
+      audio.load();
+    }
+    if (fadeIn) audio.volume = 0;
+    return audio.play().then(() => {
+      this.bgmStarted = true;
+      this._fadeBgmTo(this.bgmTargetVol, fadeIn ? 1400 : 400, false);
+    }).catch(() => {});
   }
 
   _fadeBgmTo(targetVol, durationMs = 1100, pauseAtZero = false) {
@@ -101,25 +114,26 @@ class SoundEngine {
     }, stepMs);
   }
 
-  // Плавное включение/выключение фоновой музыки ритуала
-  setRitualAmbience(active) {
-    this.bgmActive = active;
-    if (!this.enabled || !active) {
-      if (this.bgm && !this.bgm.paused) {
-        this._fadeBgmTo(0, 850, true);
-      }
-      return;
+  // Запуск непрерывной фоновой музыки сразу при входе (или при первом касании экрана)
+  startAmbience() {
+    if (!this.enabled) return;
+    const audio = this._ensureBgm();
+    if (!audio.paused && this.bgmStarted) return;
+    this._playCurrentTrack(true);
+  }
+
+  // Ручное переключение между двумя треками
+  nextTrack() {
+    this.trackIndex = (this.trackIndex + 1) % this.playlist.length;
+    if (!this.enabled) {
+      this.enabled = true;
+      localStorage.setItem('klim_tarot_sound', 'on');
     }
     const audio = this._ensureBgm();
-    if (audio.paused && audio.currentTime < (this.bgmStartSec || 31.2)) {
-      try { audio.currentTime = this.bgmStartSec || 31.2; } catch (_) {}
-    }
-    audio.play().then(() => {
-      if (audio.currentTime < (this.bgmStartSec || 31.2) - 0.5) {
-        try { audio.currentTime = this.bgmStartSec || 31.2; } catch (_) {}
-      }
-      this._fadeBgmTo(this.bgmTargetVol, 1400, false);
-    }).catch(() => {});
+    audio.pause();
+    audio.currentTime = 0;
+    this._playCurrentTrack(true);
+    return { index: this.trackIndex + 1, total: this.playlist.length, name: this.playlist[this.trackIndex].name };
   }
 
   toggle() {
@@ -127,7 +141,7 @@ class SoundEngine {
     localStorage.setItem('klim_tarot_sound', this.enabled ? 'on' : 'off');
     if (this.enabled) {
       this.playTap();
-      if (this.bgmActive) this.setRitualAmbience(true);
+      this._playCurrentTrack(true);
     } else if (this.bgm && !this.bgm.paused) {
       this._fadeBgmTo(0, 350, true);
     }
@@ -486,10 +500,7 @@ function showToast(msg) {
 function navigateTo(viewName, { push = true } = {}) {
   sound.playTap();
   haptic('light');
-
-  // Включаем тихое музыкальное сопровождение во время ритуала гадания и Оракула
-  const isRitualView = ['draw', 'result', 'oracle'].includes(viewName);
-  sound.setRitualAmbience(isRitualView);
+  sound.startAmbience();
 
   if (viewName === 'hero') {
     viewHero.classList.remove('hidden');
@@ -1240,8 +1251,16 @@ function bindEvents() {
   document.getElementById('btn-sound-toggle').addEventListener('click', () => {
     const on = sound.toggle();
     updateSoundIcon();
-    showToast(on ? '🔊 Озвучка включена' : '🔇 Озвучка выключена');
+    showToast(on ? '🔊 Музыка и звуки включены' : '🔇 Звук выключен');
   });
+  const nextBtn = document.getElementById('btn-next-track');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', () => {
+      const info = sound.nextTrack();
+      updateSoundIcon();
+      showToast(`🎵 ${info.name} (${info.index}/${info.total})`);
+    });
+  }
 
   // Home daily banner
   document.getElementById('banner-daily-card').addEventListener('click', openDailyCardReading);
@@ -1321,21 +1340,23 @@ function bindEvents() {
   });
 }
 
-// Ensure background looping videos play smoothly in Telegram iOS/Android WebViews
-function ensureVideosPlaying() {
+// Ensure background looping videos & ambient playlist start immediately on entry
+function unlockMediaOnEntry() {
   document.querySelectorAll('video').forEach((v) => {
     v.muted = true;
     v.play().catch(() => {});
   });
+  sound.startAmbience();
 }
-ensureVideosPlaying();
-window.addEventListener('pointerdown', ensureVideosPlaying, { once: true });
+unlockMediaOnEntry();
+window.addEventListener('pointerdown', unlockMediaOnEntry, { once: true });
+window.addEventListener('touchstart', unlockMediaOnEntry, { once: true });
 
 // Ставим музыку на паузу, если пользователь свернул Telegram
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     if (sound.bgm && !sound.bgm.paused) sound.bgm.pause();
-  } else if (sound.enabled && sound.bgmActive && sound.bgm) {
+  } else if (sound.enabled && sound.bgm) {
     sound.bgm.play().catch(() => {});
   }
 });

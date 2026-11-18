@@ -817,8 +817,9 @@ def yes_no_verdict(card: dict, reversed_card: bool) -> tuple[str, str]:
 # ─────────────────────────────────────────────────────────
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/tarot-bot/webapp/"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
+_welcome_file_id_cache: dict[tuple[str, float], str] = {}
 
 
 def find_welcome_media() -> tuple[str | None, Path | None]:
@@ -973,13 +974,27 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     markup = start_keyboard()
 
     if media_type == "animation" and media_path:
-        with open(media_path, "rb") as f:
+        cache_key = (str(media_path), media_path.stat().st_mtime)
+        cached_id = _welcome_file_id_cache.get(cache_key)
+        if cached_id:
             await update.message.reply_animation(
-                animation=f,
+                animation=cached_id,
                 caption=WELCOME_TEXT,
                 reply_markup=markup,
                 parse_mode=ParseMode.MARKDOWN,
             )
+        else:
+            with open(media_path, "rb") as f:
+                sent = await update.message.reply_animation(
+                    animation=f,
+                    caption=WELCOME_TEXT,
+                    reply_markup=markup,
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+            if sent.animation:
+                _welcome_file_id_cache[cache_key] = sent.animation.file_id
+            elif sent.video:
+                _welcome_file_id_cache[cache_key] = sent.video.file_id
     elif media_type == "photo" and media_path:
         with open(media_path, "rb") as f:
             await update.message.reply_photo(
