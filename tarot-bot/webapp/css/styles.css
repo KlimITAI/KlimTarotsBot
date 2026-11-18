@@ -2576,3 +2576,211 @@ button {
 }
 
 .support-admin-btn:active { transform: scale(0.97); }
+
+/* ── Custom Topic Spread Builder & Popular Badge ─────────────── */
+
+.custom-topic-card {
+  padding: 15px 15px 14px;
+  margin-bottom: 16px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(145deg, rgba(245, 201, 105, 0.12), rgba(139, 92, 246, 0.14) 55%, var(--surface) 100%);
+  border: 1px solid rgba(245, 201, 105, 0.3);
+  backdrop-filter: blur(16px);
+}
+
+.custom-topic-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.custom-topic-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--gold-soft);
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  background: rgba(245, 201, 105, 0.15);
+  border: 1px solid rgba(245, 201, 105, 0.34);
+}
+
+.custom-topic-hint {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.topic-quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 12px;
+}
+
+.topic-chip {
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  transition: all 0.18s ease;
+}
+
+.topic-chip:active { transform: scale(0.95); }
+.topic-chip:hover {
+  border-color: rgba(245, 201, 105, 0.45);
+  color: var(--gold-soft);
+}
+
+.topic-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.topic-count-pills {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.topic-cnt-btn {
+  padding: 7px 10px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  transition: all 0.18s ease;
+}
+
+.topic-cnt-btn.active {
+  background: rgba(245, 201, 105, 0.18);
+  border-color: rgba(245, 201, 105, 0.55);
+  color: var(--gold-soft);
+}
+
+.topic-launch-btn {
+  padding: 8px 15px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, #f5c969, #e879f9);
+  color: #080618;
+  font-size: 12.5px;
+  font-weight: 800;
+  box-shadow: 0 6px 18px rgba(232, 121, 249, 0.3);
+  transition: transform 0.18s ease;
+}
+
+.topic-launch-btn:active { transform: scale(0.96); }
+
+.spread-popular-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  vertical-align: middle;
+  color: #fde68a;
+  background: rgba(245, 201, 105, 0.16);
+  border: 1px solid rgba(245, 201, 105, 0.36);
+}
+
+/* ── Daily Card Empty Mystical Void Reveal Stage ─────────────── */
+
+.daily-void-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 0 8px;
+  width: 100%;
+}
+
+.daily-void-slot {
+  position: relative;
+  width: 196px;
+  aspect-ratio: 3 / 5.1;
+  border-radius: 18px;
+  background: radial-gradient(circle at 50% 42%, rgba(139, 92, 246, 0.14), rgba(6, 5, 18, 0.78) 68%);
+  border: 1.5px dashed rgba(245, 201, 105, 0.42);
+  box-shadow:
+    0 0 36px rgba(139, 92, 246, 0.18),
+    inset 0 0 32px rgba(245, 201, 105, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.daily-void-slot:active {
+  transform: scale(0.96);
+}
+
+.daily-void-slot::before {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(245, 201, 105, 0.14) 60deg,
+    transparent 120deg,
+    rgba(217, 70, 239, 0.14) 240deg,
+    transparent 360deg
+  );
+  animation: voidSpin 9s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes voidSpin {
+  to { transform: rotate(360deg); }
+}
+
+.daily-void-seal {
+  position: relative;
+  z-index: 2;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle, rgba(245, 201, 105, 0.22), rgba(14, 12, 32, 0.85));
+  border: 1.5px solid rgba(245, 201, 105, 0.62);
+  box-shadow: 0 0 28px rgba(245, 201, 105, 0.34);
+  color: var(--gold-soft);
+  animation: voidPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes voidPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 22px rgba(245, 201, 105, 0.3); }
+  50% { transform: scale(1.08); box-shadow: 0 0 38px rgba(232, 121, 249, 0.55); }
+}
+
+.daily-void-caption {
+  position: relative;
+  z-index: 2;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 0 18px;
+  line-height: 1.4;
+}
+
+.daily-void-btn {
+  width: 100%;
+  max-width: 280px;
+}

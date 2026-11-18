@@ -1,4 +1,4 @@
-import { ALL_CARDS, MAJOR_IDS, SPREADS, CATEGORIES, POSITION_LEADS } from './tarot-data.js?v=8';
+import { ALL_CARDS, MAJOR_IDS, SPREADS, CATEGORIES, POSITION_LEADS } from './tarot-data.js?v=15';
 import { PSYCH_CATEGORIES, PSYCH_GUIDES } from './psychology-data.js?v=8';
 import { ZODIAC_SIGNS, ELEMENT_LABELS, calculateCompatibility } from './zodiac-data.js?v=8';
 
@@ -67,8 +67,9 @@ function haptic(type = 'light') {
 class SoundEngine {
   constructor() {
     this.enabled = localStorage.getItem('klim_tarot_sound') !== 'off';
-    const savedPct = Number(localStorage.getItem('klim_tarot_vol'));
-    this.volumePercent = Number.isFinite(savedPct) && savedPct >= 0 && savedPct <= 100 ? savedPct : 35;
+    const rawVol = localStorage.getItem('klim_tarot_vol_v2');
+    const savedPct = rawVol !== null ? Number(rawVol) : NaN;
+    this.volumePercent = Number.isFinite(savedPct) && savedPct >= 0 && savedPct <= 100 ? savedPct : 75;
     this.ctx = null;
     this.bgm = null;
     this.bgmGain = null;
@@ -84,8 +85,8 @@ class SoundEngine {
   }
 
   _pctToGain(pct) {
-    // 0% -> 0, 35% -> ~0.16, 100% -> 0.55 (приятный диапазон без перегруза)
-    return Math.max(0, Math.min(0.65, (pct / 100) * 0.55));
+    // 0% -> 0, 75% -> ~0.64 (отчётливая, насыщенная атмосфера по умолчанию), 100% -> 0.85
+    return Math.max(0, Math.min(0.85, (pct / 100) * 0.85));
   }
 
   _applyBgmLevel(level) {
@@ -121,7 +122,7 @@ class SoundEngine {
     const clamped = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
     this.volumePercent = clamped;
     this.bgmTargetVol = this._pctToGain(clamped);
-    localStorage.setItem('klim_tarot_vol', String(clamped));
+    localStorage.setItem('klim_tarot_vol_v2', String(clamped));
 
     if (clamped === 0) {
       this._applyBgmLevel(0);
@@ -866,7 +867,16 @@ function updateHistoryCounter() {
 }
 
 function renderFeaturedSpreads() {
-  const keys = ['three_cards', 'love_simple', 'career', 'celtic_cross', 'decision', 'year_ahead'];
+  const keys = [
+    'thoughts_feelings_actions',
+    'three_cards',
+    'station_for_two',
+    'wish_fulfillment',
+    'finance',
+    'week_ahead',
+    'celtic_cross',
+    'decision',
+  ];
   const container = document.getElementById('featured-spreads-row');
   container.innerHTML = '';
 
@@ -929,7 +939,7 @@ function renderSpreadsList() {
     const pillText = isDaily && daily ? `${period.nextIcon} ${period.remClock}` : `${spread.positions.length} к.`;
     btn.innerHTML = `
       <div class="spread-row-main">
-        <span class="spread-row-title">${spread.name}</span>
+        <span class="spread-row-title">${spread.name}${spread.popular ? '<span class="spread-popular-tag">ХИТ</span>' : ''}</span>
         <span class="spread-row-desc">${spread.desc}</span>
       </div>
       <span class="spread-count-pill" ${isDaily ? 'id="spread-daily-timer"' : ''}>${pillText}</span>
@@ -969,7 +979,7 @@ function renderFriendSpreads() {
 
 /* ── INTERACTIVE DRAW TABLE ──────────────────────────────────── */
 
-function startDrawSession(spread, { friendName = null } = {}) {
+function startDrawSession(spread, { friendName = null, customQuestion = '' } = {}) {
   // Карта дня и ночи фиксируется на текущий дневной или ночной период по времени пользователя
   if (spread.key === 'card_of_day' && !friendName) {
     openDailyCardReading();
@@ -990,10 +1000,12 @@ function startDrawSession(spread, { friendName = null } = {}) {
 
   document.getElementById('draw-mode-badge').textContent = friendName
     ? `ПОДАРОК ДЛЯ ${friendName.toUpperCase()}`
+    : customQuestion
+    ? 'РАСКЛАД ПО ВАШЕЙ ТЕМЕ'
     : 'РИТУАЛ ВЫБОРА КАРТ';
   document.getElementById('draw-spread-title').textContent = spread.name;
   document.getElementById('draw-spread-intro').textContent = spread.intro;
-  document.getElementById('draw-question-input').value = '';
+  document.getElementById('draw-question-input').value = customQuestion || '';
 
   renderDrawState();
   navigateTo('draw');
@@ -1148,20 +1160,71 @@ function autoDrawRemaining() {
 }
 
 function openDailyCardReading() {
-  const daily = drawAndSaveDailyCard();
-  preloadCardImage(daily.card);
-  const period = daily.period;
-  const reading = {
-    spreadKey: 'card_of_day',
-    spreadName: period.title,
-    spreadDesc: `${period.dateStr} (${period.timeStr}) · ${period.nextNote}`,
-    positions: [period.position],
-    drawn: [{ card: daily.card, reversed: daily.reversed }],
-    friendName: null,
-    question: '',
-    isDaily: true,
-  };
-  if (!daily.opened) {
+  const existing = getDailyCard();
+  if (existing) {
+    preloadCardImage(existing.card);
+    const period = existing.period;
+    const reading = {
+      spreadKey: 'card_of_day',
+      spreadName: period.title,
+      spreadDesc: `${period.dateStr} (${period.timeStr}) · ${period.nextNote}`,
+      positions: [period.position],
+      drawn: [{ card: existing.card, reversed: existing.reversed }],
+      friendName: null,
+      question: '',
+      isDaily: true,
+    };
+    renderReadingResult(reading);
+    navigateTo('result');
+    return;
+  }
+
+  // Новая карта дня/ночи: сначала мистическая пустота и кнопка проявления по клику
+  const period = getUserDayNightPeriod();
+  const hero = document.getElementById('result-hero');
+  hero.innerHTML = `
+    <div class="draw-badge">${escapeHtml(period.badge)}</div>
+    <h2>${escapeHtml(period.title)}</h2>
+    <p>${escapeHtml(period.promptDesc)}</p>
+  `;
+
+  const grid = document.getElementById('revealed-cards-grid');
+  grid.classList.remove('two-cols');
+  grid.classList.add('single-card');
+  grid.innerHTML = `
+    <div class="daily-void-stage">
+      <div class="daily-void-slot" id="daily-void-slot" role="button" tabindex="0" aria-label="Проявить карту">
+        <div class="daily-void-seal">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="daily-void-caption">Сделайте вдох и коснитесь пустоты, чтобы карта проявилась</div>
+      </div>
+      <button type="button" class="btn-fusion-primary daily-void-btn" id="btn-manifest-daily">
+        <span>✦ ${period.isDay ? 'Проявить карту дня' : 'Проявить карту ночи'}</span>
+      </button>
+    </div>
+  `;
+
+  document.getElementById('interpretations-list')?.classList.add('hidden');
+  document.getElementById('synthesis-card')?.classList.add('hidden');
+  document.querySelector('#view-result .result-actions')?.classList.add('hidden');
+
+  const manifestNow = () => {
+    const daily = drawAndSaveDailyCard();
+    preloadCardImage(daily.card);
+    const p = daily.period;
+    const reading = {
+      spreadKey: 'card_of_day',
+      spreadName: p.title,
+      spreadDesc: `${p.dateStr} (${p.timeStr}) · ${p.nextNote}`,
+      positions: [p.position],
+      drawn: [{ card: daily.card, reversed: daily.reversed }],
+      friendName: null,
+      question: '',
+      isDaily: true,
+    };
     saveReadingToHistory({
       spreadKey: reading.spreadKey,
       spreadName: reading.spreadName,
@@ -1169,8 +1232,12 @@ function openDailyCardReading() {
       question: '',
       cards: [{ id: daily.card.id, reversed: daily.reversed }],
     });
-  }
-  renderReadingResult(reading);
+    refreshHomeBanner();
+    renderReadingResult(reading);
+  };
+
+  document.getElementById('daily-void-slot')?.addEventListener('click', manifestNow, { once: true });
+  document.getElementById('btn-manifest-daily')?.addEventListener('click', manifestNow, { once: true });
   navigateTo('result');
 }
 
@@ -1205,6 +1272,9 @@ function finalizeReading() {
 
 function renderReadingResult(reading) {
   state.lastReading = reading;
+  document.getElementById('interpretations-list')?.classList.remove('hidden');
+  document.getElementById('synthesis-card')?.classList.remove('hidden');
+  document.querySelector('#view-result .result-actions')?.classList.remove('hidden');
   const readerName = tg?.initDataUnsafe?.user?.first_name || 'Вы';
 
   // Hero header
@@ -1749,6 +1819,68 @@ function bindEvents() {
   if (settingsBtn) {
     settingsBtn.addEventListener('click', openSettingsModal);
   }
+
+  // Custom Topic Spread Builder
+  let customTopicCount = 3;
+  const topicInput = document.getElementById('custom-topic-input');
+  document.querySelectorAll('.topic-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      sound.playTap();
+      haptic('light');
+      if (topicInput) {
+        topicInput.value = chip.dataset.topic || chip.textContent.trim();
+        topicInput.focus();
+      }
+    });
+  });
+  document.querySelectorAll('.topic-cnt-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      sound.playTap();
+      customTopicCount = Number(btn.dataset.cnt) || 3;
+      document.querySelectorAll('.topic-cnt-btn').forEach((b) => b.classList.toggle('active', b === btn));
+    });
+  });
+  document.getElementById('btn-launch-custom-topic')?.addEventListener('click', () => {
+    const topic = (topicInput?.value || '').trim();
+    if (!topic) {
+      haptic('warning');
+      showToast('Введите тему или выберите подсказку выше ✨');
+      topicInput?.focus();
+      return;
+    }
+    const posMap = {
+      3: [
+        'Суть вашей темы прямо сейчас',
+        'Что помогает или скрыто влияет',
+        'Совет карт и ближайший исход',
+      ],
+      5: [
+        'Суть ситуации по вашей теме',
+        'Скрытый фактор, который важно учесть',
+        'Главное препятствие или риск',
+        'Лучший шаг, который стоит сделать',
+        'Вероятный итог развития темы',
+      ],
+      7: [
+        'Корень и предыстория вопроса',
+        'Настоящий момент (точка А)',
+        'Ваши внутренние ожидания и страхи',
+        'Внешние обстоятельства и люди',
+        'Что мешает решению',
+        'Ключевой совет карт',
+        'Итоговый исход по вашей теме',
+      ],
+    };
+    const customSpread = {
+      key: 'custom_topic',
+      name: `✨ Тема: ${topic.length > 34 ? topic.slice(0, 34) + '…' : topic}`,
+      desc: `Персональный расклад на ${customTopicCount} ${pluralCards(customTopicCount)} по вашему запросу`,
+      positions: posMap[customTopicCount] || posMap[3],
+      category: 'custom',
+      intro: `Сосредоточьтесь на теме «${topic}» и интуитивно выберите ${customTopicCount} ${pluralCards(customTopicCount)}.`,
+    };
+    startDrawSession(customSpread, { customQuestion: topic });
+  });
 }
 
 function openSettingsModal() {

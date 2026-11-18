@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css?v=14" />
+  <link rel="stylesheet" href="./css/styles.css?v=15" />
 </head>
 <body>
   <!-- Animated Cosmic Starfield & Nebula Canvas -->
@@ -320,7 +320,7 @@
                 </div>
                 <div class="bento-meta">
                   <span class="bento-title">Тематические расклады</span>
-                  <span class="bento-sub">21 расклад · Любовь, карьера, год вперёд</span>
+                  <span class="bento-sub">35 раскладов · Своя тема, любовь, деньги</span>
                 </div>
               </div>
               <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -387,7 +387,7 @@
           <!-- Popular Spreads Horizontal Shelf -->
           <div class="section-head">
             <h3>Популярные расклады</h3>
-            <button class="link-btn" data-nav="spreads">Все 21</button>
+            <button class="link-btn" data-nav="spreads">Все 35</button>
           </div>
           <div class="featured-spreads-row" id="featured-spreads-row"></div>
         </section>
@@ -396,8 +396,40 @@
         <section id="view-spreads" class="subview">
           <div class="view-intro">
             <h2>Библиотека раскладов</h2>
-            <p>Выберите тему или конкретный расклад под ваш запрос</p>
+            <p>35 раскладов от самых популярных к глубоким — или задайте свою тему</p>
           </div>
+
+          <!-- Custom Topic Spread Builder -->
+          <div class="custom-topic-card">
+            <div class="custom-topic-head">
+              <span class="custom-topic-badge">✦ СВОЯ ТЕМА</span>
+              <span class="custom-topic-hint">Расклад под любой ваш запрос</span>
+            </div>
+            <input
+              type="text"
+              id="custom-topic-input"
+              class="glass-input"
+              placeholder="Например: переезд, повышение, примирение..."
+              maxlength="120"
+            />
+            <div class="topic-quick-chips" id="topic-quick-chips">
+              <button type="button" class="topic-chip" data-topic="Отношения и чувства">Любовь</button>
+              <button type="button" class="topic-chip" data-topic="Деньги и доход в этом месяце">Деньги</button>
+              <button type="button" class="topic-chip" data-topic="Стоит ли менять работу">Смена работы</button>
+              <button type="button" class="topic-chip" data-topic="Переезд и перемены">Переезд</button>
+              <button type="button" class="topic-chip" data-topic="Сбудется ли моё желание">Желание</button>
+              <button type="button" class="topic-chip" data-topic="Восстановление сил и спокойствие">Энергия</button>
+            </div>
+            <div class="topic-bottom-row">
+              <div class="topic-count-pills" id="topic-count-pills">
+                <button type="button" class="topic-cnt-btn active" data-cnt="3">3 карты</button>
+                <button type="button" class="topic-cnt-btn" data-cnt="5">5 карт</button>
+                <button type="button" class="topic-cnt-btn" data-cnt="7">7 карт</button>
+              </div>
+              <button type="button" class="topic-launch-btn" id="btn-launch-custom-topic">Разложить ✦</button>
+            </div>
+          </div>
+
           <div class="pill-tabs" id="spread-category-tabs"></div>
           <div class="spreads-list" id="spreads-list"></div>
         </section>
@@ -642,6 +674,6 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast hidden"></div>
 
-  <script type="module" src="./js/app.js?v=14"></script>
+  <script type="module" src="./js/app.js?v=15"></script>
 </body>
 </html>

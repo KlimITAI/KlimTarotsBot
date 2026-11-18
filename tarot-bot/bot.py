@@ -898,7 +898,7 @@ STATS_DB_PATH = BASE_DIR / "stats.db"
 PROMO_SHARE_PATH = BASE_DIR / "assets" / "promo-share.mp4"
 PROMO_VIDEO_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-share.mp4"
 PROMO_POSTER_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-poster.jpg"
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=14"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=15"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 _welcome_file_id_cache: dict[tuple[str, float], str] = {}
 _promo_video_file_id: str | None = None
@@ -1348,7 +1348,7 @@ def friend_spreads_keyboard():
 
 WELCOME_TEXT = (
     "✨ *Добро пожаловать в KLIM TAROT* ✨\n\n"
-    "Все *78 карт Таро*, *21 расклад*, Карта дня и ночи, Оракул Да/Нет, "
+    "Все *78 карт Таро*, *35 раскладов* (плюс расклад на свою тему), Карта дня и ночи, Оракул Да/Нет, "
     "гадание для друга, *совместимость по знакам зодиака*, *гид по психологии и антистрессу*, "
     "интерактивный выбор карт с 3D-переворотом и озвучкой — "
     "теперь прямо в удобном *Mini App*!\n\n"
