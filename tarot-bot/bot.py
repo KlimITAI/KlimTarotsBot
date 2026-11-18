@@ -2308,6 +2308,7 @@ def main():
         drop_pending_updates=True,
         timeout=10,
         poll_interval=0.5,
+        bootstrap_retries=-1,
     )
 
 
