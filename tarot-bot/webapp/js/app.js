@@ -67,16 +67,78 @@ function haptic(type = 'light') {
 class SoundEngine {
   constructor() {
     this.enabled = localStorage.getItem('klim_tarot_sound') !== 'off';
+    const savedPct = Number(localStorage.getItem('klim_tarot_vol'));
+    this.volumePercent = Number.isFinite(savedPct) && savedPct >= 0 && savedPct <= 100 ? savedPct : 35;
     this.ctx = null;
     this.bgm = null;
+    this.bgmGain = null;
+    this.bgmSourceConnected = false;
     this.bgmStarted = false;
-    this.bgmTargetVol = 0.16; // Мягкая, тихая фоновая музыка на всё время работы приложения
+    this.bgmTargetVol = this._pctToGain(this.volumePercent);
     this._fadeTimer = null;
     this.playlist = [
       { src: './assets/ambient-1.mp3', name: 'Атмосфера I' },
       { src: './assets/ambient-2.mp3', name: 'Атмосфера II' },
     ];
     this.trackIndex = 0;
+  }
+
+  _pctToGain(pct) {
+    // 0% -> 0, 35% -> ~0.16, 100% -> 0.55 (приятный диапазон без перегруза)
+    return Math.max(0, Math.min(0.65, (pct / 100) * 0.55));
+  }
+
+  _applyBgmLevel(level) {
+    const v = Math.max(0, Math.min(1, level));
+    if (this.bgmGain && this.ctx) {
+      try {
+        this.bgmGain.gain.setTargetAtTime(v, this.ctx.currentTime, 0.04);
+      } catch (_) {
+        this.bgmGain.gain.value = v;
+      }
+    }
+    if (this.bgm && !this.bgmSourceConnected) {
+      try { this.bgm.volume = v; } catch (_) {}
+    }
+  }
+
+  _attachBgmGain() {
+    if (this.bgmSourceConnected || !this.bgm) return;
+    const ctx = this._ensureCtx();
+    if (!ctx) return;
+    try {
+      const src = ctx.createMediaElementSource(this.bgm);
+      const gain = ctx.createGain();
+      gain.gain.value = this.enabled ? this.bgmTargetVol : 0;
+      src.connect(gain).connect(ctx.destination);
+      this.bgmGain = gain;
+      this.bgmSourceConnected = true;
+      try { this.bgm.volume = 1; } catch (_) {}
+    } catch (_) {}
+  }
+
+  setVolumePercent(pct) {
+    const clamped = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
+    this.volumePercent = clamped;
+    this.bgmTargetVol = this._pctToGain(clamped);
+    localStorage.setItem('klim_tarot_vol', String(clamped));
+
+    if (clamped === 0) {
+      this._applyBgmLevel(0);
+      return clamped;
+    }
+    if (!this.enabled) {
+      this.enabled = true;
+      localStorage.setItem('klim_tarot_sound', 'on');
+    }
+    this._ensureBgm();
+    this._attachBgmGain();
+    if (this.bgm && this.bgm.paused) {
+      this._playCurrentTrack(false);
+    } else {
+      this._applyBgmLevel(this.bgmTargetVol);
+    }
+    return clamped;
   }
 
   _ensureCtx() {
@@ -116,7 +178,8 @@ class SoundEngine {
       audio.src = track.src;
       audio.load();
     }
-    if (fadeIn) audio.volume = 0;
+    if (fadeIn) this._applyBgmLevel(0);
+    this._attachBgmGain();
     return audio.play().then(() => {
       this.bgmStarted = true;
       this._fadeBgmTo(this.bgmTargetVol, fadeIn ? 1400 : 400, false);
@@ -130,13 +193,13 @@ class SoundEngine {
 
     const steps = 22;
     const stepMs = Math.max(20, Math.floor(durationMs / steps));
-    const startVol = audio.volume;
+    const startVol = this.bgmGain ? this.bgmGain.gain.value : audio.volume;
     let step = 0;
 
     this._fadeTimer = setInterval(() => {
       step += 1;
       const t = Math.min(1, step / steps);
-      audio.volume = Math.max(0, Math.min(1, startVol + (targetVol - startVol) * t));
+      this._applyBgmLevel(startVol + (targetVol - startVol) * t);
       if (t >= 1) {
         clearInterval(this._fadeTimer);
         this._fadeTimer = null;
@@ -1365,12 +1428,36 @@ async function revealOracleCard() {
 /* ── 78-CARD DICTIONARY ──────────────────────────────────────── */
 
 const SUIT_TABS = [
-  { key: 'all', name: 'Все (78)' },
-  { key: 'major', name: '🌟 Старшие' },
-  { key: 'wands', name: '🔥 Жезлы' },
-  { key: 'cups', name: '💧 Кубки' },
-  { key: 'swords', name: '💨 Мечи' },
-  { key: 'pentacles', name: '🌍 Пентакли' },
+  {
+    key: 'all',
+    name: 'Все (78)',
+    svg: '<svg class="suit-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="3" width="11" height="16" rx="2"/><path d="M16 7h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-1"/></svg>',
+  },
+  {
+    key: 'major',
+    name: 'Старшие',
+    svg: '<svg class="suit-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z" stroke-linejoin="round"/></svg>',
+  },
+  {
+    key: 'wands',
+    name: 'Жезлы',
+    svg: '<svg class="suit-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 19L19 5M14 5l5 0 0 5M9 11l4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  },
+  {
+    key: 'cups',
+    name: 'Кубки',
+    svg: '<svg class="suit-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4h12v4a6 6 0 0 1-12 0V4zM12 14v6M8 20h8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  },
+  {
+    key: 'swords',
+    name: 'Мечи',
+    svg: '<svg class="suit-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v14M8 13h8M10 20h4M12 17v3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  },
+  {
+    key: 'pentacles',
+    name: 'Пентакли',
+    svg: '<svg class="suit-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 5.5l2.1 6.2 5.4.1-4.3 3.3 1.6 5.4-4.8-3.3-4.8 3.3 1.6-5.4-4.3-3.3 5.4-.1L12 5.5z" stroke-linejoin="round"/></svg>',
+  },
 ];
 
 function renderDictTabs() {
@@ -1379,7 +1466,7 @@ function renderDictTabs() {
   SUIT_TABS.forEach((tab) => {
     const btn = document.createElement('button');
     btn.className = `pill-tab ${state.activeSuit === tab.key ? 'active' : ''}`;
-    btn.textContent = tab.name;
+    btn.innerHTML = `${tab.svg}<span>${escapeHtml(tab.name)}</span>`;
     btn.addEventListener('click', () => {
       sound.playTap();
       state.activeSuit = tab.key;
@@ -1656,6 +1743,104 @@ function bindEvents() {
   if (compatBtn) {
     compatBtn.addEventListener('click', runCompatibilityCheck);
   }
+
+  // Top-bar settings modal button
+  const settingsBtn = document.getElementById('btn-settings');
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', openSettingsModal);
+  }
+}
+
+function openSettingsModal() {
+  sound.playTap();
+  haptic('light');
+  const body = document.getElementById('modal-body');
+  const curTrack = sound.playlist[sound.trackIndex]?.name || 'Атмосфера I';
+
+  body.innerHTML = `
+    <h2 style="margin:0 0 14px;font-family:var(--font-display);font-size:28px;">Настройки</h2>
+
+    <div class="settings-block">
+      <div class="settings-row-head">
+        <span class="settings-label">Громкость музыки</span>
+        <span class="settings-val" id="settings-vol-label">${sound.enabled ? sound.volumePercent : 0}%</span>
+      </div>
+      <input
+        type="range"
+        id="settings-vol-slider"
+        class="volume-slider"
+        min="0"
+        max="100"
+        step="1"
+        value="${sound.enabled ? sound.volumePercent : 0}"
+      />
+      <div class="settings-audio-btns">
+        <button class="btn-glass-secondary" id="settings-sound-toggle">
+          ${sound.enabled ? 'Выключить звук' : 'Включить звук'}
+        </button>
+        <button class="btn-glass-secondary" id="settings-next-track">
+          Трек: ${escapeHtml(curTrack)}
+        </button>
+      </div>
+    </div>
+
+    <div class="support-admin-card">
+      <div class="support-admin-title">Возникли проблемы или вопросы?</div>
+      <p class="support-admin-desc">
+        Если что-то не открывается, есть идея по улучшению или нужна помощь — напишите администратору напрямую в Telegram.
+      </p>
+      <button class="support-admin-btn" id="btn-contact-admin">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 5L2 12.5l7 2.5 2.5 7L21 5z" stroke-linejoin="round"/>
+          <path d="M9 15l12-10" stroke-linecap="round"/>
+        </svg>
+        <span>Связь с администратором · @im_klim</span>
+      </button>
+    </div>
+  `;
+
+  const slider = document.getElementById('settings-vol-slider');
+  const volLabel = document.getElementById('settings-vol-label');
+  const toggleBtn = document.getElementById('settings-sound-toggle');
+  const trackBtn = document.getElementById('settings-next-track');
+
+  slider?.addEventListener('input', (e) => {
+    const pct = sound.setVolumePercent(e.target.value);
+    if (volLabel) volLabel.textContent = `${pct}%`;
+    if (toggleBtn) toggleBtn.textContent = pct > 0 ? 'Выключить звук' : 'Включить звук';
+    updateSoundIcon();
+  });
+
+  toggleBtn?.addEventListener('click', () => {
+    const on = sound.toggle();
+    updateSoundIcon();
+    const shownPct = on ? sound.volumePercent : 0;
+    if (slider) slider.value = String(shownPct);
+    if (volLabel) volLabel.textContent = `${shownPct}%`;
+    toggleBtn.textContent = on ? 'Выключить звук' : 'Включить звук';
+  });
+
+  trackBtn?.addEventListener('click', () => {
+    const info = sound.nextTrack();
+    updateSoundIcon();
+    trackBtn.textContent = `Трек: ${info.name}`;
+    if (slider) slider.value = String(sound.volumePercent);
+    if (volLabel) volLabel.textContent = `${sound.volumePercent}%`;
+    if (toggleBtn) toggleBtn.textContent = 'Выключить звук';
+    showToast(`🎵 ${info.name} (${info.index}/${info.total})`);
+  });
+
+  document.getElementById('btn-contact-admin')?.addEventListener('click', () => {
+    sound.playTap();
+    const adminUrl = 'https://t.me/im_klim';
+    if (tg?.openTelegramLink) {
+      tg.openTelegramLink(adminUrl);
+    } else {
+      window.open(adminUrl, '_blank', 'noopener');
+    }
+  });
+
+  document.getElementById('card-modal').classList.remove('hidden');
 }
 
 /* ── PSYCHOLOGY & TAROT GUIDE ────────────────────────────────── */
