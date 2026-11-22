@@ -8,6 +8,8 @@ services:
     startCommand: python -u bot.py
     healthCheckPath: /health
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: ADMIN_USER_IDS
