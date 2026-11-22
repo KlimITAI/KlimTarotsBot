@@ -2948,10 +2948,24 @@ def main():
     start_health_server()
     init_stats_db()
     payments.init_payments_db(STATS_DB_PATH)
+    # Загрузка локального .env если переменные не заданы в системе
+    for env_path in [Path(".env"), Path(__file__).resolve().parent / ".env", Path(__file__).resolve().parent.parent / ".env"]:
+        if env_path.exists():
+            try:
+                for line in env_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k, v = k.strip(), v.strip().strip("\"'")
+                        if k and k not in os.environ:
+                            os.environ[k] = v
+            except Exception:
+                pass
+
     token = (
         os.environ.get("TELEGRAM_BOT_TOKEN")
         or os.environ.get("BOT_TOKEN")
-        or "9210053625:AAH3Fmy0hCODxGBVCAipyEc-PSZbiPoxh4w"
+        or "9210053625:AAHLc9jFQIRkgVN-QPYeKXsUrCKjTyFZk7U"
     ).strip()
 
     # Устойчивые HTTP-клиенты: короткий keep-alive предотвращает зависания сокетов на Windows
