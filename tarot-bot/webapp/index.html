@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css?v=15" />
+  <link rel="stylesheet" href="./css/styles.css?v=16" />
 </head>
 <body>
   <!-- Animated Cosmic Starfield & Nebula Canvas -->
@@ -207,23 +207,24 @@
     <div id="main-chrome" class="hidden">
       <!-- Top Sticky Header -->
       <header class="top-bar">
-        <button class="icon-btn hidden" id="btn-back" aria-label="Назад">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <div class="brand-pill" id="btn-to-hero" title="На заставку">
-          <span class="brand-gem"></span>
-          <span class="brand-name" id="topbar-title">KLIM TAROT</span>
-        </div>
-        <div class="top-bar-actions">
-          <button class="icon-btn" id="btn-next-track" aria-label="Следующий трек" title="Переключить трек">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M5 5l9 7-9 7V5z" stroke-linejoin="round"/>
-              <path d="M19 5v14" stroke-linecap="round"/>
+        <div class="top-bar-brand-group">
+          <button class="icon-btn hidden" id="btn-back" aria-label="Назад">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
-          <button class="icon-btn" id="btn-sound-toggle" aria-label="Звук" title="Вкл/выкл звук">
+          <div class="brand-pill" id="btn-to-hero" title="На заставку">
+            <span class="brand-gem"></span>
+            <span class="brand-name" id="topbar-title">KLIM TAROT</span>
+          </div>
+          <!-- Жёлтый переключатель Экспертного режима -->
+          <button class="btn-pro-pill" id="btn-pro-toggle" aria-label="Экспертный режим" title="Переключить Экспертный режим (PRO)">
+            <span class="pro-sparkle">⚡</span>
+            <span class="pro-label">PRO</span>
+          </button>
+        </div>
+        <div class="top-bar-actions">
+          <button class="icon-btn icon-btn-compact" id="btn-sound-toggle" aria-label="Звук" title="Вкл/выкл звук">
             <svg id="icon-sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <path d="M11 5L6 9H2v6h4l5 4V5z" stroke-linejoin="round"/>
               <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" stroke-linecap="round"/>
@@ -233,13 +234,13 @@
               <path d="M23 9l-6 6M17 9l6 6" stroke-linecap="round"/>
             </svg>
           </button>
-          <button class="icon-btn" id="btn-history-shortcut" aria-label="История" title="История">
+          <button class="icon-btn icon-btn-compact" id="btn-history-shortcut" aria-label="История" title="История">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <circle cx="12" cy="12" r="9"/>
               <path d="M12 7v5l3 2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
-          <button class="icon-btn" id="btn-settings" aria-label="Настройки" title="Настройки">
+          <button class="icon-btn icon-btn-compact" id="btn-settings" aria-label="Настройки" title="Настройки">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <circle cx="12" cy="12" r="3.2"/>
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke-linejoin="round"/>
@@ -399,10 +400,10 @@
             <p>35 раскладов от самых популярных к глубоким — или задайте свою тему</p>
           </div>
 
-          <!-- Custom Topic Spread Builder -->
-          <div class="custom-topic-card">
+          <!-- Custom Topic Spread Builder (PRO Feature) -->
+          <div class="custom-topic-card" id="custom-topic-card">
             <div class="custom-topic-head">
-              <span class="custom-topic-badge">✦ СВОЯ ТЕМА</span>
+              <span class="custom-topic-badge" id="custom-topic-badge">⚡ PRO · СВОЯ ТЕМА</span>
               <span class="custom-topic-hint">Расклад под любой ваш запрос</span>
             </div>
             <input
@@ -442,6 +443,32 @@
             <p id="draw-spread-intro"></p>
           </div>
 
+          <!-- PRO Deck Tuning Selector (visible when PRO is active) -->
+          <div class="pro-draw-tuner hidden" id="pro-draw-tuner">
+            <div class="pro-tuner-header">
+              <span class="pro-tuner-badge">⚡ PRO ТОНКАЯ НАСТРОЙКА</span>
+              <span class="pro-tuner-sub">Только для экспертов</span>
+            </div>
+            <div class="pro-tuner-grid">
+              <div class="pro-tuner-group">
+                <span class="pro-tuner-lbl">Колода:</span>
+                <div class="pro-tuner-chips" id="pro-deck-chips">
+                  <button type="button" class="pro-chip active" data-deck="all">78 карт</button>
+                  <button type="button" class="pro-chip" data-deck="major">22 СА</button>
+                  <button type="button" class="pro-chip" data-deck="minor">56 МА</button>
+                </div>
+              </div>
+              <div class="pro-tuner-group">
+                <span class="pro-tuner-lbl">Тень / Перевёрнутые:</span>
+                <div class="pro-tuner-chips" id="pro-rev-chips">
+                  <button type="button" class="pro-chip active" data-rev="0.5">50%</button>
+                  <button type="button" class="pro-chip" data-rev="0.25">25%</button>
+                  <button type="button" class="pro-chip" data-rev="0">Выкл</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Optional Question Input -->
           <div class="glass-input-wrap" id="draw-question-box">
             <input type="text" id="draw-question-input" class="glass-input" placeholder="Сформулируйте вопрос (необязательно)..." maxlength="140" />
@@ -477,6 +504,49 @@
 
           <!-- Synthesis Card -->
           <div class="synthesis-card" id="synthesis-card"></div>
+
+          <!-- Pro Analysis Deep Matrix (Rendered only when PRO is active) -->
+          <div class="pro-analysis-container hidden" id="pro-analysis-container">
+            <!-- 1. Баланс 4 стихий и достоинства -->
+            <div class="pro-card pro-card-elements">
+              <div class="pro-card-header">
+                <span class="pro-card-tag">⚡ СТИХИЙНЫЙ БАЛАНС</span>
+                <span class="pro-card-title">Стихийные достоинства (Золотая Заря)</span>
+              </div>
+              <div class="pro-elements-bar" id="pro-elements-bar"></div>
+              <div class="pro-elements-diagnosis" id="pro-elements-diagnosis"></div>
+            </div>
+
+            <!-- 2. Дно колоды (Тень расклада) -->
+            <div class="pro-card pro-card-shadow" id="pro-card-shadow">
+              <div class="pro-card-header">
+                <span class="pro-card-tag">🌑 ДНО КОЛОДЫ</span>
+                <span class="pro-card-title">Теневой фундамент расклада</span>
+              </div>
+              <div class="pro-shadow-content" id="pro-shadow-content"></div>
+            </div>
+
+            <!-- 3. Квинтэссенция (Числовой аркан сессии) -->
+            <div class="pro-card pro-card-quint" id="pro-card-quint">
+              <div class="pro-card-header">
+                <span class="pro-card-tag">🔢 КВИНТЭССЕНЦИЯ</span>
+                <span class="pro-card-title">Нумерологический совет расклада</span>
+              </div>
+              <div class="pro-quint-content" id="pro-quint-content"></div>
+            </div>
+
+            <!-- 4. Карточка кверента & Экспорт отчёта для клиента -->
+            <div class="pro-card pro-card-client">
+              <div class="pro-card-header">
+                <span class="pro-card-tag">📋 ПРОТОКОЛ СЕССИИ</span>
+                <span class="pro-card-title">Заметки таролога и экспорт</span>
+              </div>
+              <textarea class="pro-notes-input" id="pro-client-notes" placeholder="Личные заметки мастера по раскладу (не видны клиенту)..." rows="2"></textarea>
+              <button class="btn-pro-export" id="btn-pro-export-client">
+                <span>✦ Скопировать экспертный отчёт для клиента</span>
+              </button>
+            </div>
+          </div>
 
           <!-- Result Actions -->
           <div class="result-actions">
@@ -674,6 +744,6 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast hidden"></div>
 
-  <script type="module" src="./js/app.js?v=15"></script>
+  <script type="module" src="./js/app.js?v=16"></script>
 </body>
 </html>

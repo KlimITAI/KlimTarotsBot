@@ -446,14 +446,22 @@ function getPositionLead(position) {
 }
 
 function drawRandomCards(n) {
-  const pool = [...ALL_CARDS];
+  let pool = [...ALL_CARDS];
+  if (state.isProMode) {
+    if (state.proDeckMode === 'major') {
+      pool = ALL_CARDS.filter((c) => MAJOR_IDS.has(c.id));
+    } else if (state.proDeckMode === 'minor') {
+      pool = ALL_CARDS.filter((c) => !MAJOR_IDS.has(c.id));
+    }
+  }
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
+  const revProb = state.isProMode ? (state.proReversals !== undefined ? state.proReversals : 0.5) : 0.25;
   return pool.slice(0, n).map((card) => ({
     card,
-    reversed: Math.random() < 0.32,
+    reversed: Math.random() < revProb,
   }));
 }
 
@@ -720,6 +728,9 @@ const state = {
   drawSession: null, // { spread, friendName, question, needed, pool, picked: [] }
   lastReading: null,
   oracleFlipped: false,
+  isProMode: localStorage.getItem('klim_tarot_pro_mode') === 'true',
+  proDeckMode: localStorage.getItem('klim_tarot_pro_deck') || 'all', // 'all' | 'major' | 'minor'
+  proReversals: parseFloat(localStorage.getItem('klim_tarot_pro_rev') || '0.5'), // 0.5 | 0.25 | 0
 };
 
 const viewHero = document.getElementById('view-hero');
@@ -1006,6 +1017,17 @@ function startDrawSession(spread, { friendName = null, customQuestion = '' } = {
   document.getElementById('draw-spread-title').textContent = spread.name;
   document.getElementById('draw-spread-intro').textContent = spread.intro;
   document.getElementById('draw-question-input').value = customQuestion || '';
+
+  const tuner = document.getElementById('pro-draw-tuner');
+  if (tuner) tuner.classList.toggle('hidden', !state.isProMode);
+  if (state.isProMode) {
+    document.querySelectorAll('#pro-deck-chips .pro-chip').forEach(b => {
+      b.classList.toggle('active', b.dataset.deck === state.proDeckMode);
+    });
+    document.querySelectorAll('#pro-rev-chips .pro-chip').forEach(b => {
+      b.classList.toggle('active', parseFloat(b.dataset.rev) === state.proReversals);
+    });
+  }
 
   renderDrawState();
   navigateTo('draw');
@@ -1373,9 +1395,227 @@ function renderReadingResult(reading) {
     <div class="synthesis-key">✨ Главное послание: ${escapeHtml(syn.keyAdvice)}</div>
   `;
 
+  if (state.isProMode) {
+    renderProResultMatrix(reading);
+  } else {
+    document.getElementById('pro-analysis-container')?.classList.add('hidden');
+  }
+
   document.getElementById('btn-share-label').textContent = reading.friendName
     ? `Переслать расклад для ${reading.friendName}`
     : 'Поделиться раскладом';
+}
+
+function updateProModeUI() {
+  const btn = document.getElementById('btn-pro-toggle');
+  if (btn) {
+    btn.classList.toggle('is-active', state.isProMode);
+    btn.setAttribute('aria-pressed', state.isProMode ? 'true' : 'false');
+  }
+  document.body.classList.toggle('is-pro-mode', state.isProMode);
+
+  const customBadge = document.getElementById('custom-topic-badge');
+  if (customBadge) {
+    customBadge.textContent = state.isProMode ? '⚡ PRO · СВОЯ ТЕМА (АКТИВНА)' : '⚡ PRO · СВОЯ ТЕМА';
+  }
+
+  const tuner = document.getElementById('pro-draw-tuner');
+  if (tuner) {
+    tuner.classList.toggle('hidden', !state.isProMode);
+  }
+
+  const proResult = document.getElementById('pro-analysis-container');
+  if (proResult && state.lastReading) {
+    proResult.classList.toggle('hidden', !state.isProMode);
+    if (state.isProMode) renderProResultMatrix(state.lastReading);
+  }
+}
+
+function renderProResultMatrix(reading) {
+  const container = document.getElementById('pro-analysis-container');
+  if (!container || !reading || !reading.drawn) return;
+  container.classList.remove('hidden');
+
+  // 1. Стихийный баланс (Золотая Заря)
+  let fire = 0, water = 0, air = 0, earth = 0, spirit = 0;
+  reading.drawn.forEach(({ card }) => {
+    if (MAJOR_IDS.has(card.id)) spirit++;
+    else if (card.suit === 'wands') fire++;
+    else if (card.suit === 'cups') water++;
+    else if (card.suit === 'swords') air++;
+    else if (card.suit === 'pentacles') earth++;
+  });
+  const total = reading.drawn.length || 1;
+  const pFire = Math.round((fire / total) * 100);
+  const pWater = Math.round((water / total) * 100);
+  const pAir = Math.round((air / total) * 100);
+  const pEarth = Math.round((earth / total) * 100);
+  const pSpirit = Math.round((spirit / total) * 100);
+
+  const barEl = document.getElementById('pro-elements-bar');
+  if (barEl) {
+    barEl.innerHTML = `
+      <div class="elem-seg elem-seg-fire" style="width:${pFire}%" title="Огонь: ${pFire}%"></div>
+      <div class="elem-seg elem-seg-water" style="width:${pWater}%" title="Вода: ${pWater}%"></div>
+      <div class="elem-seg elem-seg-air" style="width:${pAir}%" title="Воздух: ${pAir}%"></div>
+      <div class="elem-seg elem-seg-earth" style="width:${pEarth}%" title="Земля: ${pEarth}%"></div>
+      <div class="elem-seg elem-seg-spirit" style="width:${pSpirit}%" title="Дух (СА): ${pSpirit}%"></div>
+    `;
+  }
+
+  // Диагноз взаимодействия стихий
+  let diag = '';
+  if (spirit >= Math.ceil(total * 0.5)) {
+    diag = `👑 <strong>Высший кармический фон (${spirit}/${total} Старших Арканов):</strong> ситуация выходит за рамки бытовых решений. Здесь действуют судьбоносные силы и архетипический урок.`;
+  } else if (fire > 0 && air > 0 && water === 0) {
+    diag = `🔥💨 <strong>Синергия Огня и Воздуха (${pFire}% Огонь, ${pAir}% Воздух):</strong> активная мысль мгновенно переходит в действие. Высокий энтузиазм и решительность, но полное отсутствие Воды предупреждает: не забывайте об искренности и чувствах близких.`;
+  } else if (water > 0 && earth > 0 && fire === 0) {
+    diag = `💧🌱 <strong>Питательный союз Воды и Земли (${pWater}% Вода, ${pEarth}% Земля):</strong> эмоциональная стабильность, надёжная забота и материальное укрепление союза или проекта.`;
+  } else if (fire > 0 && water > 0) {
+    diag = `🔥💧 <strong>Кипение стихий (Огонь + Вода):</strong> столкновение страстного порыва и глубоких переживаний. Профессиональный совет: избегайте поспешных решений на пике эмоций.`;
+  } else if (air > 0 && earth > 0) {
+    diag = `💨🌱 <strong>Воздух и Земля (${pAir}% Воздух, ${pEarth}% Земля):</strong> структурированный аналитический расчёт, приземление идей в чёткие сроки и цифры.`;
+  } else {
+    diag = `⚖️ <strong>Гармоничный поли-стихийный баланс:</strong> все сферы человеческой жизни (воля, чувства, мысли и материя) задействованы в разрешении ситуации.`;
+  }
+
+  const diagEl = document.getElementById('pro-elements-diagnosis');
+  if (diagEl) {
+    diagEl.innerHTML = `
+      <div class="pro-elements-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>Огонь: ${fire} (${pFire}%)</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#06b6d4"></span>Вода: ${water} (${pWater}%)</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#a855f7"></span>Воздух: ${air} (${pAir}%)</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#10b981"></span>Земля: ${earth} (${pEarth}%)</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#fde047"></span>Дух (СА): ${spirit} (${pSpirit}%)</span>
+      </div>
+      <div>${diag}</div>
+    `;
+  }
+
+  // 2. Дно колоды (Shadow card)
+  const drawnIds = new Set(reading.drawn.map(d => d.card.id));
+  const availableShadows = ALL_CARDS.filter(c => !drawnIds.has(c.id));
+  const seed = reading.drawn.reduce((acc, d) => acc + (d.card.id.length * 11) + (d.reversed ? 3 : 1), 7);
+  const shadowCard = availableShadows[seed % availableShadows.length] || ALL_CARDS[0];
+
+  const shadowEl = document.getElementById('pro-shadow-content');
+  if (shadowEl) {
+    shadowEl.innerHTML = `
+      <img src="${escapeHtml(shadowCard.img || '')}" alt="${escapeHtml(shadowCard.name)}" class="pro-thumb-img" />
+      <div class="pro-shadow-info">
+        <div class="pro-shadow-name">${shadowCard.emoji} ${escapeHtml(shadowCard.name)} (${escapeHtml(shadowCard.num)})</div>
+        <div class="pro-shadow-desc"><strong>Бессознательный импульс ситуации:</strong> ${escapeHtml(shadowCard.upright)}</div>
+        <div style="font-size:11px;color:#facc15;margin-top:2px;">Мастер видит здесь скрытый мотив, который остаётся «за кадром» сознания кверента.</div>
+      </div>
+    `;
+  }
+
+  // 3. Квинтэссенция (Quintessence)
+  let numSum = 0;
+  const romans = { '0':0, 'I':1, 'II':2, 'III':3, 'IV':4, 'V':5, 'VI':6, 'VII':7, 'VIII':8, 'IX':9, 'X':10, 'XI':11, 'XII':12, 'XIII':13, 'XIV':14, 'XV':15, 'XVI':16, 'XVII':17, 'XVIII':18, 'XIX':19, 'XX':20, 'XXI':21 };
+  reading.drawn.forEach(({ card }) => {
+    if (MAJOR_IDS.has(card.id)) {
+      const parsed = parseInt(card.num, 10);
+      if (!isNaN(parsed)) numSum += parsed;
+      else numSum += (romans[card.num] !== undefined ? romans[card.num] : 1);
+    } else {
+      const match = (card.num || '').match(/\d+/);
+      if (match) numSum += parseInt(match[0], 10);
+      else numSum += 5;
+    }
+  });
+
+  let quintNum = numSum;
+  while (quintNum > 22) {
+    quintNum = String(quintNum).split('').reduce((a, b) => a + parseInt(b, 10), 0);
+  }
+  if (quintNum === 0 || quintNum > 22) quintNum = 22;
+
+  const majorList = ALL_CARDS.filter(c => MAJOR_IDS.has(c.id));
+  const quintCard = majorList[(quintNum - 1) % majorList.length];
+
+  const quintEl = document.getElementById('pro-quint-content');
+  if (quintEl) {
+    quintEl.innerHTML = `
+      <img src="${escapeHtml(quintCard.img || '')}" alt="${escapeHtml(quintCard.name)}" class="pro-thumb-img" />
+      <div class="pro-quint-info">
+        <div class="pro-quint-name">${quintCard.emoji} ${escapeHtml(quintCard.name)} (Числовой код: ${numSum} → ${quintNum})</div>
+        <div class="pro-quint-desc"><strong>Высший духовный урок расклада:</strong> ${escapeHtml(quintCard.advice)}</div>
+        <div style="font-size:11px;color:#fde047;margin-top:2px;">Связующий мета-аркан, показывающий вектор развития всей ситуации.</div>
+      </div>
+    `;
+  }
+
+  // 4. Кнопки «+ Доп» под каждой картой в подробном толковании
+  const listItems = document.querySelectorAll('#interpretations-list .interp-card');
+  listItems.forEach((item, idx) => {
+    if (item.querySelector('.btn-pro-clarifier') || item.querySelector('.pro-clarifier-result')) return;
+    const btnClarifier = document.createElement('button');
+    btnClarifier.type = 'button';
+    btnClarifier.className = 'btn-pro-clarifier';
+    btnClarifier.innerHTML = '<span>✦ Вытянуть доп (уточнение)</span>';
+    btnClarifier.addEventListener('click', () => {
+      sound.playCardPick(idx);
+      haptic('medium');
+      const unused = ALL_CARDS.filter(c => !drawnIds.has(c.id));
+      const dopCard = unused[Math.floor(Math.random() * unused.length)] || ALL_CARDS[0];
+      const dopRev = Math.random() < 0.35;
+      const dopMeaning = dopRev ? dopCard.reversed : dopCard.upright;
+      const resEl = document.createElement('div');
+      resEl.className = 'pro-clarifier-result';
+      resEl.innerHTML = `
+        🔍 <strong>Уточняющий доп:</strong> ${dopCard.emoji} <strong>${escapeHtml(dopCard.name)}</strong> (${dopRev ? 'перевёрнутая' : 'прямая'})<br>
+        <em>«${escapeHtml(dopMeaning)}»</em>
+      `;
+      btnClarifier.replaceWith(resEl);
+      showToast(`✦ Доп вытянут: ${dopCard.name}`);
+    });
+    item.appendChild(btnClarifier);
+  });
+
+  // 5. Карточка кверента & Экспорт отчёта
+  const exportBtn = document.getElementById('btn-pro-export-client');
+  if (exportBtn) {
+    exportBtn.onclick = () => {
+      const notes = (document.getElementById('pro-client-notes')?.value || '').trim();
+      const reportLines = [
+        `🔮 ЭКСПЕРТНЫЙ ПРОТОКОЛ ТАРО-СЕССИИ`,
+        `Расклад: «${reading.spreadName}»`,
+      ];
+      if (reading.question) reportLines.push(`Вопрос кверента: «${reading.question}»`);
+      reportLines.push(``);
+      reportLines.push(`🎴 ВЫПАВШИЕ АРКАНЫ:`);
+      reading.drawn.forEach(({ card, reversed }, i) => {
+        const pos = reading.positions[i] || `Позиция ${i + 1}`;
+        reportLines.push(`${i + 1}. ${pos}: ${card.emoji} ${card.name} [${reversed ? '🔄 перевёрнутая' : '⬆️ прямая'}]`);
+        reportLines.push(`   → ${reversed ? card.reversed : card.upright}`);
+      });
+      reportLines.push(``);
+      reportLines.push(`⚖️ СТИХИЙНЫЙ БАЛАНС: Огонь ${pFire}% | Вода ${pWater}% | Воздух ${pAir}% | Земля ${pEarth}% | СА ${pSpirit}%`);
+      reportLines.push(`🌑 ДНО КОЛОДЫ (ТЕНЬ): ${shadowCard.emoji} ${shadowCard.name} — ${shadowCard.upright.split(',')[0]}`);
+      reportLines.push(`🔢 КВИНТЭССЕНЦИЯ: ${quintCard.emoji} ${quintCard.name} — ${quintCard.advice}`);
+      if (notes) {
+        reportLines.push(``);
+        reportLines.push(`📝 ЗАМЕТКИ МАСТЕРА:`);
+        reportLines.push(notes);
+      }
+      reportLines.push(``);
+      reportLines.push(`✦ Консультация проведена в KLIM TAROT PRO`);
+
+      const fullReport = reportLines.join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(fullReport).then(() => {
+          haptic('success');
+          showToast('✦ Экспертный отчёт скопирован в буфер обмена!');
+        }).catch(() => {
+          showToast('✦ Текст отчёта подготовлен!');
+        });
+      } else {
+        showToast('✦ Текст отчёта подготовлен!');
+      }
+    };
+  }
 }
 
 function formatReadingAsPlainText(reading) {
@@ -1724,14 +1964,44 @@ function bindEvents() {
     updateSoundIcon();
     showToast(on ? '🔊 Музыка и звуки включены' : '🔇 Звук выключен');
   });
-  const nextBtn = document.getElementById('btn-next-track');
-  if (nextBtn) {
-    nextBtn.addEventListener('click', () => {
-      const info = sound.nextTrack();
-      updateSoundIcon();
-      showToast(`🎵 ${info.name} (${info.index}/${info.total})`);
+
+  // ⚡ Экспертный режим (PRO) переключатель в шапке
+  const proBtn = document.getElementById('btn-pro-toggle');
+  if (proBtn) {
+    proBtn.addEventListener('click', () => {
+      state.isProMode = !state.isProMode;
+      localStorage.setItem('klim_tarot_pro_mode', state.isProMode ? 'true' : 'false');
+      haptic(state.isProMode ? 'success' : 'light');
+      updateProModeUI();
+      if (state.isProMode) {
+        sound.playShuffle();
+        showToast('⚡ Экспертный режим (PRO) включён: открыты стихии, дно колоды, квинт и своя тема');
+      } else {
+        showToast('🔮 Включён базовый режим для новичков');
+      }
     });
   }
+
+  // PRO Tuner Chips
+  document.querySelectorAll('#pro-deck-chips .pro-chip').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#pro-deck-chips .pro-chip').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.proDeckMode = btn.dataset.deck;
+      localStorage.setItem('klim_tarot_pro_deck', state.proDeckMode);
+      haptic('light');
+    });
+  });
+
+  document.querySelectorAll('#pro-rev-chips .pro-chip').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#pro-rev-chips .pro-chip').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.proReversals = parseFloat(btn.dataset.rev);
+      localStorage.setItem('klim_tarot_pro_rev', String(state.proReversals));
+      haptic('light');
+    });
+  });
 
   // Home daily banner
   document.getElementById('banner-daily-card').addEventListener('click', openDailyCardReading);
@@ -1841,6 +2111,16 @@ function bindEvents() {
     });
   });
   document.getElementById('btn-launch-custom-topic')?.addEventListener('click', () => {
+    if (!state.isProMode) {
+      haptic('warning');
+      showToast('⚡ «Своя тема» входит в Экспертный режим. Включите PRO вверху!');
+      const pToggle = document.getElementById('btn-pro-toggle');
+      if (pToggle) {
+        pToggle.classList.add('is-active');
+        setTimeout(() => { if (!state.isProMode) pToggle.classList.remove('is-active'); }, 1400);
+      }
+      return;
+    }
     const topic = (topicInput?.value || '').trim();
     if (!topic) {
       haptic('warning');
@@ -2370,6 +2650,7 @@ renderZodiacPickers();
 renderDictTabs();
 renderDictGrid();
 bindEvents();
+updateProModeUI();
 
 // Preload today's card immediately if already drawn
 const _savedDaily = getDailyCard();
