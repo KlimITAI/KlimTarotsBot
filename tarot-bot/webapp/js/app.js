@@ -34,19 +34,46 @@ function preloadCardImage(card) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   1. TELEGRAM WEBAPP BRIDGE
+   1. TELEGRAM WEBAPP BRIDGE & SWIPE PROTECTION
    ════════════════════════════════════════════════════════════════ */
 
 const tg = window.Telegram?.WebApp || null;
 
-if (tg) {
-  tg.ready();
-  tg.expand();
+function applyTelegramSettings() {
+  if (!tg) return;
+  try {
+    tg.ready();
+    tg.expand();
+  } catch (_) {}
+
   try {
     tg.setHeaderColor('#060512');
     tg.setBackgroundColor('#060512');
   } catch (_) {}
+
+  // 1. Disable accidental vertical swipe-down so the Mini App NEVER closes when dragging finger on cards.
+  // The app will ONLY close via the explicit Close (✕) button!
+  try {
+    if (typeof tg.disableVerticalSwipes === 'function') {
+      tg.disableVerticalSwipes();
+    }
+  } catch (err) {
+    console.warn('Telegram disableVerticalSwipes:', err);
+  }
+
+  // 2. Enable closing confirmation dialog to prevent accidental exit
+  try {
+    if (typeof tg.enableClosingConfirmation === 'function') {
+      tg.enableClosingConfirmation();
+    }
+  } catch (err) {
+    console.warn('Telegram enableClosingConfirmation:', err);
+  }
 }
+
+applyTelegramSettings();
+setTimeout(applyTelegramSettings, 350);
+setTimeout(applyTelegramSettings, 1200);
 
 function haptic(type = 'light') {
   if (!tg?.HapticFeedback) return;
@@ -2042,7 +2069,19 @@ const HERO_MYSTIC_PHRASES = [
   "Взгляни на вопрос с высоты небесного горизонта",
   "Позволь картам проявить то, что скрыто от глаз",
   "Сила момента — в твоём осознанном выборе",
-  "Космос говорит с тобой через сакральные символы"
+  "Космос говорит с тобой через сакральные символы",
+  "Нити судьбы плетутся из твоих сегодняшних мыслей",
+  "Каждый аркан — зеркало твоей скрытой силы",
+  "Гармония стихий приносит ясность в любой тупик",
+  "Прислушайся к тишине: там звучит твоя правда",
+  "Энергия следует за фокусом твоего внимания",
+  "Расклад не диктует судьбу — он освещает развилки",
+  "Там, где кончаются сомнения, начинается магия действия",
+  "Древняя мудрость Таро — твой верный навигатор",
+  "Сегодняшний день полон знаков — будь внимателен",
+  "Ты стоишь на пороге важного инсайта — откройся ему",
+  "Все стихии мира сходятся в точке твоего присутствия",
+  "Твоё будущее создаётся прямо сейчас"
 ];
 
 function randomizeHeroSubtitle() {
@@ -2106,6 +2145,15 @@ function bindEvents() {
   document.getElementById('btn-back').addEventListener('click', goBack);
   document.getElementById('btn-to-hero').addEventListener('click', () => navigateTo('hero'));
   document.getElementById('btn-history-shortcut').addEventListener('click', () => navigateTo('history'));
+  document.getElementById('btn-app-close')?.addEventListener('click', () => {
+    sound.playTap();
+    haptic('medium');
+    if (tg?.close) {
+      tg.close();
+    } else {
+      navigateTo('hero');
+    }
+  });
   document.getElementById('btn-sound-toggle').addEventListener('click', () => {
     const on = sound.toggle();
     updateSoundIcon();
