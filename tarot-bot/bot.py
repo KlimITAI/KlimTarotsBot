@@ -32,6 +32,8 @@ from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
     InlineQueryResultVideo,
     InlineQueryResultCachedVideo,
     BotCommand,
@@ -1767,6 +1769,18 @@ WELCOME_TEXT = (
 )
 
 
+def persistent_reply_keyboard(uid: int | None = None) -> ReplyKeyboardMarkup:
+    """Нижняя постоянная панель кнопок для мгновенного ввода команд без ручного набора."""
+    btn_webapp = KeyboardButton("🔮 Открыть KLIM TAROT", web_app=WebAppInfo(url=WEBAPP_URL)) if WEBAPP_URL else KeyboardButton("/start")
+    rows = [
+        [btn_webapp],
+        [KeyboardButton("🏠 Меню"), KeyboardButton("🎁 Гадание для друга")],
+    ]
+    if uid is not None and uid in ADMIN_IDS:
+        rows.append([KeyboardButton("👑 Админ-панель")])
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True, is_persistent=True)
+
+
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id if update.effective_user else 0
     if is_user_banned(uid):
@@ -1787,6 +1801,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=markup,
                     parse_mode=ParseMode.MARKDOWN,
                 )
+                await update.message.reply_text("🔮 Быстрые действия доступны на кнопках ниже:", reply_markup=persistent_reply_keyboard(uid))
                 return ConversationHandler.END
             else:
                 with open(media_path, "rb") as f:
@@ -1800,6 +1815,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     _welcome_file_id_cache[cache_key] = sent.animation.file_id
                 elif sent.video:
                     _welcome_file_id_cache[cache_key] = sent.video.file_id
+                await update.message.reply_text("🔮 Быстрые действия доступны на кнопках ниже:", reply_markup=persistent_reply_keyboard(uid))
                 return ConversationHandler.END
         except Exception as exc:
             logger.warning("Не удалось отправить animation в cmd_start: %s, перехожу на запасной вариант", exc)
@@ -1813,6 +1829,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=markup,
                     parse_mode=ParseMode.MARKDOWN,
                 )
+            await update.message.reply_text("🔮 Быстрые действия доступны на кнопках ниже:", reply_markup=persistent_reply_keyboard(uid))
             return ConversationHandler.END
         except Exception as exc:
             logger.warning("Не удалось отправить photo в cmd_start: %s, перехожу на текст", exc)
@@ -1822,6 +1839,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=markup,
         parse_mode=ParseMode.MARKDOWN,
     )
+    await update.message.reply_text("🔮 Быстрые действия доступны на кнопках ниже:", reply_markup=persistent_reply_keyboard(uid))
     return ConversationHandler.END
 
 
@@ -2678,6 +2696,17 @@ async def show_history(query):
 # ─────────────────────────────────────────────────────────
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    raw = (update.message.text or "").strip()
+    if raw in ["🏠 Меню", "меню", "/menu"]:
+        await cmd_menu(update, context)
+        return
+    if raw in ["🎁 Гадание для друга", "гадание для друга", "/friend"]:
+        await cmd_friend(update, context)
+        return
+    if raw in ["👑 Админ-панель", "админ", "админка", "/admin"]:
+        await cmd_admin(update, context)
+        return
+
     text = update.message.text.lower()
     if any(w in text for w in ["да нет", "да/нет", "оракул", "вопрос"]):
         await update.message.reply_text(

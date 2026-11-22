@@ -774,6 +774,31 @@ function saveReadingToHistory(reading) {
    5. APP STATE & NAVIGATION
    ════════════════════════════════════════════════════════════════ */
 
+const OWNER_TELEGRAM_ID = 7446803539;
+
+function getTelegramUserId() {
+  try {
+    const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (u && u.id) return Number(u.id);
+    const raw = window.Telegram?.WebApp?.initData || '';
+    if (raw) {
+      const sp = new URLSearchParams(raw);
+      const userStr = sp.get('user');
+      if (userStr) {
+        const parsed = JSON.parse(userStr);
+        if (parsed.id) return Number(parsed.id);
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+function hasProAccess() {
+  const uid = getTelegramUserId();
+  if (uid === OWNER_TELEGRAM_ID) return true;
+  return localStorage.getItem('klim_tarot_pro_granted') === 'true';
+}
+
 const state = {
   currentView: 'hero',
   historyStack: [],
@@ -786,7 +811,7 @@ const state = {
   drawSession: null, // { spread, friendName, question, needed, pool, picked: [] }
   lastReading: null,
   oracleFlipped: false,
-  isProMode: localStorage.getItem('klim_tarot_pro_mode') === 'true',
+  isProMode: hasProAccess() && localStorage.getItem('klim_tarot_pro_mode') === 'true',
   proDeckMode: localStorage.getItem('klim_tarot_pro_deck') || 'all', // 'all' | 'major' | 'minor'
   proReversals: parseFloat(localStorage.getItem('klim_tarot_pro_rev') || '0.5'), // 0.5 | 0.25 | 0
 };
@@ -1773,10 +1798,9 @@ function resetOracleStage() {
 }
 
 function triggerOracle() {
-  if (state.oracleFlipped) {
-    resetOracleStage();
-    sound.playShuffle();
-    setTimeout(() => revealOracleCard(), 280);
+  if (state.oracleFlipped && state.currentOracleCard) {
+    sound.playTap();
+    openCardModal(state.currentOracleCard, state.currentOracleReversed);
     return;
   }
   revealOracleCard();
@@ -1784,6 +1808,8 @@ function triggerOracle() {
 
 async function revealOracleCard() {
   const [{ card, reversed }] = drawRandomCards(1);
+  state.currentOracleCard = card;
+  state.currentOracleReversed = reversed;
   let weight = card.yes_weight || 0;
   if (reversed) weight = -weight;
 
@@ -2174,6 +2200,11 @@ function bindEvents() {
 
   // ⚡ Экспертный режим (PRO) переключатель в шапке и на стартовой заставке
   const toggleProHandler = () => {
+    if (!hasProAccess()) {
+      haptic('warning');
+      showToast('🔒 Режим PRO закрыт. Доступ открывается только владельцем бота!');
+      return;
+    }
     state.isProMode = !state.isProMode;
     localStorage.setItem('klim_tarot_pro_mode', state.isProMode ? 'true' : 'false');
     haptic(state.isProMode ? 'success' : 'light');
