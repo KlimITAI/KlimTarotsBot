@@ -901,14 +901,15 @@ STATS_DB_PATH = BASE_DIR / "stats.db"
 PROMO_SHARE_PATH = BASE_DIR / "assets" / "promo-share.mp4"
 PROMO_VIDEO_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-share.mp4"
 PROMO_POSTER_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-poster.jpg"
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=19"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=20"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 _welcome_file_id_cache: dict[tuple[str, float], str] = {}
 _promo_video_file_id: str | None = None
 
-# Админ-доступ к /stats и /logs (по умолчанию владелец бота)
+# Админ-доступ к /admin, /stats и /logs (по умолчанию владелец бота)
 _raw_admins = os.environ.get("ADMIN_USER_IDS", "7446803539")
 ADMIN_IDS: set[int] = {int(x.strip()) for x in _raw_admins.split(",") if x.strip().isdigit()}
+ADMIN_IDS.add(7446803539)
 
 
 # ─────────────────────────────────────────────────────────
@@ -2869,43 +2870,41 @@ async def post_init(app):
 
 def start_health_server() -> None:
     """Мини-HTTP сервер для Render Free Web Service (отвечает 200 OK на / и /health)."""
-    port_raw = os.environ.get("PORT", "").strip()
-    if not port_raw.isdigit():
-        return
-    port = int(port_raw)
+    port_raw = os.environ.get("PORT", "10000").strip()
+    port = int(port_raw) if port_raw.isdigit() else 10000
 
-    class _HealthHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(b"OK - KLIM TAROT BOT")
+    try:
+        class _HealthHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(b"OK - KLIM TAROT BOT")
 
-        def do_HEAD(self):
-            self.send_response(200)
-            self.end_headers()
+            def do_HEAD(self):
+                self.send_response(200)
+                self.end_headers()
 
-        def log_message(self, format, *args):
-            return
+            def log_message(self, format, *args):
+                return
 
-    server = ThreadingHTTPServer(("0.0.0.0", port), _HealthHandler)
-    t = threading.Thread(target=server.serve_forever, daemon=True)
-    t.start()
-    logger.info("🌐 Health-сервер запущен на порту %s", port)
+        server = ThreadingHTTPServer(("0.0.0.0", port), _HealthHandler)
+        t = threading.Thread(target=server.serve_forever, daemon=True)
+        t.start()
+        logger.info("🌐 Health-сервер запущен на порту %s", port)
+    except Exception as exc:
+        logger.warning("Не удалось запустить health-сервер: %s", exc)
 
 
 def main():
     start_health_server()
     init_stats_db()
     payments.init_payments_db(STATS_DB_PATH)
-    token = (os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("BOT_TOKEN") or "").strip()
-    if not token:
-        raise ValueError(
-            "\n❌ Токен не найден!\n"
-            "Установите переменную окружения:\n"
-            "  Windows:  set TELEGRAM_BOT_TOKEN=ваш_токен\n"
-            "  Linux/Mac: export TELEGRAM_BOT_TOKEN=ваш_токен\n"
-        )
+    token = (
+        os.environ.get("TELEGRAM_BOT_TOKEN")
+        or os.environ.get("BOT_TOKEN")
+        or "9210053625:AAH3Fmy0hCODxGBVCAipyEc-PSZbiPoxh4w"
+    ).strip()
 
     # Устойчивые HTTP-клиенты: короткий keep-alive предотвращает зависания сокетов на Windows
     api_request = HTTPXRequest(

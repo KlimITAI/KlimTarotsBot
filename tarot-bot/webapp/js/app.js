@@ -2127,6 +2127,18 @@ function bindEvents() {
     navigateTo('home');
   });
 
+  // Smooth non-jerking loop for spreads background video
+  const spreadsVid = document.querySelector('.spreads-bg-video');
+  if (spreadsVid) {
+    spreadsVid.addEventListener('timeupdate', () => {
+      if (spreadsVid.duration && spreadsVid.currentTime > spreadsVid.duration - 0.4) {
+        spreadsVid.style.opacity = '0.19';
+      } else {
+        spreadsVid.style.opacity = '0.24';
+      }
+    });
+  }
+
   // Hero Quick Chips
   document.querySelectorAll('.hero-chip').forEach((chip) => {
     chip.addEventListener('click', () => {

@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css?v=19" />
+  <link rel="stylesheet" href="./css/styles.css?v=20" />
 </head>
 <body>
   <!-- Animated Cosmic Starfield & Nebula Canvas -->
@@ -359,8 +359,14 @@
           <div class="featured-spreads-row" id="featured-spreads-row"></div>
         </section>
 
-        <!-- ── VIEW 2: ALL & THEMED SPREADS ── -->
-        <section id="view-spreads" class="subview">
+        <!-- ── VIEW 2: ALL & THEMED SPREADS (ВЫБОР ГАДАНИЯ) ── -->
+        <section id="view-spreads" class="subview spreads-has-video">
+          <!-- Seamless Astrological Map Video Loop -->
+          <video class="spreads-bg-video" autoplay loop muted playsinline preload="auto" aria-hidden="true">
+            <source src="./assets/astrological-map.mp4" type="video/mp4" />
+          </video>
+          <div class="spreads-video-veil" aria-hidden="true"></div>
+
           <div class="view-intro">
             <h2>Библиотека раскладов</h2>
             <p>35 раскладов от самых популярных к глубоким — или задайте свою тему</p>
@@ -711,6 +717,6 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast hidden"></div>
 
-  <script type="module" src="./js/app.js?v=19"></script>
+  <script type="module" src="./js/app.js?v=20"></script>
 </body>
 </html>
