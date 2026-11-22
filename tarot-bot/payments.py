@@ -142,6 +142,14 @@ def grant_subscription(user_id: int, plan_id: str, days: int, db_path: Path = ST
     return new_exp
 
 
+def revoke_subscription(user_id: int, db_path: Path = STATS_DB_PATH) -> bool:
+    """Аннулирует подписку пользователя."""
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.execute("DELETE FROM subscriptions WHERE user_id = ?", (user_id,))
+        conn.commit()
+        return cur.rowcount > 0
+
+
 def get_subscription(user_id: int, db_path: Path = STATS_DB_PATH) -> dict | None:
     """Возвращает активную подписку пользователя или None."""
     now = datetime.now(MSK_TZ)

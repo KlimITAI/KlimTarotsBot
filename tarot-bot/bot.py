@@ -21,6 +21,7 @@ import logging
 import json
 import sqlite3
 import threading
+import asyncio
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, date, timedelta, timezone
 from collections import defaultdict
@@ -924,10 +925,20 @@ def init_stats_db() -> None:
                 first_name TEXT,
                 first_seen TEXT,
                 last_seen TEXT,
-                total_events INTEGER DEFAULT 0
+                total_events INTEGER DEFAULT 0,
+                is_banned INTEGER DEFAULT 0,
+                notes TEXT DEFAULT ''
             )
             """
         )
+        cur = conn.cursor()
+        cur.execute("PRAGMA table_info(users)")
+        existing_cols = [c[1] for c in cur.fetchall()]
+        if "is_banned" not in existing_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0")
+        if "notes" not in existing_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN notes TEXT DEFAULT ''")
+
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS events (
@@ -1013,8 +1024,8 @@ async def track_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             log_user_event(user, "Mini App", "Отправка расклада в чат")
         elif msg.text:
             txt = msg.text.strip()
-            if txt.startswith("/stats") or txt.startswith("/logs"):
-                return  # Не засоряем логи просмотрами админки
+            if any(txt.startswith(cmd) for cmd in ("/admin", "/stats", "/logs", "/pro", "/unpro", "/ban", "/unban", "/user", "/broadcast")):
+                return  # Не засоряем логи админскими действиями
             if txt.startswith("/"):
                 log_user_event(user, "Команда", txt.split()[0])
             else:
@@ -1125,6 +1136,285 @@ def build_logs_report(limit: int = 20) -> str:
     return "\n".join(lines)
 
 
+# ─────────────────────────────────────────────────────────
+#  АДМИНИСТРАТИВНЫЙ РЕЖИМ (ПОЛНЫЙ КОНТРОЛЬ ПОЛЬЗОВАТЕЛЕЙ)
+# ─────────────────────────────────────────────────────────
+
+def is_user_banned(user_id: int) -> bool:
+    if user_id in ADMIN_IDS:
+        return False
+    try:
+        with sqlite3.connect(STATS_DB_PATH) as conn:
+            row = conn.execute("SELECT is_banned FROM users WHERE user_id = ?", (user_id,)).fetchone()
+            return bool(row and row[0] == 1)
+    except Exception:
+        return False
+
+
+def set_user_ban_status(user_id: int, banned: bool) -> bool:
+    if user_id in ADMIN_IDS and banned:
+        return False
+    try:
+        with sqlite3.connect(STATS_DB_PATH) as conn:
+            conn.execute(
+                "UPDATE users SET is_banned = ? WHERE user_id = ?",
+                (1 if banned else 0, user_id),
+            )
+            conn.commit()
+            return True
+    except Exception as exc:
+        logger.warning("Ошибка set_user_ban_status: %s", exc)
+        return False
+
+
+def get_user_card_data(user_id: int) -> dict | None:
+    try:
+        with sqlite3.connect(STATS_DB_PATH) as conn:
+            u_row = conn.execute(
+                "SELECT user_id, username, first_name, first_seen, last_seen, total_events, is_banned FROM users WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            if not u_row:
+                return None
+            sub = payments.get_subscription(user_id, STATS_DB_PATH)
+            readings_count = conn.execute(
+                "SELECT COUNT(*) FROM events WHERE user_id = ? AND action = 'Расклад'",
+                (user_id,),
+            ).fetchone()[0]
+            last_events = conn.execute(
+                "SELECT ts, action, detail FROM events WHERE user_id = ? ORDER BY id DESC LIMIT 5",
+                (user_id,),
+            ).fetchall()
+            return {
+                "user_id": u_row[0],
+                "username": u_row[1] or "",
+                "first_name": u_row[2] or "Без имени",
+                "first_seen": u_row[3] or "—",
+                "last_seen": u_row[4] or "—",
+                "total_events": u_row[5] or 0,
+                "is_banned": bool(u_row[6]),
+                "subscription": sub,
+                "readings_count": readings_count,
+                "last_events": last_events,
+            }
+    except Exception as exc:
+        logger.warning("Ошибка get_user_card_data: %s", exc)
+        return None
+
+
+def get_users_page_data(page: int = 0, per_page: int = 6) -> tuple[list[dict], int, int]:
+    try:
+        with sqlite3.connect(STATS_DB_PATH) as conn:
+            total = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+            total_pages = max(1, (total + per_page - 1) // per_page)
+            page = max(0, min(page, total_pages - 1))
+            offset = page * per_page
+            rows = conn.execute(
+                """
+                SELECT user_id, username, first_name, last_seen, total_events, is_banned
+                FROM users
+                ORDER BY last_seen DESC
+                LIMIT ? OFFSET ?
+                """,
+                (per_page, offset),
+            ).fetchall()
+            users = []
+            for r in rows:
+                sub = payments.get_subscription(r[0], STATS_DB_PATH)
+                users.append({
+                    "user_id": r[0],
+                    "username": r[1] or "",
+                    "first_name": r[2] or "Без имени",
+                    "last_seen": r[3] or "—",
+                    "total_events": r[4] or 0,
+                    "is_banned": bool(r[5]),
+                    "is_pro": sub is not None,
+                    "pro_expires": sub["expires_str"] if sub else None,
+                })
+            return users, page, total_pages
+    except Exception as exc:
+        logger.warning("Ошибка get_users_page_data: %s", exc)
+        return [], 0, 1
+
+
+def build_admin_dashboard_text() -> str:
+    now_msk = datetime.now(MSK_TZ)
+    today_prefix = now_msk.strftime("%Y-%m-%d")
+    with sqlite3.connect(STATS_DB_PATH) as conn:
+        total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        new_today = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE first_seen LIKE ?", (f"{today_prefix}%",)
+        ).fetchone()[0]
+        total_events = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+        total_readings = conn.execute(
+            "SELECT COUNT(*) FROM events WHERE action = 'Расклад'"
+        ).fetchone()[0]
+        banned_count = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE is_banned = 1"
+        ).fetchone()[0]
+        pro_count = conn.execute(
+            "SELECT COUNT(*) FROM subscriptions WHERE expires_at > ?", (now_msk.isoformat(),)
+        ).fetchone()[0]
+
+    return (
+        "👑 *АДМИНИСТРАТИВНЫЙ РЕЖИМ KLIM TAROT*\n"
+        "═══════════════════════════════\n"
+        f"👥 *Пользователей в базе:* `{total_users}` (новых за 24ч: `+{new_today}`)\n"
+        f"⚡ *Активных PRO / VIP:* `{pro_count}`\n"
+        f"🚫 *Заблокированных:* `{banned_count}`\n"
+        f"🔮 *Всего раскладов сделано:* `{total_readings}`\n"
+        f"📊 *Всего действий зафиксировано:* `{total_events}`\n"
+        "═══════════════════════════════\n"
+        "⚡ *Быстрые команды администратора:*\n"
+        "• `/admin` — открыть главное меню админки\n"
+        "• `/user <id>` — открыть карточку пользователя\n"
+        "• `/pro <id> <дней>` — выдать PRO (напр. `/pro 7446803539 30`)\n"
+        "• `/unpro <id>` — забрать режим PRO\n"
+        "• `/ban <id>` — заблокировать доступ (выключить бот/апп)\n"
+        "• `/unban <id>` — разблокировать доступ\n"
+        "• `/broadcast <текст>` — сделать рассылку всем пользователям\n"
+        "• `/stats` — сводный отчёт аналитики\n"
+        "• `/logs` — живой журнал действий\n"
+        "═══════════════════════════════\n"
+        "Выберите действие:"
+    )
+
+
+def build_admin_users_text(users: list[dict], page: int, total_pages: int) -> str:
+    if not users:
+        return "👥 *Список пользователей пуст.*"
+    lines = [
+        f"👥 *СПИСОК ПОЛЬЗОВАТЕЛЕЙ (Стр. {page + 1} из {total_pages})*",
+        "═══════════════════════════════",
+    ]
+    for idx, u in enumerate(users, start=page * 6 + 1):
+        uname_str = f"@{escape_md(u['username'])}" if u["username"] else "нет @"
+        fname_str = escape_md(u["first_name"])
+        status = "🔴 ЗАБАНЕН" if u["is_banned"] else ("⚡ PRO" if u["is_pro"] else "🔮 Обычный")
+        pro_detail = f" (до {u['pro_expires']})" if u["is_pro"] and u["pro_expires"] else ""
+        lines.append(
+            f"*{idx}.* {fname_str} ({uname_str})\n"
+            f"   • ID: `{u['user_id']}` | Действий: `{u['total_events']}`\n"
+            f"   • Визит: `{u['last_seen'][:16]}`\n"
+            f"   • Статус: {status}{pro_detail}"
+        )
+    lines.append("═══════════════════════════════")
+    lines.append("👇 *Нажмите на пользователя ниже, чтобы открыть карточку:*")
+    return "\n".join(lines)
+
+
+def build_user_card_text(card: dict) -> str:
+    uid = card["user_id"]
+    name = escape_md(card["first_name"])
+    uname = f"@{escape_md(card['username'])}" if card["username"] else "нет username"
+    seen = card["last_seen"]
+    first = card["first_seen"]
+    total = card["total_events"]
+    readings = card["readings_count"]
+
+    sub = card["subscription"]
+    if sub:
+        pro_str = f"✅ *АКТИВЕН* (до `{sub['expires_str']}`)"
+    else:
+        pro_str = "❌ *Обычный (нет PRO)*"
+
+    if card["is_banned"]:
+        ban_str = "🔴 *ЗАБЛОКИРОВАН (доступ выключен)*"
+    else:
+        ban_str = "🟢 *Разрешён (активен)*"
+
+    lines = [
+        f"👤 *Управление пользователем*",
+        f"• *Имя:* {name} ({uname})",
+        f"• *ID:* `{uid}`",
+        f"• *Первый вход:* `{first}`",
+        f"• *Последняя активность:* `{seen}`",
+        f"• *Всего действий:* `{total}` (раскладов: `{readings}`)",
+        f"• *Режим PRO:* {pro_str}",
+        f"• *Доступ:* {ban_str}",
+        "",
+        "📜 *Последние 5 действий:*",
+    ]
+    if card["last_events"]:
+        for ev_ts, ev_act, ev_det in card["last_events"]:
+            short_ts = ev_ts[11:16] if len(ev_ts) >= 16 else ev_ts
+            act_str = f"{ev_act}: {ev_det}" if ev_det else ev_act
+            lines.append(f"• `{short_ts}` — {escape_md(act_str)}")
+    else:
+        lines.append("• _Событий пока нет_")
+
+    lines.append("\n_Выберите действие в меню ниже:_")
+    return "\n".join(lines)
+
+
+def admin_main_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("👥 Пользователи", callback_data="admin_users_0"),
+            InlineKeyboardButton("📋 Живые логи", callback_data="admin_logs"),
+        ],
+        [
+            InlineKeyboardButton("📊 Статистика", callback_data="admin_stats"),
+            InlineKeyboardButton("⚡ Назначить PRO", callback_data="admin_pick_pro"),
+        ],
+        [
+            InlineKeyboardButton("📢 Рассылка всем", callback_data="admin_broadcast_help"),
+            InlineKeyboardButton("💳 Тест оплаты", callback_data="admin_paytest"),
+        ],
+        [
+            InlineKeyboardButton("🔄 Обновить сводку", callback_data="admin_dashboard"),
+        ],
+    ])
+
+
+def admin_users_keyboard(users: list[dict], page: int, total_pages: int) -> InlineKeyboardMarkup:
+    kb = []
+    for i in range(0, len(users), 2):
+        row = []
+        for u in users[i:i+2]:
+            status_icon = "🚫" if u["is_banned"] else ("⚡" if u["is_pro"] else "👤")
+            uname_short = f"@{u['username'][:11]}" if u["username"] else u["first_name"][:11]
+            row.append(InlineKeyboardButton(f"{status_icon} {uname_short}", callback_data=f"admin_u_{u['user_id']}"))
+        kb.append(row)
+
+    nav_row = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton("◀️ Пред", callback_data=f"admin_users_{page - 1}"))
+    nav_row.append(InlineKeyboardButton(f"📄 {page + 1} / {total_pages}", callback_data="noop"))
+    if page < total_pages - 1:
+        nav_row.append(InlineKeyboardButton("След ▶️", callback_data=f"admin_users_{page + 1}"))
+    kb.append(nav_row)
+
+    kb.append([
+        InlineKeyboardButton("🔄 Обновить", callback_data=f"admin_users_{page}"),
+        InlineKeyboardButton("« Главная админки", callback_data="admin_dashboard"),
+    ])
+    return InlineKeyboardMarkup(kb)
+
+
+def admin_user_card_keyboard(uid: int, is_banned: bool, is_pro: bool) -> InlineKeyboardMarkup:
+    kb = [
+        [
+            InlineKeyboardButton("⚡ PRO +7д", callback_data=f"admin_pro_{uid}_7"),
+            InlineKeyboardButton("⚡ PRO +30д", callback_data=f"admin_pro_{uid}_30"),
+            InlineKeyboardButton("👑 Навсегда", callback_data=f"admin_pro_{uid}_3650"),
+        ]
+    ]
+    if is_pro:
+        kb.append([InlineKeyboardButton("❌ Забрать режим PRO", callback_data=f"admin_unpro_{uid}")])
+
+    if is_banned:
+        kb.append([InlineKeyboardButton("🟢 Разблокировать доступ", callback_data=f"admin_unban_{uid}")])
+    else:
+        kb.append([InlineKeyboardButton("🚫 Заблокировать (выключить)", callback_data=f"admin_ban_{uid}")])
+
+    kb.append([
+        InlineKeyboardButton("🔄 Обновить", callback_data=f"admin_u_{uid}"),
+        InlineKeyboardButton("« К списку пользователей", callback_data="admin_users_0"),
+    ])
+    return InlineKeyboardMarkup(kb)
+
+
 def admin_panel_keyboard(active: str = "stats") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
@@ -1134,66 +1424,144 @@ def admin_panel_keyboard(active: str = "stats") -> InlineKeyboardMarkup:
                 callback_data="admin_logs" if active == "stats" else "admin_stats",
             ),
         ],
+        [
+            InlineKeyboardButton("« Главная админки", callback_data="admin_dashboard"),
+        ],
     ])
 
 
-async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id if update.effective_user else 0
     if uid not in ADMIN_IDS:
         await update.message.reply_text("⛔ Эта команда доступна только владельцу бота.")
         return
     await update.message.reply_text(
-        build_stats_report(),
-        reply_markup=admin_panel_keyboard("stats"),
+        build_admin_dashboard_text(),
+        reply_markup=admin_main_keyboard(),
         parse_mode=ParseMode.MARKDOWN,
     )
 
 
-async def cmd_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id if update.effective_user else 0
     if uid not in ADMIN_IDS:
-        await update.message.reply_text("⛔ Эта команда доступна только владельцу бота.")
         return
-    limit = 20
-    if context.args and context.args[0].isdigit():
-        limit = int(context.args[0])
-    await update.message.reply_text(
-        build_logs_report(limit),
-        reply_markup=admin_panel_keyboard("logs"),
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-
-async def cmd_paytest(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Тестовый просмотр экрана оплаты (доступен владельцу даже при выключенном paywall)."""
-    uid = update.effective_user.id if update.effective_user else 0
-    if not payments.PAYMENTS_ENABLED and uid not in ADMIN_IDS:
-        await update.message.reply_text("✨ Сейчас все функции KLIM TAROT полностью бесплатны!")
-        return
-    await update.message.reply_text(
-        payments.plans_text(uid),
-        reply_markup=payments.plans_keyboard(),
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-
-async def cmd_grant(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Админ-команда: /grant <user_id> <days> — выдать Premium пользователю вручную."""
-    uid = update.effective_user.id if update.effective_user else 0
-    if uid not in ADMIN_IDS:
-        await update.message.reply_text("⛔ Эта команда доступна только владельцу бота.")
-        return
-    if len(context.args) < 2 or not context.args[0].isdigit() or not context.args[1].isdigit():
+    if not context.args or not context.args[0].isdigit():
         await update.message.reply_text(
-            "Использование: `/grant <user_id> <дней>`\nПример: `/grant 7446803539 30`",
+            "Использование: `/user <user_id>`\nПример: `/user 7446803539`",
             parse_mode=ParseMode.MARKDOWN,
         )
         return
     target_uid = int(context.args[0])
-    days = int(context.args[1])
+    card = get_user_card_data(target_uid)
+    if not card:
+        await update.message.reply_text(f"❌ Пользователь `{target_uid}` не найден в базе данных.", parse_mode=ParseMode.MARKDOWN)
+        return
+    await update.message.reply_text(
+        build_user_card_text(card),
+        reply_markup=admin_user_card_keyboard(target_uid, card["is_banned"], card["subscription"] is not None),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def cmd_pro(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id if update.effective_user else 0
+    if uid not in ADMIN_IDS:
+        return
+    if not context.args or not context.args[0].isdigit():
+        await update.message.reply_text("Использование: `/pro <user_id> [дни=30]`", parse_mode=ParseMode.MARKDOWN)
+        return
+    target_uid = int(context.args[0])
+    days = int(context.args[1]) if len(context.args) > 1 and context.args[1].isdigit() else 30
     exp = payments.grant_subscription(target_uid, "manual_vip", days, STATS_DB_PATH)
     await update.message.reply_text(
-        f"✅ Пользователю `{target_uid}` выдан Premium на *{days} дн.* (до `{exp.strftime('%d.%m.%Y %H:%M МСК')}`).",
+        f"✅ Пользователю `{target_uid}` выдан режим PRO на *{days} дн.* (до `{exp.strftime('%d.%m.%Y %H:%M МСК')}`).",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def cmd_unpro(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id if update.effective_user else 0
+    if uid not in ADMIN_IDS:
+        return
+    if not context.args or not context.args[0].isdigit():
+        await update.message.reply_text("Использование: `/unpro <user_id>`", parse_mode=ParseMode.MARKDOWN)
+        return
+    target_uid = int(context.args[0])
+    removed = payments.revoke_subscription(target_uid, STATS_DB_PATH)
+    if removed:
+        await update.message.reply_text(f"✅ Режим PRO успешно забран у `{target_uid}`.", parse_mode=ParseMode.MARKDOWN)
+    else:
+        await update.message.reply_text(f"ℹ️ У пользователя `{target_uid}` не было активной подписки.", parse_mode=ParseMode.MARKDOWN)
+
+
+async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id if update.effective_user else 0
+    if uid not in ADMIN_IDS:
+        return
+    if not context.args or not context.args[0].isdigit():
+        await update.message.reply_text("Использование: `/ban <user_id>`", parse_mode=ParseMode.MARKDOWN)
+        return
+    target_uid = int(context.args[0])
+    if target_uid in ADMIN_IDS:
+        await update.message.reply_text("⚠️ Нельзя заблокировать владельца бота.")
+        return
+    ok = set_user_ban_status(target_uid, True)
+    if ok:
+        await update.message.reply_text(f"🚫 Пользователь `{target_uid}` заблокирован (доступ к приложению и боту выключен).", parse_mode=ParseMode.MARKDOWN)
+    else:
+        await update.message.reply_text("❌ Ошибка блокировки пользователя.")
+
+
+async def cmd_unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id if update.effective_user else 0
+    if uid not in ADMIN_IDS:
+        return
+    if not context.args or not context.args[0].isdigit():
+        await update.message.reply_text("Использование: `/unban <user_id>`", parse_mode=ParseMode.MARKDOWN)
+        return
+    target_uid = int(context.args[0])
+    ok = set_user_ban_status(target_uid, False)
+    if ok:
+        await update.message.reply_text(f"🟢 Пользователь `{target_uid}` разблокирован (доступ восстановлен).", parse_mode=ParseMode.MARKDOWN)
+    else:
+        await update.message.reply_text("❌ Ошибка разблокировки пользователя.")
+
+
+async def cmd_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id if update.effective_user else 0
+    if uid not in ADMIN_IDS:
+        await update.message.reply_text("⛔ Доступно только владельцу бота.")
+        return
+    if not context.args:
+        await update.message.reply_text(
+            "📢 Использование: `/broadcast <текст сообщения>`\n"
+            "Пример: `/broadcast 🔮 В KLIM TAROT появился новый функционал! Заходите попробовать.`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    text = " ".join(context.args)
+    status_msg = await update.message.reply_text("⏳ Начинаю рассылку сообщений пользователям...")
+
+    with sqlite3.connect(STATS_DB_PATH) as conn:
+        users = conn.execute("SELECT user_id FROM users WHERE is_banned = 0").fetchall()
+
+    sent = 0
+    failed = 0
+    for (u_id,) in users:
+        if u_id in ADMIN_IDS and len(users) > 1:
+            continue
+        try:
+            await context.bot.send_message(chat_id=u_id, text=text, parse_mode=ParseMode.MARKDOWN)
+            sent += 1
+            await asyncio.sleep(0.05)
+        except Exception:
+            failed += 1
+
+    await status_msg.edit_text(
+        f"📢 *Рассылка завершена!*\n\n"
+        f"✅ Доставлено: *{sent}*\n"
+        f"❌ Не удалось (заблокировали бота): *{failed}*",
         parse_mode=ParseMode.MARKDOWN,
     )
 
@@ -1274,6 +1642,8 @@ def main_menu_keyboard(uid: int | None = None):
         [InlineKeyboardButton("📜 Моя история",       callback_data="menu_history")],
         [InlineKeyboardButton("🎁 Гадаю для друга",   callback_data="menu_friend")],
     ])
+    if uid is not None and uid in ADMIN_IDS:
+        rows.append([InlineKeyboardButton("👑 Режим Администратора", callback_data="admin_dashboard")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -1359,6 +1729,10 @@ WELCOME_TEXT = (
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id if update.effective_user else 0
+    if is_user_banned(uid):
+        await update.message.reply_text("⛔ Ваш доступ к боту ограничен администратором.")
+        return ConversationHandler.END
     context.user_data.pop("friend_name", None)
     media_type, media_path = find_welcome_media()
     markup = start_keyboard()
@@ -1405,6 +1779,9 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("friend_name", None)
     uid = update.effective_user.id if update.effective_user else None
+    if uid and is_user_banned(uid):
+        await update.message.reply_text("⛔ Ваш доступ к боту ограничен администратором.")
+        return ConversationHandler.END
     await update.message.reply_text(
         "🏠 *Главное меню*",
         reply_markup=main_menu_keyboard(uid),
@@ -1433,6 +1810,10 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await safe_answer(query)
     data = query.data
+
+    if is_user_banned(query.from_user.id):
+        await safe_answer(query, "⛔ Ваш доступ к боту ограничен администратором.", show_alert=True)
+        return
 
     if data == "main_menu":
         await safe_edit(
@@ -1514,13 +1895,150 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         await payments.send_plan_invoice(query, plan_key)
 
-    elif data in ("admin_stats", "admin_logs"):
+    elif data.startswith("admin_"):
         if query.from_user.id not in ADMIN_IDS:
+            await safe_answer(query, "⛔ Доступно только владельцу бота.", show_alert=True)
             return
-        if data == "admin_stats":
-            await safe_edit(query, build_stats_report(), reply_markup=admin_panel_keyboard("stats"))
-        else:
-            await safe_edit(query, build_logs_report(20), reply_markup=admin_panel_keyboard("logs"))
+
+        if data == "admin_dashboard":
+            await safe_edit(query, build_admin_dashboard_text(), reply_markup=admin_main_keyboard())
+
+        elif data.startswith("admin_users_"):
+            try:
+                page = int(data[len("admin_users_"):])
+            except ValueError:
+                page = 0
+            users, cur_page, total_pages = get_users_page_data(page)
+            await safe_edit(
+                query,
+                build_admin_users_text(users, cur_page, total_pages),
+                reply_markup=admin_users_keyboard(users, cur_page, total_pages),
+            )
+
+        elif data.startswith("admin_u_"):
+            try:
+                target_uid = int(data[len("admin_u_"):])
+            except ValueError:
+                return
+            card = get_user_card_data(target_uid)
+            if not card:
+                await safe_answer(query, "Пользователь не найден", show_alert=True)
+                return
+            await safe_edit(
+                query,
+                build_user_card_text(card),
+                reply_markup=admin_user_card_keyboard(target_uid, card["is_banned"], card["subscription"] is not None),
+            )
+
+        elif data.startswith("admin_pro_"):
+            parts = data.split("_")
+            if len(parts) >= 4:
+                target_uid = int(parts[2])
+                days = int(parts[3])
+                exp = payments.grant_subscription(target_uid, "manual_vip", days, STATS_DB_PATH)
+                await safe_answer(query, f"⚡ Выдан PRO на {days} дн. (до {exp.strftime('%d.%m.%Y')})", show_alert=True)
+                card = get_user_card_data(target_uid)
+                if card:
+                    await safe_edit(
+                        query,
+                        build_user_card_text(card),
+                        reply_markup=admin_user_card_keyboard(target_uid, card["is_banned"], card["subscription"] is not None),
+                    )
+
+        elif data.startswith("admin_unpro_"):
+            target_uid = int(data.split("_")[2])
+            payments.revoke_subscription(target_uid, STATS_DB_PATH)
+            await safe_answer(query, f"❌ Режим PRO забран у {target_uid}", show_alert=True)
+            card = get_user_card_data(target_uid)
+            if card:
+                await safe_edit(
+                    query,
+                    build_user_card_text(card),
+                    reply_markup=admin_user_card_keyboard(target_uid, card["is_banned"], card["subscription"] is not None),
+                )
+
+        elif data.startswith("admin_ban_"):
+            target_uid = int(data.split("_")[2])
+            if target_uid in ADMIN_IDS:
+                await safe_answer(query, "Нельзя забанить владельца", show_alert=True)
+                return
+            set_user_ban_status(target_uid, True)
+            await safe_answer(query, f"🚫 Доступ заблокирован для {target_uid}", show_alert=True)
+            card = get_user_card_data(target_uid)
+            if card:
+                await safe_edit(
+                    query,
+                    build_user_card_text(card),
+                    reply_markup=admin_user_card_keyboard(target_uid, card["is_banned"], card["subscription"] is not None),
+                )
+
+        elif data.startswith("admin_unban_"):
+            target_uid = int(data.split("_")[2])
+            set_user_ban_status(target_uid, False)
+            await safe_answer(query, f"🟢 Доступ разблокирован для {target_uid}", show_alert=True)
+            card = get_user_card_data(target_uid)
+            if card:
+                await safe_edit(
+                    query,
+                    build_user_card_text(card),
+                    reply_markup=admin_user_card_keyboard(target_uid, card["is_banned"], card["subscription"] is not None),
+                )
+
+        elif data == "admin_stats":
+            await safe_edit(
+                query,
+                build_stats_report(),
+                reply_markup=admin_panel_keyboard("stats"),
+            )
+
+        elif data == "admin_logs":
+            await safe_edit(
+                query,
+                build_logs_report(20),
+                reply_markup=admin_panel_keyboard("logs"),
+            )
+
+        elif data == "admin_paytest":
+            await safe_edit(
+                query,
+                payments.plans_text(query.from_user.id),
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("« Главная админки", callback_data="admin_dashboard")],
+                ]),
+            )
+
+        elif data == "admin_pick_pro":
+            await safe_edit(
+                query,
+                "⚡ *Быстрая выдача PRO режима:*\n\n"
+                "Вы можете выбрать пользователя в разделе *«👥 Пользователи»* и выдать в 1 клик, "
+                "либо ввести команду в чат:\n\n"
+                "• `/pro <user_id> 7` — на 7 дней\n"
+                "• `/pro <user_id> 30` — на 30 дней\n"
+                "• `/pro <user_id> 3650` — навсегда (VIP)\n"
+                "• `/unpro <user_id>` — забрать PRO\n",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("👥 Перейти к списку пользователей", callback_data="admin_users_0")],
+                    [InlineKeyboardButton("« Главная админки", callback_data="admin_dashboard")],
+                ]),
+            )
+
+        elif data == "admin_broadcast_help":
+            await safe_edit(
+                query,
+                "📢 *Рассылка сообщений пользователям:*\n\n"
+                "Чтобы отправить объявление всем пользователям, используйте команду:\n\n"
+                "`/broadcast <текст сообщения>`\n\n"
+                "Пример:\n"
+                "`/broadcast 🌟 Привет! В KLIM TAROT появился новый расклад. Заходите попробовать!`\n\n"
+                "Бот разошлёт сообщение каждому активному пользователю и выведет отчёт о доставке.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("« Главная админки", callback_data="admin_dashboard")],
+                ]),
+            )
+
+    elif data == "noop":
+        await safe_answer(query)
 
     # NOTE: menu_friend is handled by the ConversationHandler in main()
 
@@ -2324,11 +2842,12 @@ async def post_init(app):
     await app.bot.set_my_commands(public_cmds)
 
     # Личное меню с командами статистики, логов и теста оплаты только для владельца бота
-    admin_cmds = public_cmds + [
+    admin_cmds = [
+        BotCommand("admin", "👑 Админ-панель управления"),
         BotCommand("stats", "📊 Статистика пользователей"),
         BotCommand("logs", "📋 Последние логи действий"),
         BotCommand("paytest", "💳 Тест экрана оплаты (VIP)"),
-    ]
+    ] + public_cmds
     for admin_id in ADMIN_IDS:
         try:
             await app.bot.set_my_commands(admin_cmds, scope=BotCommandScopeChat(chat_id=admin_id))
@@ -2458,6 +2977,13 @@ def main():
     app.add_handler(friend_conv)
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("menu", cmd_menu))
+    app.add_handler(CommandHandler("admin", cmd_admin))
+    app.add_handler(CommandHandler("user", cmd_user))
+    app.add_handler(CommandHandler("pro", cmd_pro))
+    app.add_handler(CommandHandler("unpro", cmd_unpro))
+    app.add_handler(CommandHandler("ban", cmd_ban))
+    app.add_handler(CommandHandler("unban", cmd_unban))
+    app.add_handler(CommandHandler("broadcast", cmd_broadcast))
     app.add_handler(CommandHandler("stats", cmd_stats))
     app.add_handler(CommandHandler("logs", cmd_logs))
     app.add_handler(CommandHandler("paytest", cmd_paytest))
