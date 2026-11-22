@@ -336,6 +336,48 @@ button {
   justify-content: center;
 }
 
+.hero-card-real {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 14.5px;
+  overflow: hidden;
+  background: #0d0b18;
+}
+
+.hero-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 13px;
+  display: block;
+}
+
+.hero-card-sheen {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.28) 0%, transparent 45%, rgba(250, 204, 21, 0.2) 100%);
+  pointer-events: none;
+}
+
+.hero-card-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(6, 5, 18, 0.88);
+  border: 1px solid rgba(250, 204, 21, 0.6);
+  color: #fef08a;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
 .hero-card-inner::after {
   content: '';
   position: absolute;
@@ -1629,62 +1671,22 @@ button {
   margin-bottom: 10px;
 }
 
-.interp-pos {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--cyan);
-  margin-bottom: 2px;
-}
-
-.interp-title {
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.15;
-  color: var(--text-main);
-}
-
-.interp-story {
-  margin: 0 0 10px;
-  font-size: 13.5px;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.interp-meaning {
-  margin: 0 0 10px;
-  font-size: 14px;
-  color: var(--text-main);
-}
-
-.interp-warning {
-  margin: 0 0 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(224, 64, 251, 0.1);
-  border-left: 2.5px solid var(--magenta);
-  font-size: 13px;
-  color: #f5d0fe;
-}
-
-.interp-advice {
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--gold-soft);
-}
-
-/* Synthesis Card */
+/* ── TOP SYNTHESIS CARD: IMMEDIATE VALUE & PUNCHLINE ── */
 .synthesis-card {
-  padding: 20px;
+  padding: 18px 20px;
   border-radius: var(--radius-lg);
-  background: linear-gradient(155deg, rgba(40, 24, 78, 0.85), rgba(14, 16, 44, 0.92));
-  border: 1px solid rgba(245, 201, 105, 0.36);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45), 0 0 28px rgba(224, 64, 251, 0.14);
-  margin-bottom: 20px;
+  background: linear-gradient(155deg, rgba(38, 22, 74, 0.92), rgba(16, 14, 40, 0.96));
+  border: 1px solid rgba(250, 204, 21, 0.42);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 32px rgba(250, 204, 21, 0.16);
+  margin-bottom: 22px;
+  animation: fadeIn 0.4s ease;
+}
+
+.synthesis-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
 }
 
 .synthesis-badge {
@@ -1693,34 +1695,267 @@ button {
   gap: 6px;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--gold);
-  margin-bottom: 8px;
+  color: #facc15;
 }
 
-.synthesis-card h3 {
-  margin: 0 0 12px;
-  font-family: var(--font-display);
-  font-size: 26px;
-  line-height: 1.15;
+.synthesis-spread-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-muted);
 }
 
-.synthesis-card p {
-  margin: 0 0 10px;
-  font-size: 14px;
-  color: rgba(244, 242, 255, 0.9);
-}
-
-.synthesis-key {
-  margin-top: 12px;
+/* Punchline Callout: The #1 takeaway right before user's eyes */
+.synthesis-punchline-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   padding: 12px 14px;
-  border-radius: 12px;
-  background: rgba(245, 201, 105, 0.12);
-  border: 1px solid rgba(245, 201, 105, 0.3);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.16), rgba(234, 179, 8, 0.08));
+  border: 1.5px solid rgba(250, 204, 21, 0.5);
+  box-shadow: 0 4px 18px rgba(250, 204, 21, 0.15);
+  margin-bottom: 14px;
+}
+
+.punchline-gem {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.punchline-caption {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #facc15;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.punchline-text {
   font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #fef08a;
+}
+
+.synthesis-story-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.synthesis-mini-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.synthesis-step-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--cyan);
+  margin-bottom: 5px;
+}
+
+.synthesis-mini-card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(244, 242, 255, 0.88);
+}
+
+/* ── PRO TEASER BANNER (FOR NON-PRO USERS) ── */
+.pro-teaser-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.12), rgba(234, 179, 8, 0.04));
+  border: 1px dashed rgba(250, 204, 21, 0.45);
+  border-radius: 16px;
+  padding: 12px 14px;
+  margin-bottom: 20px;
+}
+
+.pro-teaser-icon {
+  font-size: 20px;
+  line-height: 1;
+  color: #facc15;
+  flex-shrink: 0;
+}
+
+.pro-teaser-info {
+  flex: 1;
+}
+
+.pro-teaser-head {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fef08a;
+  margin-bottom: 2px;
+}
+
+.pro-teaser-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.btn-teaser-unlock {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fef08a, #facc15);
+  color: #0b0816;
+  font-size: 11px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.4);
+  transition: transform 0.18s ease;
+}
+
+.btn-teaser-unlock:active { transform: scale(0.95); }
+
+/* ── COLLAPSIBLE CARDS ACCORDIONS (NO TEXT WALLS) ── */
+.interp-card.collapsible {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(14, 12, 28, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  margin-bottom: 12px;
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+
+.interp-card.collapsible.is-open {
+  border-color: rgba(250, 204, 21, 0.3);
+  background: rgba(20, 16, 40, 0.88);
+}
+
+.interp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.interp-head-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.interp-pos-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+.interp-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.interp-card-num {
+  font-size: 14px;
+  opacity: 0.6;
+}
+
+.interp-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.interp-toggle-chevron {
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.interp-card.collapsible.is-open .interp-toggle-chevron {
+  transform: rotate(180deg);
+  color: #facc15;
+}
+
+.interp-preview-line {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.interp-preview-line strong {
+  color: var(--gold-soft);
+}
+
+/* Smooth Accordion Body */
+.interp-expanded-body {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.36s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease, margin-top 0.28s ease;
+}
+
+.interp-card.collapsible.is-open .interp-expanded-body {
+  max-height: 500px;
+  opacity: 1;
+  margin-top: 12px;
+}
+
+.interp-expanded-inner {
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.interp-story {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.interp-warning {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(224, 64, 251, 0.1);
+  border-left: 2.5px solid var(--magenta);
+  font-size: 12px;
+  color: #f5d0fe;
+  line-height: 1.4;
+}
+
+.interp-advice {
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--gold-soft);
+  line-height: 1.4;
 }
 
 .result-actions {

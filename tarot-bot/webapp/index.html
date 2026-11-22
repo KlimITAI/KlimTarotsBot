@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css?v=17" />
+  <link rel="stylesheet" href="./css/styles.css?v=18" />
 </head>
 <body>
   <!-- Animated Cosmic Starfield & Nebula Canvas -->
@@ -82,7 +82,7 @@
             </button>
           </div>
           <h1 class="hero-title">Гадание на Таро</h1>
-          <p class="hero-subtitle">Космическая интуиция в современном ритме</p>
+          <p class="hero-subtitle" id="hero-dynamic-subtitle">Космическая интуиция в современном ритме</p>
         </div>
 
         <!-- Style B Refined Neon Energy Capsule (Top) -->
@@ -92,89 +92,34 @@
           </div>
         </div>
 
-        <!-- Style A + B Centerpiece: Fanned Celestial-Neon Tarot Cards -->
+        <!-- Style A + B Centerpiece: Fanned Authentic Rider-Waite Cards in Specular Gold Glow -->
         <div class="hero-fan-stage" id="hero-fan-stage">
-          <!-- Neon-Gold Energy Halo -->
           <div class="fan-aura"></div>
 
-          <!-- Left Card (Crescent Moon + Neon Violet Edge) -->
+          <!-- Left Card: XVII Звезда (Надежда, вдохновение) -->
           <div class="hero-tarot-card card-left" data-hero-card="0">
-            <div class="hero-card-inner">
-              <div class="card-corner tl"></div><div class="card-corner tr"></div>
-              <div class="card-corner bl"></div><div class="card-corner br"></div>
-              <svg viewBox="0 0 100 160" class="card-sigil-svg">
-                <rect x="7" y="7" width="86" height="146" rx="8" fill="none" stroke="url(#cardGoldA)" stroke-width="1"/>
-                <rect x="12" y="12" width="76" height="136" rx="5" fill="none" stroke="rgba(217,70,239,0.55)" stroke-width="0.8" stroke-dasharray="3 2"/>
-                <path d="M56 54a24 24 0 1 0 0 52 18 18 0 1 1 0-52z" fill="none" stroke="url(#cardGoldA)" stroke-width="1.8"/>
-                <circle cx="50" cy="30" r="2.2" fill="#22d3ee"/>
-                <circle cx="50" cy="130" r="2.2" fill="#e879f9"/>
-                <path d="M26 80h12M62 80h12" stroke="url(#cardGoldA)" stroke-width="0.8" opacity="0.7"/>
-              </svg>
+            <div class="hero-card-inner hero-card-real">
+              <img src="./assets/cards/m17.webp" alt="XVII Звезда" class="hero-card-img" loading="eager" />
+              <div class="hero-card-sheen"></div>
+              <span class="hero-card-badge">XVII · ЗВЕЗДА</span>
             </div>
           </div>
 
-          <!-- Right Card (Crescent + Neon Cyan Edge) -->
-          <div class="hero-tarot-card card-right" data-hero-card="2">
-            <div class="hero-card-inner">
-              <div class="card-corner tl"></div><div class="card-corner tr"></div>
-              <div class="card-corner bl"></div><div class="card-corner br"></div>
-              <svg viewBox="0 0 100 160" class="card-sigil-svg">
-                <rect x="7" y="7" width="86" height="146" rx="8" fill="none" stroke="url(#cardGoldA)" stroke-width="1"/>
-                <rect x="12" y="12" width="76" height="136" rx="5" fill="none" stroke="rgba(34,211,238,0.6)" stroke-width="0.8" stroke-dasharray="3 2"/>
-                <path d="M44 54a24 24 0 1 1 0 52 18 18 0 1 0 0-52z" fill="none" stroke="url(#cardGoldA)" stroke-width="1.8"/>
-                <circle cx="50" cy="30" r="2.2" fill="#e879f9"/>
-                <circle cx="50" cy="130" r="2.2" fill="#22d3ee"/>
-                <path d="M26 80h12M62 80h12" stroke="url(#cardGoldA)" stroke-width="0.8" opacity="0.7"/>
-              </svg>
-            </div>
-          </div>
-
-          <!-- Center Card (Celestial Sun + Neon Compass Fusion) -->
+          <!-- Center Card: XIX Солнце (Ясность, триумф, свет) -->
           <div class="hero-tarot-card card-center" data-hero-card="1">
-            <div class="hero-card-inner">
-              <div class="card-corner tl"></div><div class="card-corner tr"></div>
-              <div class="card-corner bl"></div><div class="card-corner br"></div>
-              <svg viewBox="0 0 120 190" class="card-sigil-svg">
-                <defs>
-                  <linearGradient id="cardGoldA" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#fef08a"/>
-                    <stop offset="50%" stop-color="#f59e0b"/>
-                    <stop offset="100%" stop-color="#fde047"/>
-                  </linearGradient>
-                  <linearGradient id="neonFusion" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#e879f9"/>
-                    <stop offset="50%" stop-color="#facc15"/>
-                    <stop offset="100%" stop-color="#22d3ee"/>
-                  </linearGradient>
-                </defs>
-                <!-- Outer Gold Frame + Inner Neon Arc -->
-                <rect x="7" y="7" width="106" height="176" rx="10" fill="none" stroke="url(#cardGoldA)" stroke-width="1.2"/>
-                <rect x="13" y="13" width="94" height="164" rx="7" fill="none" stroke="url(#neonFusion)" stroke-width="0.9" opacity="0.85"/>
-                <!-- Celestial Sunburst Rays -->
-                <g stroke="url(#cardGoldA)" stroke-width="1" opacity="0.85">
-                  <line x1="60" y1="34" x2="60" y2="56"/>
-                  <line x1="60" y1="134" x2="60" y2="156"/>
-                  <line x1="22" y1="95" x2="40" y2="95"/>
-                  <line x1="80" y1="95" x2="98" y2="95"/>
-                  <line x1="32" y1="62" x2="45" y2="75"/>
-                  <line x1="75" y1="115" x2="88" y2="128"/>
-                  <line x1="88" y1="62" x2="75" y2="75"/>
-                  <line x1="45" y1="115" x2="32" y2="128"/>
-                </g>
-                <!-- Neon Energy Lightning Lines (Style B) -->
-                <path d="M60 44 L55 62 L63 66 L60 76" fill="none" stroke="#22d3ee" stroke-width="1.1" opacity="0.8"/>
-                <path d="M60 146 L65 128 L57 124 L60 114" fill="none" stroke="#e879f9" stroke-width="1.1" opacity="0.8"/>
-                <!-- Sacred Circle + Star Compass -->
-                <circle cx="60" cy="95" r="24" fill="rgba(16,12,42,0.85)" stroke="url(#neonFusion)" stroke-width="1.5"/>
-                <circle cx="60" cy="95" r="16" fill="none" stroke="url(#cardGoldA)" stroke-width="1" stroke-dasharray="2 2"/>
-                <path d="M60 76 L64.5 90.5 L79 95 L64.5 99.5 L60 114 L55.5 99.5 L41 95 L55.5 90.5 Z" fill="url(#cardGoldA)"/>
-                <circle cx="60" cy="95" r="4" fill="#0b0920" stroke="#22d3ee" stroke-width="1.2"/>
-                <!-- Corner Stars -->
-                <circle cx="24" cy="28" r="1.6" fill="#fde047"/>
-                <circle cx="96" cy="28" r="1.6" fill="#22d3ee"/>
-                <circle cx="24" cy="162" r="1.6" fill="#e879f9"/>
-                <circle cx="96" cy="162" r="1.6" fill="#fde047"/>
-              </svg>
+            <div class="hero-card-inner hero-card-real">
+              <img src="./assets/cards/m19.webp" alt="XIX Солнце" class="hero-card-img" loading="eager" />
+              <div class="hero-card-sheen"></div>
+              <span class="hero-card-badge">XIX · СОЛНЦЕ</span>
+            </div>
+          </div>
+
+          <!-- Right Card: X Колесо Фортуны (Судьба, перемены) -->
+          <div class="hero-tarot-card card-right" data-hero-card="2">
+            <div class="hero-card-inner hero-card-real">
+              <img src="./assets/cards/m10.webp" alt="X Колесо Фортуны" class="hero-card-img" loading="eager" />
+              <div class="hero-card-sheen"></div>
+              <span class="hero-card-badge">X · ФОРТУНА</span>
             </div>
           </div>
         </div>
@@ -196,8 +141,17 @@
             <button class="hero-chip" data-action="card-of-day">
               <span class="chip-dot dot-gold"></span>Карта дня и ночи
             </button>
+            <button class="hero-chip" data-action="spreads">
+              <span class="chip-dot dot-cyan"></span>35 раскладов
+            </button>
             <button class="hero-chip" data-action="oracle">
-              <span class="chip-dot dot-cyan"></span>Да / Нет
+              <span class="chip-dot dot-magenta"></span>Да / Нет
+            </button>
+            <button class="hero-chip" data-action="compat">
+              <span class="chip-dot dot-gold"></span>Совместимость
+            </button>
+            <button class="hero-chip" data-action="psych">
+              <span class="chip-dot dot-cyan"></span>Психология
             </button>
             <button class="hero-chip" data-action="friend">
               <span class="chip-dot dot-magenta"></span>Для друга
@@ -502,14 +456,15 @@
           <!-- Drawn Cards Visual Strip (3D Flipped Cards) -->
           <div class="revealed-cards-grid" id="revealed-cards-grid"></div>
 
-          <!-- Detailed Human-Language Breakdown -->
+          <!-- Synthesis Card: Bottom-Line Up Front for instant clarity -->
+          <div class="synthesis-card" id="synthesis-card"></div>
+
+          <!-- Detailed Human-Language Breakdown (Collapsible Accordions) -->
           <div class="section-head">
-            <h3>Подробное толкование</h3>
+            <h3>Разбор по картам</h3>
+            <span class="section-sub">Нажмите на карту, чтобы открыть подробности</span>
           </div>
           <div class="interpretations-list" id="interpretations-list"></div>
-
-          <!-- Synthesis Card -->
-          <div class="synthesis-card" id="synthesis-card"></div>
 
           <!-- Pro Analysis Deep Matrix (Rendered only when PRO is active) -->
           <div class="pro-analysis-container hidden" id="pro-analysis-container">
@@ -750,6 +705,6 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast hidden"></div>
 
-  <script type="module" src="./js/app.js?v=17"></script>
+  <script type="module" src="./js/app.js?v=18"></script>
 </body>
 </html>

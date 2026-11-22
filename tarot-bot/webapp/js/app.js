@@ -469,50 +469,81 @@ function buildSynthesis(spreadName, positions, drawn) {
   const n = drawn.length;
   if (n === 1) {
     const { card, reversed } = drawn[0];
+    const kw = (reversed ? card.reversed : card.upright).split(',')[0].trim().toLowerCase();
     return {
       intro: reversed
-        ? `Карта «${card.name}» пришла в перевёрнутом положении — это мягкий сигнал обратить внимание внутрь и снять внутреннее напряжение.`
-        : `Аркан «${card.name}» задаёт чистый, прямой фокус на ближайший период.`,
+        ? `Аркан «${card.name}» лёг в теневой (перевёрнутой) позиции. Это призыв не торопить внешние события, а обратить внимание на тему «${kw}» и внутренне перенастроиться.`
+        : `Аркан «${card.name}» задаёт чистый прямой вектор. Ваша ключевая опора сейчас — «${kw}», доверяйте естественному течению дел.`,
       arc: card.story,
       keyAdvice: card.advice,
     };
   }
 
-  const majorCount = drawn.filter(({ card }) => MAJOR_IDS.has(card.id)).length;
-  const revCount = drawn.filter(({ reversed }) => reversed).length;
-  const posCount = drawn.filter(
-    ({ card, reversed }) =>
-      (card.yes_weight > 0 && !reversed) || (card.yes_weight < 0 && reversed)
-  ).length;
-
   const first = drawn[0];
   const last = drawn[n - 1];
+  const middle = drawn.slice(1, -1);
   const firstKw = (first.reversed ? first.card.reversed : first.card.upright).split(',')[0].trim().toLowerCase();
   const lastKw = (last.reversed ? last.card.reversed : last.card.upright).split(',')[0].trim().toLowerCase();
 
+  // Подсчёт распределения стихий и арканов
+  const suitCounts = { major: 0, wands: 0, cups: 0, swords: 0, pentacles: 0 };
+  drawn.forEach(({ card }) => {
+    if (MAJOR_IDS.has(card.id)) suitCounts.major++;
+    else if (suitCounts[card.suit] !== undefined) suitCounts[card.suit]++;
+  });
+
+  const majorDrawn = drawn.filter(d => MAJOR_IDS.has(d.card.id));
+  const revCount = drawn.filter(d => d.reversed).length;
+
+  // 1. Динамическая характеристика момента (Intro)
   let intro = '';
-  if (majorCount >= n * 0.6) {
-    intro = `В этом раскладе ${majorCount} из ${n} карт — Старшие Арканы. Это редкое и сильное стечение: ситуация несёт глубокий, поворотный смысл и способна заметно изменить ваш путь.`;
-  } else if (revCount > Math.floor(n / 2)) {
-    intro = `Большинство карт (${revCount} из ${n}) легли перевёрнутыми — расклад указывает на время внутренней настройки. То, что снаружи кажется паузой, на деле даёт шанс честно переосмыслить курс.`;
-  } else if (posCount >= n * 0.6) {
-    intro = `Расклад наполнен поддерживающей, созидательной энергией: большинство арканов открывают пространство для роста и верного движения вперёд.`;
+  if (majorDrawn.length >= Math.ceil(n * 0.5)) {
+    const names = majorDrawn.map(d => `«${d.card.name}»`).join(' и ');
+    intro = `Ситуация носит судьбоносный, кармический характер: сразу ${majorDrawn.length} из ${n} карт — Старшие Арканы (${names}). Происходящее сейчас формирует ваш долгосрочный фундамент и не зависит от мелких случайностей.`;
+  } else if (suitCounts.wands >= Math.ceil(n * 0.4)) {
+    intro = `В раскладе ярко доминирует стихия Огня (Жезлы) — импульс воли, амбиций и активных шагов. Время сомнений прошло: ситуация ждёт от вас смелости, инициативы и прямого движения вперёд.`;
+  } else if (suitCounts.cups >= Math.ceil(n * 0.4)) {
+    intro = `Главенствует стихия Воды (Кубки) — сфера сердца, интуиции и искренних связей. Ключ к ответу лежит не в сухих расчётах, а в вашем эмоциональном комфорте и доверии собственному чутью.`;
+  } else if (suitCounts.swords >= Math.ceil(n * 0.4)) {
+    intro = `Ведущая энергия — стихия Воздуха (Мечи). Происходит ментальная трансформация: пора отсечь лишние иллюзии, посмотреть правде в глаза и принять взвешенное, принципиальное решение.`;
+  } else if (suitCounts.pentacles >= Math.ceil(n * 0.4)) {
+    intro = `Расклад опирается на стихию Земли (Пентакли) — материальные ресурсы, финансовую устойчивость и практический результат. Фокус на стабильности, надёжности и пошаговом укреплении позиций.`;
+  } else if (revCount >= Math.ceil(n * 0.5)) {
+    intro = `Большинство карт (${revCount} из ${n}) выпали в теневом (перевёрнутом) положении. Это период внутренней настройки: видимая пауза на деле даёт вам шанс вовремя исправить скрытые ошибки.`;
   } else {
-    intro = `Карты рисуют живую, объёмную картину — в ней соединяются и вызовы, и скрытые точки опоры. Именно в этом балансе рождается осознанный выбор.`;
+    intro = `Перед вами сбалансированный полифоничный расклад: энергии распределены гармонично, соединяя и практические действия, и искреннее эмоциональное участие.`;
+  }
+
+  // 2. Динамическая сюжетная дуга (Arc)
+  const firstPosName = (positions[0] || 'Исходная точка').split('(')[0].trim();
+  const lastPosName = (positions[n - 1] || 'Итог').split('(')[0].trim();
+
+  let middleClause = '';
+  if (middle.length > 0) {
+    const midCard = middle[0];
+    const midKw = (midCard.reversed ? midCard.card.reversed : midCard.card.upright).split(',')[0].trim().toLowerCase();
+    middleClause = ` проходя через призму «${midCard.card.name}» (${midKw}),`;
   }
 
   let arc = '';
   if (first.reversed && !last.reversed) {
-    arc = `Путь начинается через преодоление (${first.card.name} — ${firstKw}), но финальная карта «${last.card.name}» выводит вас к состоянию «${lastKw}». Это сильная, обнадёживающая дуга: от сложности к ресурсу.`;
+    arc = `Сюжет начинается с преодоления («${first.card.name}» в ${firstPosName}: ${firstKw}), но${middleClause} уверенно выводит вас к созидательному финалу «${last.card.name}» (${lastPosName}: ${lastKw}). Это сильная дуга освобождения от сложностей.`;
   } else if (!first.reversed && last.reversed) {
-    arc = `Старт уверенный (${first.card.name} — ${firstKw}), однако финальная карта «${last.card.name}» в перевёрнутом положении советует не терять бдительность на финишной прямой.`;
+    arc = `Старт уверенный («${first.card.name}» в ${firstPosName}: ${firstKw}), однако${middleClause} завершающий аркан «${last.card.name}» выпал перевёрнутым. Это совет: не форсируйте события на финише и перепроверьте детали.`;
   } else if (last.card.yes_weight > 0 && !last.reversed) {
-    arc = `Сюжет разворачивается от позиции «${positions[0]}» (${first.card.name}: ${firstKw}) к финалу «${positions[n - 1]}» (${last.card.name}: ${lastKw}). Светлый финал подтверждает: направление выбрано верно.`;
+    arc = `Вектор развивается последовательно и гармонично: от стартовой энергии «${first.card.name}» (${firstKw})${middleClause} к прямому успеху в позиции «${lastPosName}» («${last.card.name}»: ${lastKw}). Путь свободен.`;
   } else {
-    arc = `Линия от «${positions[0]}» (${first.card.name}: ${firstKw}) к «${positions[n - 1]}» (${last.card.name}: ${lastKw}) призывает действовать взвешенно, не торопя события и прислушиваясь к интуиции.`;
+    arc = `Линия от «${first.card.name}» (${firstKw})${middleClause} к финальной позиции «${last.card.name}» (${lastKw}) советует действовать взвешенно, сохраняя внутреннее равновесие.`;
   }
 
-  const keyAdvice = last.card.advice || drawn[Math.floor(n / 2)].card.advice || 'Доверяйте первому внутреннему отклику.';
+  // 3. Точечный панчлайн-совет (Key Advice)
+  let keyAdvice = last.card.advice;
+  if (last.reversed) {
+    keyAdvice = `Учтите теневой намёк карты «${last.card.name}»: ${last.card.reversed.split(',')[0].toLowerCase()}. ${last.card.advice}`;
+  } else if (first.card.advice && first.card.advice !== last.card.advice) {
+    keyAdvice = `${last.card.advice} Опирайтесь на силу «${first.card.name}» (${firstKw}).`;
+  }
+
   return { intro, arc, keyAdvice };
 }
 
@@ -1353,7 +1384,65 @@ function renderReadingResult(reading) {
     }, 240 + idx * 240);
   });
 
-  // Detailed human-language cards breakdown
+  // 🌟 TOP SYNTHESIS: Bottom-Line Up Front (Directly under cards)
+  const syn = buildSynthesis(reading.spreadName, reading.positions, reading.drawn);
+  const synEl = document.getElementById('synthesis-card');
+  synEl.innerHTML = `
+    <div class="synthesis-top-row">
+      <div class="synthesis-badge">✦ ГЛАВНЫЙ СИНТЕЗ</div>
+      <div class="synthesis-spread-pill">${escapeHtml(reading.spreadName)}</div>
+    </div>
+    <div class="synthesis-punchline-card">
+      <div class="punchline-gem">🎯</div>
+      <div class="punchline-content">
+        <div class="punchline-caption">КЛЮЧЕВОЙ ВЫВОД РАСКЛАДА</div>
+        <div class="punchline-text">${escapeHtml(syn.keyAdvice)}</div>
+      </div>
+    </div>
+    <div class="synthesis-story-grid">
+      <div class="synthesis-mini-card">
+        <div class="synthesis-step-badge">1. СУТЬ МОМЕНТА</div>
+        <p>${escapeHtml(syn.intro)}</p>
+      </div>
+      <div class="synthesis-mini-card">
+        <div class="synthesis-step-badge">2. ВЕКТОР СОБЫТИЙ</div>
+        <p>${escapeHtml(syn.arc)}</p>
+      </div>
+    </div>
+  `;
+
+  // PRO Preview or Full PRO Matrix
+  const oldTeaser = document.getElementById('pro-teaser-banner');
+  if (oldTeaser) oldTeaser.remove();
+
+  if (state.isProMode) {
+    renderProResultMatrix(reading);
+  } else {
+    document.getElementById('pro-analysis-container')?.classList.add('hidden');
+    const teaser = document.createElement('div');
+    teaser.id = 'pro-teaser-banner';
+    teaser.className = 'pro-teaser-banner';
+    teaser.innerHTML = `
+      <div class="pro-teaser-icon">⚡</div>
+      <div class="pro-teaser-info">
+        <div class="pro-teaser-head">Хотите увидеть скрытый пласт расклада?</div>
+        <div class="pro-teaser-sub">Баланс 4 стихий · Теневая карта (Дно колоды) · Квинтэссенция расклада</div>
+      </div>
+      <button type="button" class="btn-teaser-unlock" id="btn-teaser-unlock">Включить PRO</button>
+    `;
+    document.getElementById('synthesis-card').after(teaser);
+    teaser.querySelector('#btn-teaser-unlock')?.addEventListener('click', () => {
+      state.isProMode = true;
+      localStorage.setItem('klim_tarot_pro_mode', 'true');
+      haptic('success');
+      updateProModeUI();
+      sound.playShuffle();
+      teaser.remove();
+      showToast('⚡ Экспертный режим (PRO) активирован!');
+    });
+  }
+
+  // Collapsible cards breakdown (No more walls of text!)
   const list = document.getElementById('interpretations-list');
   list.innerHTML = '';
   reading.drawn.forEach(({ card, reversed }, idx) => {
@@ -1363,43 +1452,51 @@ function renderReadingResult(reading) {
     const lead = getPositionLead(pos);
 
     const item = document.createElement('article');
-    item.className = 'interp-card';
+    item.className = `interp-card collapsible ${idx === 0 ? 'is-open' : ''}`;
     item.innerHTML = `
-      <div class="interp-head">
-        <div>
-          <div class="interp-pos">${idx + 1}. ${escapeHtml(pos)}</div>
-          <div class="interp-title">${card.emoji} ${escapeHtml(card.name)} <span style="opacity:.55;font-size:16px;">(${escapeHtml(card.num)})</span></div>
+      <div class="interp-head" role="button" tabindex="0" aria-expanded="${idx === 0 ? 'true' : 'false'}">
+        <div class="interp-head-left">
+          <span class="interp-pos-tag">${idx + 1}. ${escapeHtml(pos.split('(')[0].trim())}</span>
+          <div class="interp-card-title">
+            <span class="interp-emoji">${card.emoji}</span>
+            <span class="interp-card-name">${escapeHtml(card.name)}</span>
+            <span class="interp-card-num">(${escapeHtml(card.num)})</span>
+          </div>
         </div>
-        <span class="card-orient-pill ${reversed ? 'rev' : ''}">${reversed ? '🔄 Перевёрнутая' : '⬆️ Прямая'}</span>
+        <div class="interp-head-right">
+          <span class="card-orient-pill ${reversed ? 'rev' : ''}">${reversed ? '🔄 Перевёрнутая' : '⬆️ Прямая'}</span>
+          <svg class="interp-toggle-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
       </div>
-      <p class="interp-story">📖 ${escapeHtml(card.story)}</p>
-      <p class="interp-meaning">В позиции «${escapeHtml(pos)}» ${lead} энергия <strong>${escapeHtml(firstKw)}</strong>. ${escapeHtml(meaning)}.</p>
-      ${
-        reversed
-          ? `<div class="interp-warning">⚠️ Карта перевёрнута — эта энергия сейчас заблокирована или проявляется в избытке. Это приглашение остановиться и взглянуть на ситуацию честно.</div>`
-          : ''
-      }
-      <div class="interp-advice">🎯 Совет карты: ${escapeHtml(card.advice)}</div>
+
+      <div class="interp-preview-line">
+        <span class="preview-lead">${escapeHtml(lead)}:</span> <strong>${escapeHtml(firstKw)}</strong> — ${escapeHtml(meaning.split('.')[0])}.
+      </div>
+
+      <div class="interp-expanded-body">
+        <div class="interp-expanded-inner">
+          <p class="interp-story">📖 <strong>Архетип и сюжет:</strong> ${escapeHtml(card.story)}</p>
+          ${
+            reversed
+              ? `<div class="interp-warning">⚠️ <strong>Теневой аспект:</strong> энергия аркана перевёрнута — она проявляется в скрытой, подавленной форме или требует честного взгляда внутрь себя.</div>`
+              : ''
+          }
+          <div class="interp-advice">🎯 <strong>Совет аркана:</strong> ${escapeHtml(card.advice)}</div>
+        </div>
+      </div>
     `;
+
+    const head = item.querySelector('.interp-head');
+    head.addEventListener('click', () => {
+      sound.playTap();
+      haptic('light');
+      item.classList.toggle('is-open');
+    });
+
     list.appendChild(item);
   });
-
-  // Final Multi-Card Synthesis
-  const syn = buildSynthesis(reading.spreadName, reading.positions, reading.drawn);
-  const synEl = document.getElementById('synthesis-card');
-  synEl.innerHTML = `
-    <div class="synthesis-badge">✦ ОБЩИЙ СИНТЕЗ РАСКЛАДА</div>
-    <h3>Что всё это значит вместе</h3>
-    <p>${escapeHtml(syn.intro)}</p>
-    <p>${escapeHtml(syn.arc)}</p>
-    <div class="synthesis-key">✨ Главное послание: ${escapeHtml(syn.keyAdvice)}</div>
-  `;
-
-  if (state.isProMode) {
-    renderProResultMatrix(reading);
-  } else {
-    document.getElementById('pro-analysis-container')?.classList.add('hidden');
-  }
 
   document.getElementById('btn-share-label').textContent = reading.friendName
     ? `Переслать расклад для ${reading.friendName}`
@@ -1925,6 +2022,38 @@ function escapeHtml(str = '') {
    7. WIRE ALL EVENTS & BOOTSTRAP
    ════════════════════════════════════════════════════════════════ */
 
+const HERO_MYSTIC_PHRASES = [
+  "Космическая интуиция в современном ритме",
+  "Вселенная уже знает ответ — доверься потоку",
+  "Слушай не голос сомнений, а шёпот интуиции",
+  "Звёзды подсказывают путь, но выбор за тобой",
+  "В тишине колоды рождается кристальная ясность",
+  "Случайных карт не бывает — есть своевременные",
+  "Архетипы говорят на тайном языке твоей души",
+  "То, что ты ищешь, уже направляется к тебе",
+  "Сделай глубокий вдох — ответы уже внутри",
+  "Энергия дня раскрывается тем, кто готов слышать",
+  "Зеркало твоего подсознания в 78 древних арканах",
+  "Каждая карта — это ключ к скрытой двери возможностей",
+  "Мудрость веков в ритме современного дня",
+  "Отпусти суету — соединись со своим истинным центром",
+  "Твой внутренний компас точнее любых внешних советов",
+  "Свет Луны освещает скрытое, Солнце являет истину",
+  "Взгляни на вопрос с высоты небесного горизонта",
+  "Позволь картам проявить то, что скрыто от глаз",
+  "Сила момента — в твоём осознанном выборе",
+  "Космос говорит с тобой через сакральные символы"
+];
+
+function randomizeHeroSubtitle() {
+  const el = document.getElementById('hero-dynamic-subtitle');
+  if (!el) return;
+  const phrase = HERO_MYSTIC_PHRASES[Math.floor(Math.random() * HERO_MYSTIC_PHRASES.length)];
+  el.textContent = phrase;
+  el.title = "Нажмите, чтобы сменить мысль дня ✨";
+  el.style.cursor = "pointer";
+}
+
 function updateSoundIcon() {
   const btn = document.getElementById('btn-sound-toggle');
   document.getElementById('icon-sound-on').classList.toggle('hidden', !sound.enabled);
@@ -1933,6 +2062,16 @@ function updateSoundIcon() {
 }
 
 function bindEvents() {
+  // Hero dynamic subtitle click to rotate
+  const subEl = document.getElementById('hero-dynamic-subtitle');
+  if (subEl) {
+    subEl.addEventListener('click', () => {
+      sound.playTap();
+      haptic('light');
+      randomizeHeroSubtitle();
+    });
+  }
+
   // Hero cards playful lift + chime
   document.querySelectorAll('.hero-tarot-card').forEach((card, idx) => {
     card.addEventListener('click', () => {
@@ -1954,8 +2093,12 @@ function bindEvents() {
     chip.addEventListener('click', () => {
       const action = chip.dataset.action;
       if (action === 'card-of-day') openDailyCardReading();
-      if (action === 'oracle') navigateTo('oracle');
-      if (action === 'friend') navigateTo('friend');
+      else if (action === 'spreads') navigateTo('spreads');
+      else if (action === 'oracle') navigateTo('oracle');
+      else if (action === 'compat') navigateTo('compat');
+      else if (action === 'psych') navigateTo('psych');
+      else if (action === 'friend') navigateTo('friend');
+      else navigateTo('home');
     });
   });
 
@@ -2653,6 +2796,7 @@ renderZodiacPickers();
 renderDictTabs();
 renderDictGrid();
 bindEvents();
+randomizeHeroSubtitle();
 updateProModeUI();
 
 // Preload today's card immediately if already drawn
