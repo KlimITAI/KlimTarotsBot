@@ -832,6 +832,7 @@ const VIEW_TITLES = {
   compat: 'Совместимость',
   dictionary: 'Словарь карт',
   history: 'История',
+  plans: 'Тарифы и подписка',
 };
 
 function showToast(msg) {
@@ -2255,6 +2256,15 @@ function bindEvents() {
 
   // Draw auto-pick
   document.getElementById('btn-auto-draw').addEventListener('click', autoDrawRemaining);
+
+  // Plan select buttons (ЮKassa)
+  document.querySelectorAll('.btn-plan-select').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      sound.playTap();
+      haptic('medium');
+      showToast('💳 Оплата тарифа подключается через ЮKassa прямо в Telegram-боте');
+    });
+  });
 
   // Oracle flip
   document.getElementById('oracle-card-3d').addEventListener('click', triggerOracle);

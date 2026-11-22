@@ -1607,6 +1607,16 @@ async def cmd_grant(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await cmd_pro(update, context)
 
 
+async def cmd_plans(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Отображает официальные тарифы подписки для пользователя."""
+    uid = update.effective_user.id if update.effective_user else 0
+    await update.message.reply_text(
+        payments.plans_text(uid),
+        reply_markup=payments.plans_keyboard(),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
 def find_welcome_media() -> tuple[str | None, Path | None]:
     """
     Ищет анимацию приветствия (welcome.mp4 с открытием двери) для /start.
@@ -1680,8 +1690,9 @@ def main_menu_keyboard(uid: int | None = None):
         [InlineKeyboardButton("🎯 Тематические расклады", callback_data="menu_themes")],
         [InlineKeyboardButton("🔮 Все расклады",      callback_data="menu_all"),
          InlineKeyboardButton("📖 Словарь карт",      callback_data="menu_dict")],
-        [InlineKeyboardButton("📜 Моя история",       callback_data="menu_history")],
-        [InlineKeyboardButton("🎁 Гадаю для друга",   callback_data="menu_friend")],
+        [InlineKeyboardButton("📜 Моя история",       callback_data="menu_history"),
+         InlineKeyboardButton("🎁 Гадаю для друга",   callback_data="menu_friend")],
+        [InlineKeyboardButton("💎 Тарифы подписки",  callback_data="menu_plans")],
     ])
     if uid is not None and uid in ADMIN_IDS:
         rows.append([InlineKeyboardButton("👑 Режим Администратора", callback_data="admin_dashboard")])
@@ -1956,10 +1967,11 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "menu_history":
         await show_history(query)
 
+    elif data == "menu_plans":
+        await safe_edit(query, payments.plans_text(query.from_user.id), reply_markup=payments.plans_keyboard())
+
     elif data.startswith("pay_plan_"):
         plan_key = data[len("pay_plan_"):]
-        if not payments.PAYMENTS_ENABLED and query.from_user.id not in ADMIN_IDS:
-            return
         await payments.send_plan_invoice(query, plan_key)
 
     elif data.startswith("admin_"):
@@ -2706,6 +2718,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if raw in ["👑 Админ-панель", "админ", "админка", "/admin"]:
         await cmd_admin(update, context)
         return
+    if raw in ["💎 Тарифы", "💎 Тарифы подписки", "тарифы", "подписка", "/pay", "/plans"]:
+        await cmd_plans(update, context)
+        return
 
     text = update.message.text.lower()
     if any(w in text for w in ["да нет", "да/нет", "оракул", "вопрос"]):
@@ -2916,6 +2931,7 @@ async def post_init(app):
         BotCommand("start", "🔮 Запустить бот / Mini App"),
         BotCommand("menu", "🏠 Открыть меню"),
         BotCommand("friend", "🎁 Гадание для друга"),
+        BotCommand("pay", "💎 Тарифы подписки"),
     ]
     await app.bot.set_my_commands(public_cmds)
 
@@ -3078,6 +3094,8 @@ def main():
     app.add_handler(CommandHandler("logs", cmd_logs))
     app.add_handler(CommandHandler("paytest", cmd_paytest))
     app.add_handler(CommandHandler("grant", cmd_grant))
+    app.add_handler(CommandHandler("pay", cmd_plans))
+    app.add_handler(CommandHandler("plans", cmd_plans))
     app.add_handler(PreCheckoutQueryHandler(payments.handle_pre_checkout))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, payments.handle_successful_payment))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data))
