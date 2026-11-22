@@ -1567,6 +1567,44 @@ async def cmd_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Отображает расширенную аналитику и статистику бота для владельца."""
+    uid = update.effective_user.id if update.effective_user else 0
+    if uid not in ADMIN_IDS:
+        return
+    text = build_stats_report()
+    await update.message.reply_text(text, reply_markup=admin_panel_keyboard("stats"), parse_mode=ParseMode.MARKDOWN)
+
+
+async def cmd_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает последние 20 событий активности пользователей."""
+    uid = update.effective_user.id if update.effective_user else 0
+    if uid not in ADMIN_IDS:
+        return
+    text = build_logs_report(20)
+    await update.message.reply_text(text, reply_markup=admin_panel_keyboard("logs"), parse_mode=ParseMode.MARKDOWN)
+
+
+async def cmd_paytest(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает тестовое окно тарифов и подписок."""
+    uid = update.effective_user.id if update.effective_user else 0
+    if uid not in ADMIN_IDS:
+        return
+    text = payments.plans_text(uid)
+    await update.message.reply_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("« Главная админки", callback_data="admin_dashboard")],
+        ]),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def cmd_grant(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Алиас для выдачи PRO: /grant <user_id> <days>"""
+    await cmd_pro(update, context)
+
+
 def find_welcome_media() -> tuple[str | None, Path | None]:
     """
     Ищет анимацию приветствия (welcome.mp4 с открытием двери) для /start.
