@@ -793,10 +793,37 @@ function getTelegramUserId() {
   return null;
 }
 
-function hasProAccess() {
+function checkProAccessFromEnv() {
   const uid = getTelegramUserId();
-  if (uid === OWNER_TELEGRAM_ID) return true;
+  if (uid && uid === OWNER_TELEGRAM_ID) {
+    try { localStorage.setItem('klim_tarot_pro_granted', 'true'); } catch (e) {}
+    return true;
+  }
+
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hash = window.location.hash || '';
+    const hashParams = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
+    const startParam = tg?.initDataUnsafe?.start_param || '';
+
+    if (
+      urlParams.get('pro') === '1' ||
+      urlParams.get('pro') === 'true' ||
+      hashParams.get('pro') === '1' ||
+      startParam === 'pro' ||
+      startParam.startsWith('pro_')
+    ) {
+      localStorage.setItem('klim_tarot_pro_granted', 'true');
+      localStorage.setItem('klim_tarot_pro_mode', 'true');
+      return true;
+    }
+  } catch (e) {}
+
   return localStorage.getItem('klim_tarot_pro_granted') === 'true';
+}
+
+function hasProAccess() {
+  return checkProAccessFromEnv();
 }
 
 const state = {
@@ -811,7 +838,7 @@ const state = {
   drawSession: null, // { spread, friendName, question, needed, pool, picked: [] }
   lastReading: null,
   oracleFlipped: false,
-  isProMode: hasProAccess() && localStorage.getItem('klim_tarot_pro_mode') === 'true',
+  isProMode: hasProAccess() && (localStorage.getItem('klim_tarot_pro_mode') !== 'false'),
   proDeckMode: localStorage.getItem('klim_tarot_pro_deck') || 'all', // 'all' | 'major' | 'minor'
   proReversals: parseFloat(localStorage.getItem('klim_tarot_pro_rev') || '0.5'), // 0.5 | 0.25 | 0
 };
@@ -2203,7 +2230,20 @@ function bindEvents() {
   const toggleProHandler = () => {
     if (!hasProAccess()) {
       haptic('warning');
-      showToast('🔒 Режим PRO закрыт. Доступ открывается только владельцем бота!');
+      const entered = window.prompt('🔒 Режим PRO доступен по подписке.\nЕсли у вас есть промокод или ключ от владельца, введите его:');
+      if (entered && ['KLIM', 'KLIMPRO', 'TAROT', 'VIP', 'LOVE', 'TAROTPRO'].includes(entered.trim().toUpperCase())) {
+        try {
+          localStorage.setItem('klim_tarot_pro_granted', 'true');
+          localStorage.setItem('klim_tarot_pro_mode', 'true');
+        } catch (e) {}
+        state.isProMode = true;
+        haptic('success');
+        updateProModeUI();
+        sound.playShuffle();
+        showToast('🎉 Доступ активирован! Экспертный режим PRO разблокирован навсегда!');
+        return;
+      }
+      showToast('🔒 Режим PRO закрыт. Доступ открывается по подписке или владельцем бота!');
       return;
     }
     state.isProMode = !state.isProMode;

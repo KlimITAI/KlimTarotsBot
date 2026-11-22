@@ -914,6 +914,28 @@ ADMIN_IDS: set[int] = {int(x.strip()) for x in _raw_admins.split(",") if x.strip
 ADMIN_IDS.add(7446803539)
 
 
+def user_has_pro(uid: int | None) -> bool:
+    """Проверяет, активен ли у пользователя режим PRO (владелец или подписка)."""
+    if uid is None:
+        return False
+    if uid in ADMIN_IDS:
+        return True
+    try:
+        return payments.get_subscription(uid, STATS_DB_PATH) is not None
+    except Exception:
+        return False
+
+
+def get_user_webapp_url(uid: int | None = None) -> str:
+    """Возвращает персональный URL WebApp: для владельца и пользователей с PRO добавляет &pro=1."""
+    if not WEBAPP_URL:
+        return ""
+    if uid is not None and user_has_pro(uid):
+        sep = "&" if "?" in WEBAPP_URL else "?"
+        return f"{WEBAPP_URL}{sep}pro=1"
+    return WEBAPP_URL
+
+
 # ─────────────────────────────────────────────────────────
 #  БАЗА ДАННЫХ СТАТИСТИКИ И ЛОГОВ (SQLite)
 # ─────────────────────────────────────────────────────────
@@ -1477,8 +1499,45 @@ async def cmd_pro(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_uid = int(context.args[0])
     days = int(context.args[1]) if len(context.args) > 1 and context.args[1].isdigit() else 30
     exp = payments.grant_subscription(target_uid, "manual_vip", days, STATS_DB_PATH)
+    pro_url = get_user_webapp_url(target_uid)
+
+    notified = False
+    try:
+        await context.bot.set_chat_menu_button(
+            chat_id=target_uid,
+            menu_button=MenuButtonWebApp(text="⚡ KLIM TAROT PRO", web_app=WebAppInfo(url=pro_url)),
+        )
+        await context.bot.send_message(
+            chat_id=target_uid,
+            text=(
+                f"🎉 *Вам выдан эксклюзивный доступ к KLIM TAROT PRO!*\n\n"
+                f"⏳ Срок действия: *{days} дн.* (до `{exp.strftime('%d.%m.%Y %H:%M МСК')}`).\n"
+                f"⚡ Все экспертные расклады, стихии, теневая карта (дно колоды) и квинтэссенция теперь открыты!\n\n"
+                f"Нажмите кнопку ниже, чтобы запустить приложение:"
+            ),
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⚡ Открыть KLIM TAROT (PRO)", web_app=WebAppInfo(url=pro_url))]
+            ]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        notified = True
+    except Exception as exc:
+        logger.debug("Не удалось отправить прямое уведомление target %s: %s", target_uid, exc)
+
+    status_text = (
+        f"✅ Пользователю `{target_uid}` выдан режим PRO на *{days} дн.* (до `{exp.strftime('%d.%m.%Y %H:%M МСК')}`).\n\n"
+        f"🔗 *Персональная ссылка с активным PRO:*\n`{pro_url}`"
+    )
+    if notified:
+        status_text += "\n\n📩 _Уведомление и персональная кнопка меню отправлены пользователю в чат._"
+    else:
+        status_text += "\n\n💡 _Пользователь может просто нажать `/start` в боте или перейти по ссылке выше._"
+
     await update.message.reply_text(
-        f"✅ Пользователю `{target_uid}` выдан режим PRO на *{days} дн.* (до `{exp.strftime('%d.%m.%Y %H:%M МСК')}`).",
+        status_text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("⚡ Проверить запуск PRO", web_app=WebAppInfo(url=pro_url))]
+        ]),
         parse_mode=ParseMode.MARKDOWN,
     )
 
@@ -1492,6 +1551,13 @@ async def cmd_unpro(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     target_uid = int(context.args[0])
     removed = payments.revoke_subscription(target_uid, STATS_DB_PATH)
+    try:
+        await context.bot.set_chat_menu_button(
+            chat_id=target_uid,
+            menu_button=MenuButtonWebApp(text="🔮 Таро", web_app=WebAppInfo(url=WEBAPP_URL)),
+        )
+    except Exception:
+        pass
     if removed:
         await update.message.reply_text(f"✅ Режим PRO успешно забран у `{target_uid}`.", parse_mode=ParseMode.MARKDOWN)
     else:
@@ -1652,31 +1718,37 @@ def find_welcome_media() -> tuple[str | None, Path | None]:
     return (None, None)
 
 
-def start_keyboard():
-    """Клавиатура на экране /start — главный акцент на Mini App."""
+def start_keyboard(uid: int | None = None):
+    """Клавиатура на экране /start — главный акцент на Mini App (с автоопределением PRO)."""
     rows = []
-    if WEBAPP_URL:
+    user_url = get_user_webapp_url(uid)
+    if user_url:
+        has_pro = user_has_pro(uid)
+        btn_label = "⚡ Открыть KLIM TAROT (PRO)" if has_pro else "🔮 Открыть KLIM TAROT (Mini App)"
         rows.append([
             InlineKeyboardButton(
-                "🔮 Открыть KLIM TAROT (Mini App)",
-                web_app=WebAppInfo(url=WEBAPP_URL),
+                btn_label,
+                web_app=WebAppInfo(url=user_url),
             )
         ])
         rows.append([
             InlineKeyboardButton("📋 Гадать прямо в чате", callback_data="main_menu"),
         ])
     else:
-        return main_menu_keyboard()
+        return main_menu_keyboard(uid)
     return InlineKeyboardMarkup(rows)
 
 
 def main_menu_keyboard(uid: int | None = None):
     rows = []
-    if WEBAPP_URL:
+    user_url = get_user_webapp_url(uid)
+    if user_url:
+        has_pro = user_has_pro(uid)
+        btn_label = "⚡ Открыть Mini App (PRO)" if has_pro else "✨ Открыть Mini App — KLIM TAROT"
         rows.append([
             InlineKeyboardButton(
-                "✨ Открыть Mini App — KLIM TAROT",
-                web_app=WebAppInfo(url=WEBAPP_URL),
+                btn_label,
+                web_app=WebAppInfo(url=user_url),
             )
         ])
     daily_label = "🌗 Карта дня и ночи"
@@ -1782,13 +1854,18 @@ WELCOME_TEXT = (
 
 def persistent_reply_keyboard(uid: int | None = None) -> ReplyKeyboardMarkup:
     """Нижняя постоянная панель кнопок для мгновенного ввода команд без ручного набора."""
-    btn_webapp = KeyboardButton("🔮 Открыть KLIM TAROT", web_app=WebAppInfo(url=WEBAPP_URL)) if WEBAPP_URL else KeyboardButton("/start")
+    user_url = get_user_webapp_url(uid)
+    has_pro = user_has_pro(uid)
+    btn_label = "⚡ Открыть KLIM TAROT (PRO)" if has_pro else "🔮 Открыть KLIM TAROT"
+    btn_webapp = KeyboardButton(btn_label, web_app=WebAppInfo(url=user_url)) if user_url else KeyboardButton("/start")
     rows = [
         [btn_webapp],
         [KeyboardButton("🏠 Меню"), KeyboardButton("🎁 Гадание для друга")],
     ]
     if uid is not None and uid in ADMIN_IDS:
-        rows.append([KeyboardButton("👑 Админ-панель")])
+        rows.append([KeyboardButton("💎 Тарифы"), KeyboardButton("👑 Админ-панель")])
+    else:
+        rows.append([KeyboardButton("💎 Тарифы")])
     return ReplyKeyboardMarkup(rows, resize_keyboard=True, is_persistent=True)
 
 
@@ -1798,8 +1875,22 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ Ваш доступ к боту ограничен администратором.")
         return ConversationHandler.END
     context.user_data.pop("friend_name", None)
+
+    # Синхронизируем персональный MenuButton в Telegram для пользователей с PRO
+    if uid:
+        try:
+            user_url = get_user_webapp_url(uid)
+            has_pro = user_has_pro(uid)
+            menu_btn_text = "⚡ KLIM TAROT PRO" if has_pro else "🔮 Таро"
+            await context.bot.set_chat_menu_button(
+                chat_id=uid,
+                menu_button=MenuButtonWebApp(text=menu_btn_text, web_app=WebAppInfo(url=user_url)),
+            )
+        except Exception:
+            pass
+
     media_type, media_path = find_welcome_media()
-    markup = start_keyboard()
+    markup = start_keyboard(uid)
 
     if media_type == "animation" and media_path:
         cache_key = (str(media_path), media_path.stat().st_mtime)
