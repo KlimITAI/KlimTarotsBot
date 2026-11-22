@@ -2888,6 +2888,17 @@ renderDictTabs();
 renderDictGrid();
 bindEvents();
 randomizeHeroSubtitle();
+
+// 🖱️ Надёжная прокрутка колёсиком мыши на компьютерах в Telegram Desktop
+window.addEventListener('wheel', (e) => {
+  if (e.defaultPrevented) return;
+  const openModal = document.querySelector('.modal-backdrop:not(.hidden) .modal-sheet');
+  if (openModal) {
+    openModal.scrollTop += e.deltaY;
+    return;
+  }
+  window.scrollBy({ top: e.deltaY, behavior: 'auto' });
+}, { passive: true });
 updateProModeUI();
 
 // Preload today's card immediately if already drawn
