@@ -82,10 +82,10 @@ def escape_md(text: str) -> str:
     return text
 
 
-async def safe_answer(query, text: str | None = None):
+async def safe_answer(query, text: str | None = None, show_alert: bool = False):
     """Безопасно отвечает на callback_query, не падая на просроченных запросах."""
     try:
-        await query.answer(text=text)
+        await query.answer(text=text, show_alert=show_alert)
     except BadRequest as exc:
         logger.debug("Ignoring callback answer error: %s", exc)
 
