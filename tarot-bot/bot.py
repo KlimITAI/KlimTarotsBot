@@ -1741,39 +1741,49 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if media_type == "animation" and media_path:
         cache_key = (str(media_path), media_path.stat().st_mtime)
         cached_id = _welcome_file_id_cache.get(cache_key)
-        if cached_id:
-            await update.message.reply_animation(
-                animation=cached_id,
-                caption=WELCOME_TEXT,
-                reply_markup=markup,
-                parse_mode=ParseMode.MARKDOWN,
-            )
-        else:
-            with open(media_path, "rb") as f:
-                sent = await update.message.reply_animation(
-                    animation=f,
+        try:
+            if cached_id:
+                await update.message.reply_animation(
+                    animation=cached_id,
                     caption=WELCOME_TEXT,
                     reply_markup=markup,
                     parse_mode=ParseMode.MARKDOWN,
                 )
-            if sent.animation:
-                _welcome_file_id_cache[cache_key] = sent.animation.file_id
-            elif sent.video:
-                _welcome_file_id_cache[cache_key] = sent.video.file_id
-    elif media_type == "photo" and media_path:
-        with open(media_path, "rb") as f:
-            await update.message.reply_photo(
-                photo=f,
-                caption=WELCOME_TEXT,
-                reply_markup=markup,
-                parse_mode=ParseMode.MARKDOWN,
-            )
-    else:
-        await update.message.reply_text(
-            WELCOME_TEXT,
-            reply_markup=markup,
-            parse_mode=ParseMode.MARKDOWN,
-        )
+                return ConversationHandler.END
+            else:
+                with open(media_path, "rb") as f:
+                    sent = await update.message.reply_animation(
+                        animation=f,
+                        caption=WELCOME_TEXT,
+                        reply_markup=markup,
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                if sent.animation:
+                    _welcome_file_id_cache[cache_key] = sent.animation.file_id
+                elif sent.video:
+                    _welcome_file_id_cache[cache_key] = sent.video.file_id
+                return ConversationHandler.END
+        except Exception as exc:
+            logger.warning("Не удалось отправить animation в cmd_start: %s, перехожу на запасной вариант", exc)
+
+    if media_type == "photo" and media_path:
+        try:
+            with open(media_path, "rb") as f:
+                await update.message.reply_photo(
+                    photo=f,
+                    caption=WELCOME_TEXT,
+                    reply_markup=markup,
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+            return ConversationHandler.END
+        except Exception as exc:
+            logger.warning("Не удалось отправить photo в cmd_start: %s, перехожу на текст", exc)
+
+    await update.message.reply_text(
+        WELCOME_TEXT,
+        reply_markup=markup,
+        parse_mode=ParseMode.MARKDOWN,
+    )
     return ConversationHandler.END
 
 
