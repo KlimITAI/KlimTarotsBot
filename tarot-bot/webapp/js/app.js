@@ -1412,6 +1412,10 @@ function updateProModeUI() {
     btn.classList.toggle('is-active', state.isProMode);
     btn.setAttribute('aria-pressed', state.isProMode ? 'true' : 'false');
   }
+  const heroBtn = document.getElementById('btn-hero-pro-toggle');
+  if (heroBtn) {
+    heroBtn.classList.toggle('is-active', state.isProMode);
+  }
   document.body.classList.toggle('is-pro-mode', state.isProMode);
 
   const customBadge = document.getElementById('custom-topic-badge');
@@ -1965,22 +1969,21 @@ function bindEvents() {
     showToast(on ? '🔊 Музыка и звуки включены' : '🔇 Звук выключен');
   });
 
-  // ⚡ Экспертный режим (PRO) переключатель в шапке
-  const proBtn = document.getElementById('btn-pro-toggle');
-  if (proBtn) {
-    proBtn.addEventListener('click', () => {
-      state.isProMode = !state.isProMode;
-      localStorage.setItem('klim_tarot_pro_mode', state.isProMode ? 'true' : 'false');
-      haptic(state.isProMode ? 'success' : 'light');
-      updateProModeUI();
-      if (state.isProMode) {
-        sound.playShuffle();
-        showToast('⚡ Экспертный режим (PRO) включён: открыты стихии, дно колоды, квинт и своя тема');
-      } else {
-        showToast('🔮 Включён базовый режим для новичков');
-      }
-    });
-  }
+  // ⚡ Экспертный режим (PRO) переключатель в шапке и на стартовой заставке
+  const toggleProHandler = () => {
+    state.isProMode = !state.isProMode;
+    localStorage.setItem('klim_tarot_pro_mode', state.isProMode ? 'true' : 'false');
+    haptic(state.isProMode ? 'success' : 'light');
+    updateProModeUI();
+    if (state.isProMode) {
+      sound.playShuffle();
+      showToast('⚡ Экспертный режим (PRO) включён: открыты стихии, дно колоды, квинт и своя тема');
+    } else {
+      showToast('🔮 Включён базовый режим для новичков');
+    }
+  };
+  document.getElementById('btn-pro-toggle')?.addEventListener('click', toggleProHandler);
+  document.getElementById('btn-hero-pro-toggle')?.addEventListener('click', toggleProHandler);
 
   // PRO Tuner Chips
   document.querySelectorAll('#pro-deck-chips .pro-chip').forEach((btn) => {

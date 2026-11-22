@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css?v=16" />
+  <link rel="stylesheet" href="./css/styles.css?v=17" />
 </head>
 <body>
   <!-- Animated Cosmic Starfield & Nebula Canvas -->
@@ -74,7 +74,13 @@
 
         <!-- Style A + B Title Block -->
         <div class="hero-header">
-          <div class="hero-eyebrow">KLIM TAROT · 78 АРКАНОВ</div>
+          <div class="hero-eyebrow-row">
+            <span class="hero-eyebrow">KLIM TAROT · 78 АРКАНОВ</span>
+            <button type="button" class="btn-pro-pill hero-pro-pill" id="btn-hero-pro-toggle" title="Экспертный режим">
+              <span class="pro-sparkle">⚡</span>
+              <span class="pro-label">PRO РЕЖИМ</span>
+            </button>
+          </div>
           <h1 class="hero-title">Гадание на Таро</h1>
           <p class="hero-subtitle">Космическая интуиция в современном ритме</p>
         </div>
@@ -744,6 +750,6 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast hidden"></div>
 
-  <script type="module" src="./js/app.js?v=16"></script>
+  <script type="module" src="./js/app.js?v=17"></script>
 </body>
 </html>
