@@ -3223,14 +3223,14 @@ if (_savedDaily?.card) preloadCardImage(_savedDaily.card);
    🎡 КОЛЕСО ФОРТУНЫ & ОСКОЛКИ СУДЬБЫ (X АРКАН)
    ══════════════════════════════════════════════════════════════ */
 const WHEEL_SECTORS = [
-  { label: '+1 Осколок', icon: '🔮', type: 'shard', val: 1, color: '#7c3aed', text: '#fff' },
-  { label: 'PRO 24ч', icon: '⚡', type: 'pro_24h', val: 1, color: '#f59e0b', text: '#000' },
-  { label: 'Скидка 30%', icon: '🏷️', type: 'promo', code: 'FORTUNA30', color: '#db2777', text: '#fff' },
-  { label: 'Дно колоды', icon: '🌑', type: 'feature_shadow', color: '#4f46e5', text: '#fff' },
-  { label: '+2 Осколка', icon: '🔮', type: 'shard', val: 2, color: '#9333ea', text: '#fff' },
-  { label: '4 Стихии', icon: '🌊', type: 'feature_elements', color: '#0891b2', text: '#fff' },
-  { label: '+1 день PRO', icon: '🎁', type: 'pro_1d', val: 1, color: '#059669', text: '#fff' },
-  { label: 'Скидка 20%', icon: '🏷️', type: 'promo', code: 'FORTUNA20', color: '#eab308', text: '#000' },
+  { label: '+1 Осколок', icon: '🔮', type: 'shard', val: 1, bg1: '#2e1065', bg2: '#581c87', border: '#c084fc', text: '#f3e8ff' },
+  { label: 'Скидка 25%', icon: '🏷️', type: 'discount_25', code: 'FORTUNA25', bg1: '#831843', bg2: '#be185d', border: '#f472b6', text: '#fff1f2' },
+  { label: 'Дно колоды', icon: '🌑', type: 'feature_shadow', bg1: '#1e1b4b', bg2: '#3730a3', border: '#818cf8', text: '#e0e7ff' },
+  { label: '+2 Осколка', icon: '✨', type: 'shard', val: 2, bg1: '#3b0764', bg2: '#6b21a8', border: '#d8b4fe', text: '#faf5ff' },
+  { label: 'Талисман Удачи', icon: '🍀', type: 'talisman', bg1: '#064e3b', bg2: '#047857', border: '#34d399', text: '#ecfdf5' },
+  { label: '4 Стихии', icon: '🌊', type: 'feature_elements', bg1: '#164e63', bg2: '#0e7490', border: '#22d3ee', text: '#ecfeff' },
+  { label: '+1 Осколок', icon: '🔮', type: 'shard', val: 1, bg1: '#4a044e', bg2: '#86198f', border: '#e879f9', text: '#fdf4ff' },
+  { label: 'Мудрость Таро', icon: '🌟', type: 'wisdom', bg1: '#713f12', bg2: '#b45309', border: '#fde047', text: '#fefce8' },
 ];
 
 let wheelState = {
@@ -3275,14 +3275,33 @@ function drawWheel(angle = 0) {
   const ctx = canvas.getContext('2d');
   const size = canvas.width;
   const center = size / 2;
-  const radius = center - 6;
+  const radius = center - 8;
   const numSectors = WHEEL_SECTORS.length;
   const arc = (2 * Math.PI) / numSectors;
 
   ctx.clearRect(0, 0, size, size);
 
+  // Outer Gold Rim with Engravings
   ctx.save();
   ctx.translate(center, center);
+
+  // Outer metallic ring
+  const outerGrad = ctx.createLinearGradient(-radius, -radius, radius, radius);
+  outerGrad.addColorStop(0, '#fde047');
+  outerGrad.addColorStop(0.3, '#d97706');
+  outerGrad.addColorStop(0.5, '#fef08a');
+  outerGrad.addColorStop(0.7, '#b45309');
+  outerGrad.addColorStop(1, '#eab308');
+
+  ctx.beginPath();
+  ctx.arc(0, 0, radius + 4, 0, 2 * Math.PI);
+  ctx.fillStyle = '#0f0b18';
+  ctx.fill();
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = outerGrad;
+  ctx.stroke();
+
+  // Rotate sectors
   ctx.rotate(angle);
 
   for (let i = 0; i < numSectors; i++) {
@@ -3290,28 +3309,79 @@ function drawWheel(angle = 0) {
     const startAngle = i * arc;
     const endAngle = startAngle + arc;
 
-    // Sector arc
+    // Sector arc with radial gradient
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.arc(0, 0, radius, startAngle, endAngle);
+    ctx.arc(0, 0, radius - 3, startAngle, endAngle);
     ctx.closePath();
-    ctx.fillStyle = sec.color;
+
+    const secGrad = ctx.createRadialGradient(0, 0, 20, 0, 0, radius);
+    secGrad.addColorStop(0, sec.bg1);
+    secGrad.addColorStop(1, sec.bg2);
+    ctx.fillStyle = secGrad;
     ctx.fill();
 
-    // Divider
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    // Sector divider with gold trim
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(253, 224, 71, 0.45)';
     ctx.stroke();
 
-    // Text & icon
+    // Arcana X Occult runes/letters on rim (T - A - R - O / R - O - T - A)
+    const midAngle = startAngle + arc / 2;
+    const occultGlyphs = ['T', 'א', 'A', 'מ', 'R', 'ש', 'O', 'ה'];
     ctx.save();
-    ctx.rotate(startAngle + arc / 2);
+    ctx.rotate(midAngle);
     ctx.textAlign = 'right';
+    ctx.fillStyle = '#fde047';
+    ctx.font = 'bold 11px Cinzel, serif';
+    ctx.shadowColor = 'rgba(253, 224, 71, 0.6)';
+    ctx.shadowBlur = 4;
+    ctx.fillText(occultGlyphs[i % occultGlyphs.length], radius - 8, 4);
+
+    // Text & icon
+    ctx.shadowBlur = 0;
     ctx.fillStyle = sec.text;
-    ctx.font = 'bold 12.5px sans-serif';
-    ctx.fillText(`${sec.icon} ${sec.label}`, radius - 16, 4.5);
+    ctx.font = 'bold 11.5px sans-serif';
+    ctx.fillText(`${sec.icon} ${sec.label}`, radius - 26, 4.5);
     ctx.restore();
   }
+
+  // Inner decorative gold ring
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.38, 0, 2 * Math.PI);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = outerGrad;
+  ctx.stroke();
+
+  ctx.restore();
+
+  // Central Mystical Pentagram Hub
+  ctx.save();
+  ctx.translate(center, center);
+
+  const hubGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, 28);
+  hubGrad.addColorStop(0, '#fef08a');
+  hubGrad.addColorStop(0.4, '#d97706');
+  hubGrad.addColorStop(0.8, '#78350f');
+  hubGrad.addColorStop(1, '#1c1917');
+
+  ctx.beginPath();
+  ctx.arc(0, 0, 26, 0, 2 * Math.PI);
+  ctx.fillStyle = hubGrad;
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#fde047';
+  ctx.shadowColor = 'rgba(253, 224, 71, 0.8)';
+  ctx.shadowBlur = 8;
+  ctx.stroke();
+
+  // Hub Occult Seal (Eye / Star of Fortune)
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.font = '16px sans-serif';
+  ctx.fillText('☸️', 0, 0);
 
   ctx.restore();
 }
@@ -3397,24 +3467,17 @@ function applyWheelReward(prize) {
     const cur = getShardsCount();
     setShardsCount(cur + prize.val);
     showToast(`🔮 Вы выиграли: ${prize.label}! (Собрано: ${cur + prize.val}/5)`);
-  } else if (prize.type === 'pro_24h' || prize.type === 'pro_1d') {
-    localStorage.setItem('klim_tarot_pro_granted', 'true');
-    localStorage.setItem('klim_tarot_pro_mode', 'true');
-    state.isProMode = true;
-    updateProModeUI();
-    showToast(`⚡ ДЖЕКПОТ! ${prize.label} активирован!`);
-  } else if (prize.type === 'promo') {
-    showToast(`🏷️ Выпала ${prize.label}! Промокод: ${prize.code}`);
+  } else if (prize.type === 'discount_25') {
+    showToast(`🏷️ Вы выиграли Скидку 25%! Промокод: ${prize.code} сохранён в разделе Тарифы`);
+    localStorage.setItem('klim_tarot_promo_discount', '25');
+  } else if (prize.type === 'talisman') {
+    showToast('🍀 Вы выиграли Талисман Удачи! Судьба благоволит вашим начинаниям');
+  } else if (prize.type === 'wisdom') {
+    showToast('🌟 Вы выиграли Мудрость Старших Арканов! Совет Высших сил открыт');
   } else if (prize.type === 'feature_shadow') {
-    localStorage.setItem('klim_tarot_pro_granted', 'true');
-    state.isProMode = true;
-    updateProModeUI();
-    showToast('🌑 Вы выиграли Теневую карту (Дно колоды) на 24 часа!');
+    showToast('🌑 Вы выиграли Теневую карту колоды (Дно колоды)!');
   } else if (prize.type === 'feature_elements') {
-    localStorage.setItem('klim_tarot_pro_granted', 'true');
-    state.isProMode = true;
-    updateProModeUI();
-    showToast('🌊 Вы выиграли Баланс 4 стихий и Квинтэссенцию на 24 часа!');
+    showToast('🌊 Вы выиграли Баланс 4 стихий и Квинтэссенцию раскладов!');
   }
 }
 

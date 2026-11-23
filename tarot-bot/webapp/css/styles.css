@@ -581,6 +581,8 @@ button {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .top-bar-actions {
@@ -588,6 +590,7 @@ button {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  margin-left: 8px;
 }
 
 .brand-pill {
@@ -595,7 +598,9 @@ button {
   align-items: center;
   gap: 7px;
   cursor: pointer;
-  flex-shrink: 0;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
 }
 
 .brand-gem {
@@ -605,15 +610,19 @@ button {
   border-radius: 2px;
   background: linear-gradient(135deg, var(--gold), var(--magenta), var(--cyan));
   box-shadow: 0 0 10px rgba(245, 201, 105, 0.65);
+  flex-shrink: 0;
 }
 
 .brand-name {
   font-family: var(--font-display);
-  font-size: 17px;
+  font-size: 15.5px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: var(--text-main);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 125px;
 }
 
 /* ── ЯРКИЙ ЖЁЛТЫЙ ПЕРЕКЛЮЧАТЕЛЬ ЭКСПЕРТНОГО РЕЖИМА (PRO) ── */
@@ -622,7 +631,8 @@ button {
   align-items: center;
   gap: 4px;
   height: 25px;
-  padding: 0 9px;
+  padding: 0 8px;
+  flex-shrink: 0;
   border-radius: 999px;
   background: rgba(250, 204, 21, 0.12);
   border: 1px solid rgba(250, 204, 21, 0.45);
