@@ -1511,7 +1511,7 @@ async def cmd_pro(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.set_chat_menu_button(
             chat_id=target_uid,
-            menu_button=MenuButtonWebApp(text="⚡ KLIM TAROT PRO", web_app=WebAppInfo(url=pro_url)),
+            menu_button=MenuButtonWebApp(text="🔮 Таро PRO", web_app=WebAppInfo(url=pro_url)),
         )
         await context.bot.send_message(
             chat_id=target_uid,
@@ -1522,7 +1522,7 @@ async def cmd_pro(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Нажмите кнопку ниже, чтобы запустить приложение:"
             ),
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("⚡ Открыть KLIM TAROT (PRO)", web_app=WebAppInfo(url=pro_url))]
+                [InlineKeyboardButton("🔮 Войти в KLIM TAROT ✨", web_app=WebAppInfo(url=pro_url))]
             ]),
             parse_mode=ParseMode.MARKDOWN,
         )
@@ -1730,7 +1730,7 @@ def start_keyboard(uid: int | None = None):
     user_url = get_user_webapp_url(uid)
     if user_url:
         has_pro = user_has_pro(uid)
-        btn_label = "⚡ Открыть KLIM TAROT (PRO)" if has_pro else "🔮 Открыть KLIM TAROT (Mini App)"
+        btn_label = "🔮 Войти в KLIM TAROT ✨" if has_pro else "🔮 Открыть KLIM TAROT ✨"
         rows.append([
             InlineKeyboardButton(
                 btn_label,
@@ -1863,7 +1863,7 @@ def persistent_reply_keyboard(uid: int | None = None) -> ReplyKeyboardMarkup:
     """Нижняя постоянная панель кнопок для мгновенного ввода команд без ручного набора."""
     user_url = get_user_webapp_url(uid)
     has_pro = user_has_pro(uid)
-    btn_label = "⚡ Открыть KLIM TAROT (PRO)" if has_pro else "🔮 Открыть KLIM TAROT"
+    btn_label = "🔮 Войти в KLIM TAROT ✨" if has_pro else "🔮 Открыть KLIM TAROT ✨"
     btn_webapp = KeyboardButton(btn_label, web_app=WebAppInfo(url=user_url)) if user_url else KeyboardButton("/start")
     rows = [
         [btn_webapp],
@@ -1914,7 +1914,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             f"Спасибо, что делитесь KLIM TAROT! 🔮"
                         ),
                         reply_markup=InlineKeyboardMarkup([
-                            [InlineKeyboardButton("⚡ Открыть KLIM TAROT (PRO)", web_app=WebAppInfo(url=ref_pro_url))]
+                            [InlineKeyboardButton("🔮 Войти в KLIM TAROT ✨", web_app=WebAppInfo(url=ref_pro_url))]
                         ]),
                         parse_mode=ParseMode.MARKDOWN,
                     )
@@ -1929,7 +1929,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             user_url = get_user_webapp_url(uid, is_trial=trial_granted)
             has_pro = user_has_pro(uid)
-            menu_btn_text = "⚡ KLIM TAROT PRO" if has_pro else "🔮 Таро"
+            menu_btn_text = "🔮 Таро PRO" if has_pro else "🔮 Таро"
             await context.bot.set_chat_menu_button(
                 chat_id=uid,
                 menu_button=MenuButtonWebApp(text=menu_btn_text, web_app=WebAppInfo(url=user_url)),
