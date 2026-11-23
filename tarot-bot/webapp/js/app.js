@@ -919,7 +919,7 @@ const btnBack = document.getElementById('btn-back');
 const topbarTitle = document.getElementById('topbar-title');
 
 const VIEW_TITLES = {
-  home: '',
+  home: 'TAROT',
   spreads: 'Расклады',
   draw: 'Выбор карт',
   result: 'Толкование',
@@ -971,7 +971,7 @@ function navigateTo(viewName, { push = true } = {}) {
   if (target) target.classList.add('active');
 
   state.currentView = viewName;
-  topbarTitle.textContent = VIEW_TITLES[viewName] || 'KLIM TAROT';
+  topbarTitle.textContent = VIEW_TITLES[viewName] || 'TAROT';
 
   // Update dock active state
   const dockTabs = ['home', 'spreads', 'oracle', 'psychology', 'dictionary'];
