@@ -3168,29 +3168,32 @@ window.addEventListener('wheel', (e) => {
 }, { passive: true });
 updateProModeUI();
 
-// 🎁 Проверка и показ приветственного подарка: 3 дня PRO
+// 🎁 Проверка и показ приветственного подарка: 3 дня PRO (строго 1 раз для новых пользователей)
 function checkAndShowWelcomeGift() {
   const giftModal = document.getElementById('gift-modal');
   if (!giftModal) return;
 
   const alreadyClaimed = localStorage.getItem('klim_tarot_gift_claimed');
   const params = new URLSearchParams(window.location.search);
-  const isTrialUrl = params.get('trial') === '1';
+  const isProParam = params.get('pro') === '1';
 
-  if (!alreadyClaimed || isTrialUrl) {
-    try {
-      localStorage.setItem('klim_tarot_pro_granted', 'true');
-      localStorage.setItem('klim_tarot_pro_mode', 'true');
-      state.isProMode = true;
-      updateProModeUI();
-    } catch (e) {}
-
-    setTimeout(() => {
-      giftModal.classList.remove('hidden');
-      sound.playShuffle();
-      haptic('success');
-    }, 450);
+  // Если подарок уже забирали или у пользователя уже есть PRO-режим — окно не показываем
+  if (alreadyClaimed === 'true' || isProParam || state.isProMode) {
+    return;
   }
+
+  try {
+    localStorage.setItem('klim_tarot_pro_granted', 'true');
+    localStorage.setItem('klim_tarot_pro_mode', 'true');
+    state.isProMode = true;
+    updateProModeUI();
+  } catch (e) {}
+
+  setTimeout(() => {
+    giftModal.classList.remove('hidden');
+    sound.playShuffle();
+    haptic('success');
+  }, 450);
 
   const closeBtn = document.getElementById('btn-close-gift-modal');
   const claimBtn = document.getElementById('btn-gift-claim');
