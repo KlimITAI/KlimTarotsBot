@@ -417,6 +417,76 @@ const sound = new SoundEngine();
    3. COSMIC STARFIELD CANVAS (SUBTLE 60FPS AMBIENCE)
    ════════════════════════════════════════════════════════════════ */
 
+
+/* ── SEAMLESS VIDEO LOOP (crossfade two players) ───────────────── */
+function initSeamlessLoop(videoEl) {
+  if (!videoEl || !videoEl.src && !videoEl.querySelector('source')) return;
+  const src = videoEl.querySelector('source')?.src || videoEl.src;
+  if (!src) return;
+
+  // Create shadow twin video
+  const twin = document.createElement('video');
+  twin.style.cssText = videoEl.style.cssText;
+  twin.className = videoEl.className;
+  twin.setAttribute('muted', '');
+  twin.muted = true;
+  twin.playsInline = true;
+  twin.preload = 'auto';
+  twin.loop = false;
+  twin.style.opacity = '0';
+  twin.style.position = 'absolute';
+  twin.style.inset = '0';
+  twin.style.width = '100%';
+  twin.style.height = '100%';
+  twin.style.objectFit = 'cover';
+  twin.style.transition = 'opacity 1.8s ease';
+  const twinSrc = document.createElement('source');
+  twinSrc.src = src;
+  twinSrc.type = 'video/mp4';
+  twin.appendChild(twinSrc);
+  videoEl.loop = false;
+  videoEl.style.transition = 'opacity 1.8s ease';
+  videoEl.parentNode.insertBefore(twin, videoEl.nextSibling);
+
+  let active = videoEl, inactive = twin;
+  let crossing = false;
+
+  function crossfade() {
+    if (crossing) return;
+    crossing = true;
+    inactive.currentTime = 0;
+    inactive.play().catch(() => {});
+    inactive.style.opacity = window.getComputedStyle(active).opacity; // inherit visibility
+    // If main-bg-video — match the .visible class opacity (0.18)
+    const isBgMain = active.id === 'main-bg-video' || active.classList.contains('main-bg-video');
+    inactive.style.opacity = isBgMain ? '0.18' : (active.classList.contains('visible') ? '0.18' : '1');
+    active.style.opacity = '0';
+    setTimeout(() => {
+      active.pause();
+      active.currentTime = 0;
+      [active, inactive] = [inactive, active];
+      crossing = false;
+    }, 1900);
+  }
+
+  function onTimeUpdate() {
+    const v = active;
+    if (!v.duration || isNaN(v.duration)) return;
+    if (v.currentTime >= v.duration - 2.0 && !crossing) {
+      crossfade();
+    }
+  }
+
+  videoEl.addEventListener('timeupdate', onTimeUpdate);
+  twin.addEventListener('timeupdate', () => {
+    if (!twin.duration || isNaN(twin.duration)) return;
+    if (twin.currentTime >= twin.duration - 2.0 && active === twin && !crossing) {
+      crossfade();
+    }
+  });
+
+  videoEl.play().catch(() => {});
+}
 function initCosmosCanvas() {
   const canvas = document.getElementById('cosmos-canvas');
   if (!canvas) return;
@@ -3037,6 +3107,19 @@ document.addEventListener('visibilitychange', () => {
 
 // Boot
 initCosmosCanvas();
+
+// Seamless video loops for all background videos
+requestAnimationFrame(() => {
+  setTimeout(() => {
+    const heroVid = document.querySelector('.hero-bg-video');
+    if (heroVid) initSeamlessLoop(heroVid);
+    const mainVid = document.getElementById('main-bg-video');
+    if (mainVid) initSeamlessLoop(mainVid);
+    const spreadsVid = document.querySelector('.spreads-bg-video');
+    if (spreadsVid) initSeamlessLoop(spreadsVid);
+  }, 800);
+});
+
 updateSoundIcon();
 refreshHomeBanner();
 setInterval(refreshHomeBanner, 1000);
