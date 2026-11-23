@@ -1882,14 +1882,21 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     context.user_data.pop("friend_name", None)
 
-    # 1. Обработка перехода на оплату тарифа (?start=pay_<plan_key>)
+    # 1. Обработка перехода на оплату тарифа (?start=pay_<plan_key> или ?start=pay_stars_<plan_key>)
     if context.args:
         arg = context.args[0].strip()
         if arg.startswith("pay_"):
-            plan_key = arg[4:]
-            if plan_key in payments.PLANS:
-                await payments.send_plan_invoice_to_chat(uid, context.bot, plan_key)
-                return ConversationHandler.END
+            plan_arg = arg[4:]
+            if plan_arg.startswith("stars_"):
+                plan_key = plan_arg[6:]
+                if plan_key in payments.PLANS:
+                    await payments.send_plan_invoice_to_chat(uid, context.bot, plan_key, method="stars")
+                    return ConversationHandler.END
+            else:
+                plan_key = plan_arg
+                if plan_key in payments.PLANS:
+                    await payments.send_plan_invoice_to_chat(uid, context.bot, plan_key, method="rub")
+                    return ConversationHandler.END
 
         # Обработка реферального перехода (?start=ref_<id>)
         if arg.startswith("ref_") and arg[4:].isdigit():
@@ -2158,9 +2165,13 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "menu_ref":
         await show_referral_menu(query)
 
-    elif data.startswith("pay_plan_"):
-        plan_key = data[len("pay_plan_"):]
-        await payments.send_plan_invoice(query, plan_key)
+    elif data.startswith("pay_plan_") or data.startswith("pay_rub_"):
+        plan_key = data.replace("pay_plan_", "").replace("pay_rub_", "")
+        await payments.send_plan_invoice(query, plan_key, method="rub")
+
+    elif data.startswith("pay_stars_"):
+        plan_key = data[len("pay_stars_"):]
+        await payments.send_plan_invoice(query, plan_key, method="stars")
 
     elif data.startswith("admin_"):
         if query.from_user.id not in ADMIN_IDS:

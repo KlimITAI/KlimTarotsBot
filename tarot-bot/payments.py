@@ -48,33 +48,38 @@ PAYMENT_PROVIDER_TOKEN = os.environ.get("PAYMENT_PROVIDER_TOKEN", DEFAULT_PAYMEN
 # Количество бесплатных раскладов до предложения подписки (действует только при PAYMENTS_ENABLED=true)
 FREE_READINGS_LIMIT = int(os.environ.get("FREE_READINGS_LIMIT", "3"))
 
-# Тарифные планы в рублях (цены в рублях; Telegram принимает в копейках = price_rub * 100)
+# Тарифные планы в рублях и Telegram Stars (XTR)
+# Telegram принимает рубли в копейках (price_rub * 100), а Stars напрямую в целых звёздах (price_stars)
 PLANS = {
     "trial": {
         "title": "✨ Пробный — 10 дней",
-        "short": "10 дней · 199 ₽",
+        "short": "10 дней · 199 ₽ / 100 ⭐️",
         "price_rub": 199,
+        "price_stars": 100,
         "days": 10,
         "desc": "100% полный PRO-доступ: 35 раскладов, своя тема, 4 стихии, дно колоды, квинт и безлимит на 10 дней.",
     },
     "month": {
         "title": "🌙 Стандарт — 1 месяц",
-        "short": "1 месяц · 490 ₽ (Хит)",
+        "short": "1 месяц · 490 ₽ / 250 ⭐️ (Хит)",
         "price_rub": 490,
+        "price_stars": 250,
         "days": 30,
         "desc": "100% полный PRO-доступ: 35 раскладов, своя тема, 4 стихии, дно колоды, квинт и безлимит на 30 дней.",
     },
     "half_year": {
         "title": "⚡ Мастер — 6 месяцев",
-        "short": "6 месяцев · 2 490 ₽",
+        "short": "6 месяцев · 2 490 ₽ / 1 250 ⭐️",
         "price_rub": 2490,
+        "price_stars": 1250,
         "days": 180,
         "desc": "100% полный PRO-доступ: 35 раскладов, своя тема, 4 стихии, дно колоды, квинт и безлимит на 180 дней.",
     },
     "year": {
         "title": "👑 Премиум — 1 год",
-        "short": "1 год · 4 490 ₽ (VIP)",
+        "short": "1 год · 4 490 ₽ / 2 250 ⭐️ (VIP)",
         "price_rub": 4490,
+        "price_stars": 2250,
         "days": 365,
         "desc": "100% полный PRO-доступ: 35 раскладов, своя тема, 4 стихии, дно колоды, квинт и безлимит на 365 дней.",
     },
@@ -285,10 +290,12 @@ def get_revenue_summary(db_path: Path = STATS_DB_PATH) -> dict:
 # ─────────────────────────────────────────────────────────
 
 def plans_keyboard() -> InlineKeyboardMarkup:
-    rows = [
-        [InlineKeyboardButton(f"💳 {plan['short']}", callback_data=f"pay_plan_{key}")]
-        for key, plan in PLANS.items()
-    ]
+    rows = []
+    for key, plan in PLANS.items():
+        rows.append([
+            InlineKeyboardButton(f"💳 {plan['price_rub']} ₽", callback_data=f"pay_rub_{key}"),
+            InlineKeyboardButton(f"⭐️ {plan['price_stars']} Stars", callback_data=f"pay_stars_{key}"),
+        ])
     rows.append([InlineKeyboardButton("🏠 Главное меню", callback_data="main_menu")])
     return InlineKeyboardMarkup(rows)
 
@@ -309,31 +316,46 @@ def plans_text(user_id: int) -> str:
         "💎 *KLIM TAROT Premium*\n\n"
         f"{mode_note}"
         f"{status_line}"
-        "Откройте полный доступ без ограничений:\n"
-        "• Все 21 расклад и 78 классических 3D-карт\n"
-        "• Глубокий синтез всех карт вместе\n"
+        "Откройте полный 100% доступ ко всем возможностям:\n"
+        "• Все 35 раскладов и выбор карт колоды\n"
+        "• 4 стихии, дно колоды и квинтэссенция\n"
         "• Неограниченный Оракул «Да или Нет»\n"
-        "• Гадания для друзей с пересылкой\n\n"
-        "💳 Оплата банковской картой РФ / СБП прямо в Telegram.\n"
-        "Выберите тариф:"
+        "• Гадания для друзей и личные заметки\n\n"
+        "Выберите удобный способ оплаты:\n"
+        "💳 *Картой РФ / СБП* (через ЮKassa)\n"
+        "⭐️ *Telegram Stars* (в 1 клик со счёта Telegram):"
     )
 
 
-async def send_plan_invoice(query, plan_key: str) -> None:
-    """Выставляет счёт на оплату выбранного тарифа через подключённого провайдера (ЮKassa)."""
+async def send_plan_invoice(query, plan_key: str, method: str = "rub") -> None:
+    """Выставляет счёт на оплату через ЮKassa (RUB) или Telegram Stars (XTR)."""
     if plan_key not in PLANS:
         await query.message.reply_text("❌ Тариф не найден.")
         return
 
     plan = PLANS[plan_key]
+
+    if method == "stars":
+        # Telegram Stars: provider_token пустой, валюта XTR, сумма в штуках звёзд
+        await query.message.reply_invoice(
+            title=f"{plan['title']} (Telegram Stars)",
+            description=plan["desc"],
+            payload=f"klim_tarot_{plan_key}_stars",
+            provider_token="",
+            currency="XTR",
+            prices=[LabeledPrice(label=f"{plan['title']} (⭐️)", amount=plan["price_stars"])],
+            start_parameter=f"tarot_stars_{plan_key}",
+        )
+        return
+
+    # ЮKassa (Рубли)
     if not PAYMENT_PROVIDER_TOKEN:
         await query.message.reply_text(
             f"💳 *Тариф: {plan['title']}*\n\n"
             f"💰 Стоимость: *{plan['price_rub']} ₽*\n"
             f"⏳ Срок действия: *{plan['days']} дней*\n"
             f"📝 Описание: _{plan['desc']}_\n\n"
-            "🔒 Оплата защищена через официальный шлюз ЮKassa (банковские карты РФ, МИР, Visa, Mastercard, СБП).\n\n"
-            "_(Приём платежей активируется автоматически после одобрения договора ЮKassa)_",
+            "🔒 Оплата защищена через официальный шлюз ЮKassa.\n",
             parse_mode=ParseMode.MARKDOWN,
         )
         return
@@ -349,11 +371,25 @@ async def send_plan_invoice(query, plan_key: str) -> None:
     )
 
 
-async def send_plan_invoice_to_chat(chat_id: int, bot, plan_key: str) -> None:
+async def send_plan_invoice_to_chat(chat_id: int, bot, plan_key: str, method: str = "rub") -> None:
     """Выставляет счёт напрямую в чат по deep-link из WebApp."""
     if plan_key not in PLANS:
         return
     plan = PLANS[plan_key]
+
+    if method == "stars":
+        await bot.send_invoice(
+            chat_id=chat_id,
+            title=f"{plan['title']} (Telegram Stars)",
+            description=plan["desc"],
+            payload=f"klim_tarot_{plan_key}_stars",
+            provider_token="",
+            currency="XTR",
+            prices=[LabeledPrice(label=f"{plan['title']} (⭐️)", amount=plan["price_stars"])],
+            start_parameter=f"tarot_stars_{plan_key}",
+        )
+        return
+
     await bot.send_invoice(
         chat_id=chat_id,
         title=plan["title"],
@@ -380,15 +416,16 @@ async def handle_successful_payment(update: Update, context: ContextTypes.DEFAUL
     payment = update.message.successful_payment
     user = update.effective_user
     payload = payment.invoice_payload
-    plan_key = payload.replace("klim_tarot_", "")
-    plan = PLANS.get(plan_key, {"title": "Premium", "days": 30, "price_rub": payment.total_amount // 100})
+    plan_key = payload.replace("klim_tarot_", "").replace("_stars", "")
+    plan = PLANS.get(plan_key, {"title": "Premium", "days": 30, "price_rub": payment.total_amount // 100, "price_stars": 250})
 
+    amount_val = payment.total_amount if payment.currency == "XTR" else (payment.total_amount // 100)
     expires_at = grant_subscription(user.id, plan_key, plan["days"])
     record_payment(
         user_id=user.id,
         username=user.username or "",
         plan_id=plan_key,
-        amount_rub=payment.total_amount // 100,
+        amount_rub=amount_val,
         currency=payment.currency,
         provider_charge_id=payment.provider_payment_charge_id,
         status="paid",
