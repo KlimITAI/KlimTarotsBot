@@ -36,10 +36,11 @@ STATS_DB_PATH = BASE_DIR / "stats.db"
 
 # Пока False — paywall ВЫКЛЮЧЕН, все функции бота полностью бесплатны для всех.
 # Когда решите включить платный доступ, задайте PAYMENTS_ENABLED=true.
-PAYMENTS_ENABLED = os.environ.get("PAYMENTS_ENABLED", "false").strip().lower() == "true"
+PAYMENTS_ENABLED = os.environ.get("PAYMENTS_ENABLED", "true").strip().lower() == "true"
 
 # Токен платёжного провайдера из @BotFather -> /mybots -> Payments -> ЮKassa
-PAYMENT_PROVIDER_TOKEN = os.environ.get("PAYMENT_PROVIDER_TOKEN", "").strip()
+DEFAULT_PAYMENT_PROVIDER_TOKEN = "390540012:LIVE:105915"
+PAYMENT_PROVIDER_TOKEN = os.environ.get("PAYMENT_PROVIDER_TOKEN", DEFAULT_PAYMENT_PROVIDER_TOKEN).strip()
 
 # Количество бесплатных раскладов до предложения подписки (действует только при PAYMENTS_ENABLED=true)
 FREE_READINGS_LIMIT = int(os.environ.get("FREE_READINGS_LIMIT", "3"))
@@ -51,28 +52,28 @@ PLANS = {
         "short": "10 дней · 199 ₽",
         "price_rub": 199,
         "days": 10,
-        "desc": "Полный доступ ко всем 35 раскладам, Оракулу Да/Нет и экспертному режиму на 10 дней.",
+        "desc": "100% полный PRO-доступ: 35 раскладов, своя тема, 4 стихии, дно колоды, квинт и безлимит на 10 дней.",
     },
     "month": {
         "title": "🌙 Стандарт — 1 месяц",
         "short": "1 месяц · 490 ₽ (Хит)",
         "price_rub": 490,
         "days": 30,
-        "desc": "Полный безлимитный доступ ко всем возможностям KLIM TAROT на 30 дней.",
+        "desc": "100% полный PRO-доступ: 35 раскладов, своя тема, 4 стихии, дно колоды, квинт и безлимит на 30 дней.",
     },
     "half_year": {
         "title": "⚡ Мастер — 6 месяцев",
         "short": "6 месяцев · 2 490 ₽",
         "price_rub": 2490,
         "days": 180,
-        "desc": "Полгода безлимитных раскладов, личных запросов и глубокого синтеза арканов.",
+        "desc": "100% полный PRO-доступ: 35 раскладов, своя тема, 4 стихии, дно колоды, квинт и безлимит на 180 дней.",
     },
     "year": {
         "title": "👑 Премиум — 1 год",
         "short": "1 год · 4 490 ₽ (VIP)",
         "price_rub": 4490,
         "days": 365,
-        "desc": "Годовой безлимитный VIP-доступ ко всей колоде, новым раскладам и приоритетным ответам.",
+        "desc": "100% полный PRO-доступ: 35 раскладов, своя тема, 4 стихии, дно колоды, квинт и безлимит на 365 дней.",
     },
 }
 

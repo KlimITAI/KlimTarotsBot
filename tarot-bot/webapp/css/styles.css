@@ -4407,3 +4407,57 @@ body.is-pro-mode .top-bar {
   color: #a7f3d0;
 }
 
+/* ── PRO MINI GUIDE BOX ─────────────────────────────────────────── */
+.pro-mini-guide-box {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(224, 64, 251, 0.25);
+  border-radius: var(--radius-md);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 2px;
+}
+
+.guide-box-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #fde047;
+  letter-spacing: 0.04em;
+}
+
+.guide-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.step-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(224, 64, 251, 0.25);
+  border: 1px solid rgba(224, 64, 251, 0.6);
+  color: #f5d0fe;
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.guide-step-item p {
+  font-size: 11.5px;
+  color: #e2e8f0;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.guide-step-item p strong {
+  color: #fef08a;
+}
+
