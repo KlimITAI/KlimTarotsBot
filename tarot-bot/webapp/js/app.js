@@ -2485,12 +2485,19 @@ function bindEvents() {
   // Draw auto-pick
   document.getElementById('btn-auto-draw').addEventListener('click', autoDrawRemaining);
 
-  // Plan select buttons (ЮKassa)
+  // Plan select buttons (ЮKassa) -> мгновенный переход к счёту на оплату
   document.querySelectorAll('.btn-plan-select').forEach((btn) => {
     btn.addEventListener('click', () => {
       sound.playTap();
       haptic('medium');
-      showToast('💳 Оплата тарифа подключается через ЮKassa прямо в Telegram-боте');
+      const planKey = btn.dataset.plan || 'month';
+      const checkoutUrl = `https://t.me/MysticalTarotKlimBot?start=pay_${planKey}`;
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink(checkoutUrl);
+        try { tg.close(); } catch (_) {}
+      } else {
+        window.location.href = checkoutUrl;
+      }
     });
   });
 

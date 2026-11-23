@@ -38,12 +38,11 @@ STATS_DB_PATH = BASE_DIR / "stats.db"
 # Когда решите включить платный доступ, задайте PAYMENTS_ENABLED=true.
 PAYMENTS_ENABLED = os.environ.get("PAYMENTS_ENABLED", "true").strip().lower() == "true"
 
-# Токен платёжного провайдера из @BotFather -> /mybots -> Payments -> ЮKassa
-# Сейчас установлен тестовый токен для проведения безопасных проверочных платежей.
-# Для боевого режима переключите на LIVE_PAYMENT_PROVIDER_TOKEN.
+# Токены платёжного провайдера ЮKassa:
 LIVE_PAYMENT_PROVIDER_TOKEN = "390540012:LIVE:105915"
 TEST_PAYMENT_PROVIDER_TOKEN = "381764678:TEST:197178"
-DEFAULT_PAYMENT_PROVIDER_TOKEN = "381764678:TEST:197178"
+# По умолчанию активен боевой Live-токен, чтобы средства шли на расчётный счёт владельца.
+DEFAULT_PAYMENT_PROVIDER_TOKEN = LIVE_PAYMENT_PROVIDER_TOKEN
 PAYMENT_PROVIDER_TOKEN = os.environ.get("PAYMENT_PROVIDER_TOKEN", DEFAULT_PAYMENT_PROVIDER_TOKEN).strip()
 
 # Количество бесплатных раскладов до предложения подписки (действует только при PAYMENTS_ENABLED=true)
@@ -340,6 +339,23 @@ async def send_plan_invoice(query, plan_key: str) -> None:
         return
 
     await query.message.reply_invoice(
+        title=plan["title"],
+        description=plan["desc"],
+        payload=f"klim_tarot_{plan_key}",
+        provider_token=PAYMENT_PROVIDER_TOKEN,
+        currency="RUB",
+        prices=[LabeledPrice(label=plan["title"], amount=plan["price_rub"] * 100)],
+        start_parameter=f"tarot_{plan_key}",
+    )
+
+
+async def send_plan_invoice_to_chat(chat_id: int, bot, plan_key: str) -> None:
+    """Выставляет счёт напрямую в чат по deep-link из WebApp."""
+    if plan_key not in PLANS:
+        return
+    plan = PLANS[plan_key]
+    await bot.send_invoice(
+        chat_id=chat_id,
         title=plan["title"],
         description=plan["desc"],
         payload=f"klim_tarot_{plan_key}",

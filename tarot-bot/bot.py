@@ -904,7 +904,7 @@ STATS_DB_PATH = BASE_DIR / "stats.db"
 PROMO_SHARE_PATH = BASE_DIR / "assets" / "promo-share.mp4"
 PROMO_VIDEO_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-share.mp4"
 PROMO_POSTER_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-poster.jpg"
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=31"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=32"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 _welcome_file_id_cache: dict[tuple[str, float], str] = {}
 _promo_video_file_id: str | None = None
@@ -1882,9 +1882,16 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     context.user_data.pop("friend_name", None)
 
-    # 1. Обработка реферального перехода (?start=ref_<id>)
+    # 1. Обработка перехода на оплату тарифа (?start=pay_<plan_key>)
     if context.args:
         arg = context.args[0].strip()
+        if arg.startswith("pay_"):
+            plan_key = arg[4:]
+            if plan_key in payments.PLANS:
+                await payments.send_plan_invoice_to_chat(uid, context.bot, plan_key)
+                return ConversationHandler.END
+
+        # Обработка реферального перехода (?start=ref_<id>)
         if arg.startswith("ref_") and arg[4:].isdigit():
             referrer_id = int(arg[4:])
             ref_ok, ref_exp = payments.process_referral(referrer_id, uid, bonus_days=2, db_path=STATS_DB_PATH)
