@@ -4471,3 +4471,59 @@ body.is-pro-mode .top-bar {
   color: #fef08a;
 }
 
+/* ── KLIM BRAND EMBLEM & WATERMARK ── */
+.hero-brand-watermark {
+  position: absolute;
+  top: calc(14px + var(--safe-top));
+  left: 18px;
+  z-index: 12;
+  opacity: 0.55;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+}
+
+.hero-brand-logo-img {
+  width: 38px;
+  height: auto;
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.8));
+}
+
+.settings-brand-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-top: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+}
+
+.settings-brand-logo {
+  width: 36px;
+  height: auto;
+  opacity: 0.85;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.7));
+}
+
+.settings-brand-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-brand-name {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+}
+
+.settings-brand-author {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+

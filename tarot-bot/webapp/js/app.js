@@ -2691,6 +2691,15 @@ function openSettingsModal() {
         <span>Связь с администратором · @im_klim</span>
       </button>
     </div>
+
+    <!-- Фирменный знак автора в настройках -->
+    <div class="settings-brand-block">
+      <img src="./assets/klim-logo.png" alt="KLIM" class="settings-brand-logo" />
+      <div class="settings-brand-info">
+        <span class="settings-brand-name">KLIM TAROT</span>
+        <span class="settings-brand-author">Авторский проект & экосистема · @im_klim</span>
+      </div>
+    </div>
   `;
 
   const slider = document.getElementById('settings-vol-slider');
