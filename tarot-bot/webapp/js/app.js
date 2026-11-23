@@ -919,19 +919,19 @@ const btnBack = document.getElementById('btn-back');
 const topbarTitle = document.getElementById('topbar-title');
 
 const VIEW_TITLES = {
-  home: 'KLIM TAROT',
+  home: '',
   spreads: 'Расклады',
   draw: 'Выбор карт',
   result: 'Толкование',
   oracle: 'Да или Нет',
   friend: 'Для друга',
-  psychology: 'Психология и Таро',
+  psychology: 'Психология',
   compat: 'Совместимость',
   dictionary: 'Словарь карт',
   history: 'История',
-  plans: 'Тарифы и подписка',
-  fortune: 'Колесо Фортуны',
-  invite: 'Пригласить друзей',
+  plans: 'Тарифы',
+  fortune: 'Фортуна',
+  invite: 'Друзья',
 };
 
 function showToast(msg) {
