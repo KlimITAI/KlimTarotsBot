@@ -3148,6 +3148,69 @@ window.addEventListener('wheel', (e) => {
 }, { passive: true });
 updateProModeUI();
 
+// 🎁 Проверка и показ приветственного подарка: 3 дня PRO
+function checkAndShowWelcomeGift() {
+  const giftModal = document.getElementById('gift-modal');
+  if (!giftModal) return;
+
+  const alreadyClaimed = localStorage.getItem('klim_tarot_gift_claimed');
+  const params = new URLSearchParams(window.location.search);
+  const isTrialUrl = params.get('trial') === '1';
+
+  if (!alreadyClaimed || isTrialUrl) {
+    try {
+      localStorage.setItem('klim_tarot_pro_granted', 'true');
+      localStorage.setItem('klim_tarot_pro_mode', 'true');
+      state.isProMode = true;
+      updateProModeUI();
+    } catch (e) {}
+
+    setTimeout(() => {
+      giftModal.classList.remove('hidden');
+      sound.playShuffle();
+      haptic('success');
+    }, 450);
+  }
+
+  const closeBtn = document.getElementById('btn-close-gift-modal');
+  const claimBtn = document.getElementById('btn-gift-claim');
+  const inviteBtn = document.getElementById('btn-gift-invite');
+
+  const closeGift = () => {
+    giftModal.classList.add('hidden');
+    localStorage.setItem('klim_tarot_gift_claimed', 'true');
+    haptic('medium');
+  };
+
+  closeBtn?.addEventListener('click', closeGift);
+  giftModal.addEventListener('click', (e) => {
+    if (e.target === giftModal) closeGift();
+  });
+
+  claimBtn?.addEventListener('click', () => {
+    closeGift();
+    sound.playShuffle();
+    haptic('success');
+    showToast('🎉 3 дня PRO активированы! Приятных раскладов!');
+  });
+
+  inviteBtn?.addEventListener('click', () => {
+    sound.playTap();
+    haptic('medium');
+    const uid = getTelegramUserId() || '';
+    const refParam = uid ? `start=ref_${uid}` : 'start=ref';
+    const refLink = `https://t.me/MysticalTarotKlimBot?${refParam}`;
+    const shareText = '✨ Дарю тебе 3 дня бесплатного PRO-доступа в KLIM TAROT! 78 карт, Карта дня и расклады тут 👇';
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareText)}`;
+    if (tg?.openTelegramLink) {
+      tg.openTelegramLink(shareUrl);
+    } else {
+      window.open(shareUrl, '_blank');
+    }
+  });
+}
+checkAndShowWelcomeGift();
+
 // Preload today's card immediately if already drawn
 const _savedDaily = getDailyCard();
 if (_savedDaily?.card) preloadCardImage(_savedDaily.card);

@@ -22,6 +22,7 @@ import json
 import sqlite3
 import threading
 import asyncio
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, date, timedelta, timezone
 from collections import defaultdict
@@ -926,13 +927,18 @@ def user_has_pro(uid: int | None) -> bool:
         return False
 
 
-def get_user_webapp_url(uid: int | None = None) -> str:
+def get_user_webapp_url(uid: int | None = None, is_trial: bool = False) -> str:
     """Возвращает персональный URL WebApp: для владельца и пользователей с PRO добавляет &pro=1."""
     if not WEBAPP_URL:
         return ""
+    params = []
     if uid is not None and user_has_pro(uid):
+        params.append("pro=1")
+    if is_trial:
+        params.append("trial=1")
+    if params:
         sep = "&" if "?" in WEBAPP_URL else "?"
-        return f"{WEBAPP_URL}{sep}pro=1"
+        return f"{WEBAPP_URL}{sep}{'&'.join(params)}"
     return WEBAPP_URL
 
 
@@ -1764,7 +1770,8 @@ def main_menu_keyboard(uid: int | None = None):
          InlineKeyboardButton("📖 Словарь карт",      callback_data="menu_dict")],
         [InlineKeyboardButton("📜 Моя история",       callback_data="menu_history"),
          InlineKeyboardButton("🎁 Гадаю для друга",   callback_data="menu_friend")],
-        [InlineKeyboardButton("💎 Тарифы подписки",  callback_data="menu_plans")],
+        [InlineKeyboardButton("💎 Тарифы подписки",  callback_data="menu_plans"),
+         InlineKeyboardButton("💌 Пригласить (+2 дня)", callback_data="menu_ref")],
     ])
     if uid is not None and uid in ADMIN_IDS:
         rows.append([InlineKeyboardButton("👑 Режим Администратора", callback_data="admin_dashboard")])
@@ -1861,11 +1868,10 @@ def persistent_reply_keyboard(uid: int | None = None) -> ReplyKeyboardMarkup:
     rows = [
         [btn_webapp],
         [KeyboardButton("🏠 Меню"), KeyboardButton("🎁 Гадание для друга")],
+        [KeyboardButton("💌 Пригласить друга (+2 дня)"), KeyboardButton("💎 Тарифы")],
     ]
     if uid is not None and uid in ADMIN_IDS:
-        rows.append([KeyboardButton("💎 Тарифы"), KeyboardButton("👑 Админ-панель")])
-    else:
-        rows.append([KeyboardButton("💎 Тарифы")])
+        rows.append([KeyboardButton("👑 Админ-панель")])
     return ReplyKeyboardMarkup(rows, resize_keyboard=True, is_persistent=True)
 
 
@@ -1876,10 +1882,38 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     context.user_data.pop("friend_name", None)
 
+    # 1. Обработка реферального перехода (?start=ref_<id>)
+    if context.args:
+        arg = context.args[0].strip()
+        if arg.startswith("ref_") and arg[4:].isdigit():
+            referrer_id = int(arg[4:])
+            ref_ok, ref_exp = payments.process_referral(referrer_id, uid, bonus_days=2, db_path=STATS_DB_PATH)
+            if ref_ok and ref_exp:
+                try:
+                    ref_pro_url = get_user_webapp_url(referrer_id)
+                    await context.bot.send_message(
+                        chat_id=referrer_id,
+                        text=(
+                            f"🎉 *Ваш друг присоединился по вашей ссылке!*\n\n"
+                            f"🎁 Вам начислено *+2 дня бесплатного режима PRO*!\n"
+                            f"⏳ Доступ активен до: `{ref_exp.strftime('%d.%m.%Y %H:%M МСК')}`.\n\n"
+                            f"Спасибо, что делитесь KLIM TAROT! 🔮"
+                        ),
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("⚡ Открыть KLIM TAROT (PRO)", web_app=WebAppInfo(url=ref_pro_url))]
+                        ]),
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                except Exception as exc:
+                    logger.debug("Не удалось отправить уведомление рефереру %s: %s", referrer_id, exc)
+
+    # 2. Подарок при первом входе: 3 дня бесплатного PRO-режима
+    trial_granted, trial_exp = payments.claim_trial_if_eligible(uid, days=3, db_path=STATS_DB_PATH)
+
     # Синхронизируем персональный MenuButton в Telegram для пользователей с PRO
     if uid:
         try:
-            user_url = get_user_webapp_url(uid)
+            user_url = get_user_webapp_url(uid, is_trial=trial_granted)
             has_pro = user_has_pro(uid)
             menu_btn_text = "⚡ KLIM TAROT PRO" if has_pro else "🔮 Таро"
             await context.bot.set_chat_menu_button(
@@ -1888,6 +1922,18 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         except Exception:
             pass
+
+    welcome_caption = WELCOME_TEXT
+    if trial_granted and trial_exp:
+        welcome_caption = (
+            f"🎁 *ВАМ ПОДАРОК: 3 ДНЯ РЕЖИМА PRO БЕСПЛАТНО!* 🎁\n\n"
+            f"Вам открыт полный доступ ко всем закрытым функциям Таро до `{trial_exp.strftime('%d.%m.%Y %H:%M МСК')}`:\n"
+            f"• ⚡ Баланс 4 стихий, теневая карта (дно колоды) и квинтэссенция\n"
+            f"• 🃏 Выбор колоды (Старшие/Младшие арканы) и перевёрнутые карты\n"
+            f"• 🎯 Неограниченные расклады и персональный вопрос Оракулу\n\n"
+            f"💌 *Хотите ещё?* Пригласите друга и получите ещё *+2 дня PRO*!\n\n"
+            + WELCOME_TEXT
+        )
 
     media_type, media_path = find_welcome_media()
     markup = start_keyboard(uid)
@@ -1899,7 +1945,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if cached_id:
                 await update.message.reply_animation(
                     animation=cached_id,
-                    caption=WELCOME_TEXT,
+                    caption=welcome_caption,
                     reply_markup=markup,
                     parse_mode=ParseMode.MARKDOWN,
                 )
@@ -1909,7 +1955,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 with open(media_path, "rb") as f:
                     sent = await update.message.reply_animation(
                         animation=f,
-                        caption=WELCOME_TEXT,
+                        caption=welcome_caption,
                         reply_markup=markup,
                         parse_mode=ParseMode.MARKDOWN,
                     )
@@ -1927,7 +1973,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with open(media_path, "rb") as f:
                 await update.message.reply_photo(
                     photo=f,
-                    caption=WELCOME_TEXT,
+                    caption=welcome_caption,
                     reply_markup=markup,
                     parse_mode=ParseMode.MARKDOWN,
                 )
@@ -1937,7 +1983,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.warning("Не удалось отправить photo в cmd_start: %s, перехожу на текст", exc)
 
     await update.message.reply_text(
-        WELCOME_TEXT,
+        welcome_caption,
         reply_markup=markup,
         parse_mode=ParseMode.MARKDOWN,
     )
@@ -1970,6 +2016,47 @@ async def cmd_friend(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.MARKDOWN,
     )
     return WAITING_FRIEND_NAME
+
+async def cmd_ref(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Команда /ref — персональная ссылка для приглашения друзей (+2 дня PRO)."""
+    uid = update.effective_user.id if update.effective_user else 0
+    ref_link = f"https://t.me/MysticalTarotKlimBot?start=ref_{uid}"
+    share_msg = "✨ Дарю тебе 3 дня бесплатного PRO-доступа в KLIM TAROT! 78 карт, Карта дня и расклады тут 👇"
+    share_url = f"https://t.me/share/url?url={ref_link}&text={urllib.parse.quote(share_msg)}"
+    text = (
+        f"💌 *Пригласите друга — получите +2 дня PRO!*\n\n"
+        f"Ваша персональная ссылка:\n`{ref_link}`\n\n"
+        f"🎁 *Как это работает:*\n"
+        f"• Ваш друг переходит по ссылке и получает *3 дня режима PRO в подарок*!\n"
+        f"• Вы сразу получаете *+2 дня бесплатного PRO* к вашей подписке!\n\n"
+        f"✨ Приглашайте друзей без ограничений — дни суммируются!"
+    )
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📤 Отправить ссылку другу в Telegram", url=share_url)],
+        [InlineKeyboardButton("🏠 Главное меню", callback_data="main_menu")],
+    ])
+    await update.message.reply_text(text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN)
+
+
+async def show_referral_menu(query):
+    uid = query.from_user.id
+    ref_link = f"https://t.me/MysticalTarotKlimBot?start=ref_{uid}"
+    share_msg = "✨ Дарю тебе 3 дня бесплатного PRO-доступа в KLIM TAROT! 78 карт, Карта дня и расклады тут 👇"
+    share_url = f"https://t.me/share/url?url={ref_link}&text={urllib.parse.quote(share_msg)}"
+    text = (
+        f"💌 *Пригласите друга — получите +2 дня PRO!*\n\n"
+        f"Ваша персональная ссылка:\n`{ref_link}`\n\n"
+        f"🎁 *Как это работает:*\n"
+        f"• Ваш друг переходит по ссылке и получает *3 дня режима PRO в подарок*!\n"
+        f"• Вы сразу получаете *+2 бонусных дня PRO* к вашей подписке!\n\n"
+        f"✨ Приглашайте друзей без ограничений — дни суммируются!"
+    )
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📤 Отправить ссылку другу в Telegram", url=share_url)],
+        [InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")],
+    ])
+    await safe_edit(query, text, reply_markup=keyboard)
+
 
 # ─────────────────────────────────────────────────────────
 #  CALLBACK HANDLERS
@@ -2060,6 +2147,9 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "menu_plans":
         await safe_edit(query, payments.plans_text(query.from_user.id), reply_markup=payments.plans_keyboard())
+
+    elif data == "menu_ref":
+        await show_referral_menu(query)
 
     elif data.startswith("pay_plan_"):
         plan_key = data[len("pay_plan_"):]
@@ -2812,6 +2902,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if raw in ["💎 Тарифы", "💎 Тарифы подписки", "тарифы", "подписка", "/pay", "/plans"]:
         await cmd_plans(update, context)
         return
+    if raw in ["💌 Пригласить друга (+2 дня)", "пригласить друга", "пригласить", "/ref", "/invite"]:
+        await cmd_ref(update, context)
+        return
 
     text = update.message.text.lower()
     if any(w in text for w in ["да нет", "да/нет", "оракул", "вопрос"]):
@@ -3187,6 +3280,8 @@ def main():
     app.add_handler(CommandHandler("grant", cmd_grant))
     app.add_handler(CommandHandler("pay", cmd_plans))
     app.add_handler(CommandHandler("plans", cmd_plans))
+    app.add_handler(CommandHandler("ref", cmd_ref))
+    app.add_handler(CommandHandler("invite", cmd_ref))
     app.add_handler(PreCheckoutQueryHandler(payments.handle_pre_checkout))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, payments.handle_successful_payment))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data))

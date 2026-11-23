@@ -108,7 +108,61 @@ def init_payments_db(db_path: Path = STATS_DB_PATH) -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS trial_claims (
+                user_id INTEGER PRIMARY KEY,
+                claimed_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS referrals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                referrer_id INTEGER NOT NULL,
+                referred_user_id INTEGER UNIQUE NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         conn.commit()
+
+
+def claim_trial_if_eligible(user_id: int, days: int = 3, db_path: Path = STATS_DB_PATH) -> tuple[bool, datetime | None]:
+    """Выдаёт 3 дня бесплатного пробного периода PRO новым пользователям при первом входе."""
+    now = datetime.now(MSK_TZ)
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute("SELECT claimed_at FROM trial_claims WHERE user_id = ?", (user_id,)).fetchone()
+        if row:
+            return (False, None)
+        conn.execute(
+            "INSERT INTO trial_claims (user_id, claimed_at) VALUES (?, ?)",
+            (user_id, now.isoformat()),
+        )
+        conn.commit()
+    exp = grant_subscription(user_id, "trial_3d", days, db_path)
+    return (True, exp)
+
+
+def process_referral(referrer_id: int, referred_user_id: int, bonus_days: int = 2, db_path: Path = STATS_DB_PATH) -> tuple[bool, datetime | None]:
+    """Начисляет +2 бонусных дня PRO пригласившему другу при переходе нового пользователя."""
+    if referrer_id == referred_user_id:
+        return (False, None)
+    now = datetime.now(MSK_TZ)
+    with sqlite3.connect(db_path) as conn:
+        already = conn.execute(
+            "SELECT id FROM referrals WHERE referred_user_id = ?", (referred_user_id,)
+        ).fetchone()
+        if already:
+            return (False, None)
+        conn.execute(
+            "INSERT INTO referrals (referrer_id, referred_user_id, created_at) VALUES (?, ?, ?)",
+            (referrer_id, referred_user_id, now.isoformat()),
+        )
+        conn.commit()
+    exp = grant_subscription(referrer_id, "referral_bonus", bonus_days, db_path)
+    return (True, exp)
 
 
 def grant_subscription(user_id: int, plan_id: str, days: int, db_path: Path = STATS_DB_PATH) -> datetime:
