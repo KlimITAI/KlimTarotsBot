@@ -39,7 +39,11 @@ STATS_DB_PATH = BASE_DIR / "stats.db"
 PAYMENTS_ENABLED = os.environ.get("PAYMENTS_ENABLED", "true").strip().lower() == "true"
 
 # Токен платёжного провайдера из @BotFather -> /mybots -> Payments -> ЮKassa
-DEFAULT_PAYMENT_PROVIDER_TOKEN = "390540012:LIVE:105915"
+# Сейчас установлен тестовый токен для проведения безопасных проверочных платежей.
+# Для боевого режима переключите на LIVE_PAYMENT_PROVIDER_TOKEN.
+LIVE_PAYMENT_PROVIDER_TOKEN = "390540012:LIVE:105915"
+TEST_PAYMENT_PROVIDER_TOKEN = "381764678:TEST:197178"
+DEFAULT_PAYMENT_PROVIDER_TOKEN = "381764678:TEST:197178"
 PAYMENT_PROVIDER_TOKEN = os.environ.get("PAYMENT_PROVIDER_TOKEN", DEFAULT_PAYMENT_PROVIDER_TOKEN).strip()
 
 # Количество бесплатных раскладов до предложения подписки (действует только при PAYMENTS_ENABLED=true)
