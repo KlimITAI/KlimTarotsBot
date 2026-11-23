@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css?v=20" />
+  <link rel="stylesheet" href="./css/styles.css?v=21" />
 </head>
 <body>
   <!-- Animated Cosmic Starfield & Nebula Canvas -->
@@ -165,6 +165,10 @@
          MAIN APP CHROME (ULTRA-MODERN GLASS DESIGN FOR ALL OTHER VIEWS)
          ══════════════════════════════════════════════════════════ -->
     <div id="main-chrome" class="hidden">
+      <!-- Main Background Video (all views except hero) -->
+      <video class="main-bg-video" id="main-bg-video" autoplay loop muted playsinline preload="auto" aria-hidden="true">
+        <source src="./assets/bg-main.mp4" type="video/mp4" />
+      </video>
       <!-- Top Sticky Header -->
       <header class="top-bar">
         <div class="top-bar-brand-group">
@@ -810,6 +814,6 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast hidden"></div>
 
-  <script type="module" src="./js/app.js?v=20"></script>
+  <script type="module" src="./js/app.js?v=21"></script>
 </body>
 </html>

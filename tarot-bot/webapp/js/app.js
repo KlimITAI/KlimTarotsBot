@@ -878,6 +878,7 @@ function navigateTo(viewName, { push = true } = {}) {
   if (viewName === 'hero') {
     viewHero.classList.remove('hidden');
     mainChrome.classList.add('hidden');
+    document.getElementById('main-bg-video')?.classList.remove('visible');
     state.currentView = 'hero';
     state.historyStack = [];
     if (tg?.BackButton) tg.BackButton.hide();
@@ -891,6 +892,7 @@ function navigateTo(viewName, { push = true } = {}) {
 
   viewHero.classList.add('hidden');
   mainChrome.classList.remove('hidden');
+  document.getElementById('main-bg-video')?.classList.add('visible');
 
   document.querySelectorAll('.subview').forEach((el) => el.classList.remove('active'));
   const target = document.getElementById(`view-${viewName}`);
@@ -1464,6 +1466,27 @@ function renderReadingResult(reading) {
     }, 240 + idx * 240);
   });
 
+  // 👁 CLIENT MODE TOGGLE
+  const existingClientBtn = document.getElementById('client-mode-btn');
+  if (existingClientBtn) existingClientBtn.remove();
+  const clientBtn = document.createElement('button');
+  clientBtn.id = 'client-mode-btn';
+  clientBtn.className = 'client-mode-btn';
+  clientBtn.innerHTML = '👁 Режим таролога: скрыть значения';
+  let _clientModeOn = false;
+  const _toggleTargets = () => {
+    _clientModeOn = !_clientModeOn;
+    clientBtn.innerHTML = _clientModeOn
+      ? '👁 Показать значения'
+      : '👁 Режим таролога: скрыть значения';
+    clientBtn.classList.toggle('active', _clientModeOn);
+    ['synthesis-card', 'interpretations-list', 'pro-analysis-container'].forEach(id => {
+      document.getElementById(id)?.classList.toggle('client-hidden-block', _clientModeOn);
+    });
+  };
+  clientBtn.addEventListener('click', _toggleTargets);
+  document.getElementById('result-hero').after(clientBtn);
+
   // 🌟 TOP SYNTHESIS: Bottom-Line Up Front (Directly under cards)
   const syn = buildSynthesis(reading.spreadName, reading.positions, reading.drawn);
   const synEl = document.getElementById('synthesis-card');
@@ -1990,13 +2013,18 @@ function renderDictGrid() {
 
   filtered.forEach((card) => {
     const btn = document.createElement('button');
-    btn.className = 'dict-card';
+    btn.className = 'dict-card dict-card-skeleton';
     btn.innerHTML = `
       <div class="dict-thumb-wrap">
         <img src="${escapeHtml(card.img || '')}" alt="${escapeHtml(card.name)}" class="dict-thumb-img" loading="lazy" />
       </div>
       <div class="dict-name">${escapeHtml(card.name)}</div>
     `;
+    const _dImg = btn.querySelector('.dict-thumb-img');
+    if (_dImg) {
+      _dImg.addEventListener('load', () => btn.classList.remove('dict-card-skeleton'), { once: true });
+      _dImg.addEventListener('error', () => btn.classList.remove('dict-card-skeleton'), { once: true });
+    }
     btn.addEventListener('click', () => {
       sound.playTap();
       openCardModal(card, false);
@@ -2007,6 +2035,56 @@ function renderDictGrid() {
 
 function openCardModal(card, reversed = false) {
   const body = document.getElementById('modal-body');
+  const isMajor = MAJOR_IDS.has(card.id);
+
+  // Generate contextual interpretations from card data
+  function contextFor(area) {
+    const base = reversed ? card.reversed : card.upright;
+    const keywords = base.split(',').map(s => s.trim()).filter(Boolean);
+    const ctx = {
+      love:     { icon: '❤️', label: 'В любви' },
+      career:   { icon: '💼', label: 'В работе' },
+      health:   { icon: '🌿', label: 'Здоровье' },
+      spirit:   { icon: '✨', label: 'Духовный рост' },
+    };
+    const c = ctx[area];
+    return { ...c, text: keywords.slice(0, 2).join(', ') || base.substring(0, 60) };
+  }
+
+  // Affirmation mantra based on card
+  const mantras = {
+    fool: 'Я открыт к новому — вселенная меня поддерживает',
+    magician: 'У меня есть всё необходимое для действия прямо сейчас',
+    high_priestess: 'Я доверяю своей интуиции и внутреннему голосу',
+    empress: 'Я питаю и создаю изобилие в своей жизни',
+    emperor: 'Я строю прочный фундамент с уверенностью',
+    hierophant: 'Я нахожу мудрость в традиции и наставничестве',
+    lovers: 'Я делаю выборы из любви и целостности',
+    chariot: 'Я направляю свою волю к победе',
+    strength: 'Моя истинная сила — в мягкости и выдержке',
+    hermit: 'В тишине я нахожу путь',
+    wheel: 'Я принимаю перемены как часть своего пути',
+    justice: 'Я действую честно и получаю справедливый результат',
+    hanged: 'Пауза открывает новый взгляд на ситуацию',
+    death: 'Я отпускаю старое, давая место новому',
+    temperance: 'Я нахожу баланс и поток в своей жизни',
+    devil: 'Я осознаю ограничения и выбираю свободу',
+    tower: 'Крах старого открывает путь к истинному',
+    star: 'Я верю в свет впереди — надежда реальна',
+    moon: 'Я принимаю неопределённость как часть пути',
+    sun: 'Я сияю и дарю радость миру',
+    judgement: 'Я слышу зов и поднимаюсь к своей высшей версии',
+    world: 'Я завершаю цикл с благодарностью и мудростью',
+  };
+  const mantra = mantras[card.id] || (reversed
+    ? 'Я принимаю теневую сторону как часть роста'
+    : 'Я открыт посланию этой карты');
+
+  const loveCtx = contextFor('love');
+  const careerCtx = contextFor('career');
+  const healthCtx = contextFor('health');
+  const spiritCtx = contextFor('spirit');
+
   body.innerHTML = `
     <div class="modal-card-stage">
       <div class="modal-tarot-3d" id="modal-tarot-3d">
@@ -2017,17 +2095,53 @@ function openCardModal(card, reversed = false) {
       </div>
       <div class="modal-tilt-hint">Покрутите карту пальцем ✦ 3D-обзор</div>
       <h2 style="margin:10px 0 2px;font-family:var(--font-display);font-size:28px;">${escapeHtml(card.name)}</h2>
-      <div style="font-size:12.5px;color:var(--gold);">Аркан ${escapeHtml(card.num)} ${reversed ? '· 🔄 Перевёрнутая' : '· ⬆️ Прямая'}</div>
+      <div style="font-size:12.5px;color:var(--gold);">
+        ${isMajor ? `Старший Аркан ${escapeHtml(card.num)}` : `Масть · ${escapeHtml(card.suit === 'major' ? 'Старшие' : card.suit === 'cups' ? 'Кубки' : card.suit === 'wands' ? 'Жезлы' : card.suit === 'swords' ? 'Мечи' : 'Пентакли')}`}
+        ${reversed ? ' · 🔄 Перевёрнутая' : ' · ↑ Прямая'}
+      </div>
     </div>
-    <p class="interp-story">📖 ${escapeHtml(card.story)}</p>
-    <div style="margin-bottom:12px;">
-      <div class="field-label">⬆️ Прямое значение</div>
-      <p style="margin:0;font-size:14px;">${escapeHtml(card.upright)}</p>
+
+    <div class="card-meaning-block upright">
+      <div class="card-meaning-orient">↑ ПРЯМОЕ ЗНАЧЕНИЕ</div>
+      <div class="card-meaning-text">${escapeHtml(card.upright)}</div>
     </div>
-    <div style="margin-bottom:14px;">
-      <div class="field-label">🔄 Перевёрнутое значение</div>
-      <p style="margin:0;font-size:14px;color:var(--text-muted);">${escapeHtml(card.reversed)}</p>
+    <div class="card-meaning-block reversed">
+      <div class="card-meaning-orient">🔄 ПЕРЕВЁРНУТОЕ ЗНАЧЕНИЕ</div>
+      <div class="card-meaning-text">${escapeHtml(card.reversed)}</div>
     </div>
+
+    <div class="modal-section-title">📖 История и символизм</div>
+    <p class="interp-story" style="font-size:13.5px;line-height:1.6;">${escapeHtml(card.story)}</p>
+
+    <div class="modal-section-title">🎯 Контекст по сферам жизни</div>
+    <div class="card-context-grid">
+      <div class="card-context-cell">
+        <div class="card-context-icon">${loveCtx.icon}</div>
+        <div class="card-context-label">${loveCtx.label}</div>
+        <div class="card-context-text">${escapeHtml(loveCtx.text)}</div>
+      </div>
+      <div class="card-context-cell">
+        <div class="card-context-icon">${careerCtx.icon}</div>
+        <div class="card-context-label">${careerCtx.label}</div>
+        <div class="card-context-text">${escapeHtml(careerCtx.text)}</div>
+      </div>
+      <div class="card-context-cell">
+        <div class="card-context-icon">${healthCtx.icon}</div>
+        <div class="card-context-label">${healthCtx.label}</div>
+        <div class="card-context-text">${escapeHtml(healthCtx.text)}</div>
+      </div>
+      <div class="card-context-cell">
+        <div class="card-context-icon">${spiritCtx.icon}</div>
+        <div class="card-context-label">${spiritCtx.label}</div>
+        <div class="card-context-text">${escapeHtml(spiritCtx.text)}</div>
+      </div>
+    </div>
+
+    <div class="card-mantra-block">
+      <div class="card-mantra-label">✨ Мантра карты</div>
+      <div class="card-mantra-text">${escapeHtml(mantra)}</div>
+    </div>
+
     <div class="synthesis-key">🎯 Совет: ${escapeHtml(card.advice)}</div>
   `;
   attach3DTilt(document.getElementById('modal-tarot-3d'), 18);

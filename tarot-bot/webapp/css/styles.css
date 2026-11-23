@@ -2343,6 +2343,7 @@ button {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-muted);
   font-size: 14px;
+  z-index: 20;
 }
 
 .toast {
@@ -3642,4 +3643,162 @@ body.is-pro-mode .top-bar {
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── MAIN BACKGROUND VIDEO (all views except hero) ─────────────── */
+.main-bg-video {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.main-bg-video.visible {
+  opacity: 0.18;
+}
+#main-chrome.hidden .main-bg-video {
+  opacity: 0;
+}
+
+/* ── DICT SKELETON LOADER ───────────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.dict-card-skeleton .dict-thumb-wrap {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.10) 50%,
+    rgba(255,255,255,0.04) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+.dict-card-skeleton .dict-name {
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.10) 50%,
+    rgba(255,255,255,0.04) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite 0.2s;
+  color: transparent;
+}
+
+/* ── RICH CARD MODAL SECTIONS ───────────────────────────────────── */
+.card-context-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 14px 0;
+}
+.card-context-cell {
+  padding: 10px 12px;
+  border-radius: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.card-context-icon {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+.card-context-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.card-context-text {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.card-mantra-block {
+  margin: 14px 0;
+  padding: 14px 16px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, rgba(139,92,246,0.18), rgba(34,211,238,0.08));
+  border: 1px solid rgba(139,92,246,0.35);
+  text-align: center;
+}
+.card-mantra-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--violet);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.card-mantra-text {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-style: italic;
+  color: var(--gold-soft);
+  line-height: 1.4;
+}
+.modal-section-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  margin: 16px 0 6px;
+}
+.card-meaning-block {
+  padding: 12px 14px;
+  border-radius: 13px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+}
+.card-meaning-block.upright {
+  background: rgba(52,211,153,0.07);
+  border-color: rgba(52,211,153,0.2);
+}
+.card-meaning-block.reversed {
+  background: rgba(224,64,251,0.07);
+  border-color: rgba(224,64,251,0.18);
+}
+.card-meaning-orient {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin-bottom: 5px;
+}
+.card-meaning-block.upright .card-meaning-orient { color: var(--emerald); }
+.card-meaning-block.reversed .card-meaning-orient { color: #f0abfc; }
+.card-meaning-text {
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+/* ── CLIENT MODE TOGGLE ─────────────────────────────────────────── */
+.client-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(250,204,21,0.1);
+  border: 1px solid rgba(250,204,21,0.3);
+  color: var(--gold-soft);
+  margin-bottom: 14px;
+  transition: all 0.2s;
+}
+.client-mode-btn.active {
+  background: rgba(250,204,21,0.22);
+  border-color: rgba(250,204,21,0.6);
+}
+.client-hidden-block {
+  filter: blur(8px);
+  user-select: none;
+  pointer-events: none;
+  transition: filter 0.4s ease;
 }
