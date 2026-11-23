@@ -930,6 +930,8 @@ const VIEW_TITLES = {
   dictionary: 'Словарь карт',
   history: 'История',
   plans: 'Тарифы и подписка',
+  fortune: 'Колесо Фортуны',
+  invite: 'Пригласить друзей',
 };
 
 function showToast(msg) {
@@ -2387,6 +2389,8 @@ function bindEvents() {
       else if (action === 'compat') navigateTo('compat');
       else if (action === 'psych') navigateTo('psych');
       else if (action === 'friend') navigateTo('friend');
+      else if (action === 'fortune') navigateTo('fortune');
+      else if (action === 'invite') navigateTo('invite');
       else navigateTo('home');
     });
   });
@@ -3214,3 +3218,299 @@ checkAndShowWelcomeGift();
 // Preload today's card immediately if already drawn
 const _savedDaily = getDailyCard();
 if (_savedDaily?.card) preloadCardImage(_savedDaily.card);
+
+/* ══════════════════════════════════════════════════════════════
+   🎡 КОЛЕСО ФОРТУНЫ & ОСКОЛКИ СУДЬБЫ (X АРКАН)
+   ══════════════════════════════════════════════════════════════ */
+const WHEEL_SECTORS = [
+  { label: '+1 Осколок', icon: '🔮', type: 'shard', val: 1, color: '#7c3aed', text: '#fff' },
+  { label: 'PRO 24ч', icon: '⚡', type: 'pro_24h', val: 1, color: '#f59e0b', text: '#000' },
+  { label: 'Скидка 30%', icon: '🏷️', type: 'promo', code: 'FORTUNA30', color: '#db2777', text: '#fff' },
+  { label: 'Дно колоды', icon: '🌑', type: 'feature_shadow', color: '#4f46e5', text: '#fff' },
+  { label: '+2 Осколка', icon: '🔮', type: 'shard', val: 2, color: '#9333ea', text: '#fff' },
+  { label: '4 Стихии', icon: '🌊', type: 'feature_elements', color: '#0891b2', text: '#fff' },
+  { label: '+1 день PRO', icon: '🎁', type: 'pro_1d', val: 1, color: '#059669', text: '#fff' },
+  { label: 'Скидка 20%', icon: '🏷️', type: 'promo', code: 'FORTUNA20', color: '#eab308', text: '#000' },
+];
+
+let wheelState = {
+  currentAngle: 0,
+  isSpinning: false,
+};
+
+function getShardsCount() {
+  return parseInt(localStorage.getItem('klim_tarot_shards') || '0', 10);
+}
+
+function setShardsCount(cnt) {
+  localStorage.setItem('klim_tarot_shards', String(Math.max(0, cnt)));
+  renderShardsUI();
+}
+
+function renderShardsUI() {
+  const cnt = getShardsCount();
+  const numEl = document.getElementById('shards-num');
+  if (numEl) numEl.textContent = cnt;
+
+  const slots = document.querySelectorAll('#shards-slots .shard-slot');
+  slots.forEach((slot, idx) => {
+    slot.classList.toggle('filled', idx < cnt);
+  });
+
+  const forgeBtn = document.getElementById('btn-forge-shards');
+  if (forgeBtn) {
+    if (cnt >= 5) {
+      forgeBtn.classList.remove('disabled');
+      forgeBtn.textContent = '✨ Собрать 5 осколков (+2 дня PRO)!';
+    } else {
+      forgeBtn.classList.add('disabled');
+      forgeBtn.textContent = `✨ Собрать 5 осколков (нужно ещё ${5 - cnt})`;
+    }
+  }
+}
+
+function drawWheel(angle = 0) {
+  const canvas = document.getElementById('wheel-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const size = canvas.width;
+  const center = size / 2;
+  const radius = center - 6;
+  const numSectors = WHEEL_SECTORS.length;
+  const arc = (2 * Math.PI) / numSectors;
+
+  ctx.clearRect(0, 0, size, size);
+
+  ctx.save();
+  ctx.translate(center, center);
+  ctx.rotate(angle);
+
+  for (let i = 0; i < numSectors; i++) {
+    const sec = WHEEL_SECTORS[i];
+    const startAngle = i * arc;
+    const endAngle = startAngle + arc;
+
+    // Sector arc
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, radius, startAngle, endAngle);
+    ctx.closePath();
+    ctx.fillStyle = sec.color;
+    ctx.fill();
+
+    // Divider
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.stroke();
+
+    // Text & icon
+    ctx.save();
+    ctx.rotate(startAngle + arc / 2);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = sec.text;
+    ctx.font = 'bold 12.5px sans-serif';
+    ctx.fillText(`${sec.icon} ${sec.label}`, radius - 16, 4.5);
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+function checkWheelCooldown() {
+  const lastSpin = parseInt(localStorage.getItem('klim_tarot_wheel_last') || '0', 10);
+  const now = Date.now();
+  const cooldown = 24 * 3600 * 1000;
+  const diff = cooldown - (now - lastSpin);
+
+  const spinBtn = document.getElementById('btn-spin-wheel');
+  const cdWrap = document.getElementById('wheel-cooldown-wrap');
+  const cdTimer = document.getElementById('wheel-cooldown-timer');
+
+  if (diff > 0) {
+    if (spinBtn) spinBtn.classList.add('disabled');
+    if (cdWrap) cdWrap.classList.remove('hidden');
+    const hrs = Math.floor(diff / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    if (cdTimer) {
+      cdTimer.textContent = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+    return false;
+  } else {
+    if (spinBtn) spinBtn.classList.remove('disabled');
+    if (cdWrap) cdWrap.classList.add('hidden');
+    return true;
+  }
+}
+
+function spinWheel() {
+  if (wheelState.isSpinning || !checkWheelCooldown()) return;
+  wheelState.isSpinning = true;
+
+  const spinBtn = document.getElementById('btn-spin-wheel');
+  if (spinBtn) spinBtn.classList.add('disabled');
+
+  sound.playShuffle();
+  haptic('medium');
+
+  const winningIndex = Math.floor(Math.random() * WHEEL_SECTORS.length);
+  const numSectors = WHEEL_SECTORS.length;
+  const arc = (2 * Math.PI) / numSectors;
+
+  const totalRounds = 6 + Math.floor(Math.random() * 3);
+  const targetAngle = wheelState.currentAngle + totalRounds * 2 * Math.PI + (numSectors - winningIndex) * arc - (arc / 2) - (Math.PI / 2);
+
+  const duration = 4600;
+  const startAngle = wheelState.currentAngle;
+  const startTime = performance.now();
+
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  function frame(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(1, elapsed / duration);
+    const eased = easeOutCubic(progress);
+
+    wheelState.currentAngle = startAngle + (targetAngle - startAngle) * eased;
+    drawWheel(wheelState.currentAngle);
+
+    if (progress < 1) {
+      requestAnimationFrame(frame);
+    } else {
+      wheelState.isSpinning = false;
+      localStorage.setItem('klim_tarot_wheel_last', String(Date.now()));
+      checkWheelCooldown();
+      applyWheelReward(WHEEL_SECTORS[winningIndex]);
+    }
+  }
+
+  requestAnimationFrame(frame);
+}
+
+function applyWheelReward(prize) {
+  sound.playCardPick(0);
+  haptic('success');
+
+  if (prize.type === 'shard') {
+    const cur = getShardsCount();
+    setShardsCount(cur + prize.val);
+    showToast(`🔮 Вы выиграли: ${prize.label}! (Собрано: ${cur + prize.val}/5)`);
+  } else if (prize.type === 'pro_24h' || prize.type === 'pro_1d') {
+    localStorage.setItem('klim_tarot_pro_granted', 'true');
+    localStorage.setItem('klim_tarot_pro_mode', 'true');
+    state.isProMode = true;
+    updateProModeUI();
+    showToast(`⚡ ДЖЕКПОТ! ${prize.label} активирован!`);
+  } else if (prize.type === 'promo') {
+    showToast(`🏷️ Выпала ${prize.label}! Промокод: ${prize.code}`);
+  } else if (prize.type === 'feature_shadow') {
+    localStorage.setItem('klim_tarot_pro_granted', 'true');
+    state.isProMode = true;
+    updateProModeUI();
+    showToast('🌑 Вы выиграли Теневую карту (Дно колоды) на 24 часа!');
+  } else if (prize.type === 'feature_elements') {
+    localStorage.setItem('klim_tarot_pro_granted', 'true');
+    state.isProMode = true;
+    updateProModeUI();
+    showToast('🌊 Вы выиграли Баланс 4 стихий и Квинтэссенцию на 24 часа!');
+  }
+}
+
+function initFortuneWheel() {
+  renderShardsUI();
+  drawWheel(0);
+  checkWheelCooldown();
+  setInterval(checkWheelCooldown, 1000);
+
+  document.getElementById('btn-spin-wheel')?.addEventListener('click', spinWheel);
+
+  document.getElementById('btn-forge-shards')?.addEventListener('click', () => {
+    const cnt = getShardsCount();
+    if (cnt >= 5) {
+      setShardsCount(cnt - 5);
+      localStorage.setItem('klim_tarot_pro_granted', 'true');
+      localStorage.setItem('klim_tarot_pro_mode', 'true');
+      state.isProMode = true;
+      updateProModeUI();
+      sound.playShuffle();
+      haptic('success');
+      showToast('🎉 Осколки объединены! Вам начислено +2 дня режима PRO!');
+    }
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════
+   💌 ПРИГЛАШЕНИЕ ДРУЗЕЙ & ЛИДЕРБОРД
+   ══════════════════════════════════════════════════════════════ */
+const MOCK_LEADERBOARD = [
+  { name: 'Klim (Владелец)', user: '@im_klim', count: 18, days: '+36 дн.', badge: '👑 Чемпион' },
+  { name: 'Алина Таро', user: '@alina_tarot', count: 11, days: '+22 дн.', badge: '🌟 Мастер' },
+  { name: 'Михаил С.', user: '@misha_sky', count: 8, days: '+16 дн.', badge: '✨ Искатель' },
+  { name: 'София В.', user: '@sofia_v', count: 5, days: '+10 дн.', badge: '🔮 Практик' },
+  { name: 'Даниил', user: '@danya_k', count: 4, days: '+8 дн.', badge: '🌿 Новичок' },
+];
+
+function initInviteAndLeaderboard() {
+  const uid = getTelegramUserId() || '';
+  const refLink = `https://t.me/MysticalTarotKlimBot?start=ref_${uid || 'vip'}`;
+
+  const inputEl = document.getElementById('input-referral-link');
+  if (inputEl) inputEl.value = refLink;
+
+  const copyBtn = document.getElementById('btn-copy-link');
+  copyBtn?.addEventListener('click', () => {
+    sound.playTap();
+    haptic('light');
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(refLink).then(() => {
+        showToast('📋 Ссылка амбассадора скопирована!');
+      });
+    } else {
+      inputEl?.select();
+      document.execCommand('copy');
+      showToast('📋 Ссылка скопирована!');
+    }
+  });
+
+  const shareBtn = document.getElementById('btn-share-telegram');
+  shareBtn?.addEventListener('click', () => {
+    sound.playTap();
+    haptic('medium');
+    const shareText = '✨ Дарю тебе 3 дня бесплатного PRO-доступа в KLIM TAROT! 78 карт, Карта дня и расклады тут 👇';
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareText)}`;
+    if (tg?.openTelegramLink) {
+      tg.openTelegramLink(shareUrl);
+    } else {
+      window.open(shareUrl, '_blank');
+    }
+  });
+
+  renderLeaderboard();
+}
+
+function renderLeaderboard() {
+  const container = document.getElementById('leaderboard-list');
+  if (!container) return;
+
+  const medals = ['🥇', '🥈', '🥉', '4', '5'];
+  container.innerHTML = MOCK_LEADERBOARD.map((item, idx) => `
+    <div class="leaderboard-item rank-${idx + 1}">
+      <div class="leaderboard-left">
+        <span class="leaderboard-rank-badge">${medals[idx] || (idx + 1)}</span>
+        <div class="leaderboard-info">
+          <strong>${item.name}</strong>
+          <span>${item.user} · ${item.badge}</span>
+        </div>
+      </div>
+      <div class="leaderboard-right">
+        <div class="leaderboard-invited">${item.count} друзей</div>
+        <div class="leaderboard-days">${item.days} PRO</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+initFortuneWheel();
+initInviteAndLeaderboard();

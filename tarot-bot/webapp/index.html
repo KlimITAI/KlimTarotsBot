@@ -138,6 +138,12 @@
 
           <!-- Quick Shortcuts right from Hero -->
           <div class="hero-quick-row">
+            <button class="hero-chip" data-action="fortune">
+              <span class="chip-dot dot-gold"></span>🎡 Колесо Фортуны
+            </button>
+            <button class="hero-chip" data-action="invite">
+              <span class="chip-dot dot-magenta"></span>💌 Пригласи (+2 дн.)
+            </button>
             <button class="hero-chip" data-action="card-of-day">
               <span class="chip-dot dot-gold"></span>Карта дня и ночи
             </button>
@@ -362,6 +368,34 @@
                 <div class="bento-meta">
                   <span class="bento-title" style="color: #fef08a;">Тарифы подписки</span>
                   <span class="bento-sub">От 199 ₽ · 10 дней, месяц, полгода, год</span>
+                </div>
+              </div>
+              <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+
+            <!-- 🎡 Bento Card: Колесо Фортуны -->
+            <button class="bento-card bento-wide bento-accent-gold" data-nav="fortune" style="border-color: rgba(250, 204, 21, 0.5); background: radial-gradient(circle at top left, rgba(250, 204, 21, 0.18), rgba(24, 21, 50, 0.95));">
+              <div class="bento-wide-left">
+                <div class="bento-icon icon-gold">
+                  <span style="font-size:22px;">🎡</span>
+                </div>
+                <div class="bento-meta">
+                  <span class="bento-title" style="color: #fef08a;">Колесо Фортуны (X Аркан)</span>
+                  <span class="bento-sub">Крутите раз в сутки · Осколки судьбы, скидки и PRO</span>
+                </div>
+              </div>
+              <span class="bento-badge-free" style="background: rgba(250, 204, 21, 0.2); border: 1px solid rgba(250, 204, 21, 0.5); color: #fef08a; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800;">1 раз / сутки</span>
+            </button>
+
+            <!-- 💌 Bento Card: Пригласить друзей -->
+            <button class="bento-card bento-wide bento-accent-magenta" data-nav="invite" style="border-color: rgba(224, 64, 251, 0.4); background: radial-gradient(circle at top left, rgba(224, 64, 251, 0.16), rgba(24, 21, 50, 0.95));">
+              <div class="bento-wide-left">
+                <div class="bento-icon icon-magenta">
+                  <span style="font-size:22px;">💌</span>
+                </div>
+                <div class="bento-meta">
+                  <span class="bento-title" style="color: #f5d0fe;">Пригласить друзей (+2 дня PRO)</span>
+                  <span class="bento-sub">Личный счётчик, бонусы и Турнирный Лидерборд</span>
                 </div>
               </div>
               <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -757,6 +791,115 @@
 
           <div class="plans-footer-note">
             <span>🔒 Безопасная оплата через ЮKassa · Банковские карты МИР / Visa / Mastercard · СБП</span>
+          </div>
+        </section>
+
+        <!-- ── VIEW 11: 🎡 КОЛЕСО ФОРТУНЫ (X АРКАН) ── -->
+        <section id="view-fortune" class="subview">
+          <div class="view-intro">
+            <h2>🎡 Колесо Фортуны</h2>
+            <p>X Аркан Судьбы · Вращайте колесо раз в сутки, собирайте Осколки Судьбы или выигрывайте дни PRO!</p>
+          </div>
+
+          <!-- Осколки Судьбы (Фрагменты) -->
+          <div class="shards-card">
+            <div class="shards-head">
+              <span class="shards-pill">🔮 ОСКОЛКИ СУДЬБЫ</span>
+              <span class="shards-count-badge"><span id="shards-num">0</span> / 5</span>
+            </div>
+            <div class="shards-desc">
+              Соберите <strong>5 осколков</strong> в Колесе Фортуны и мгновенно обменяйте их на <strong>+2 дня режима PRO</strong>!
+            </div>
+            <div class="shards-slots" id="shards-slots">
+              <div class="shard-slot" data-index="1">✦</div>
+              <div class="shard-slot" data-index="2">✦</div>
+              <div class="shard-slot" data-index="3">✦</div>
+              <div class="shard-slot" data-index="4">✦</div>
+              <div class="shard-slot" data-index="5">✦</div>
+            </div>
+            <button type="button" class="btn-forge-shards disabled" id="btn-forge-shards">✨ Обменять 5 осколков на +2 дня PRO</button>
+          </div>
+
+          <!-- Стейдж Колеса Фортуны -->
+          <div class="fortune-stage">
+            <div class="wheel-outer-aura"></div>
+            <div class="wheel-container">
+              <div class="wheel-pointer">▼</div>
+              <div class="wheel-canvas-wrap">
+                <canvas id="wheel-canvas" width="340" height="340"></canvas>
+              </div>
+              <div class="wheel-center-gem">
+                <span>X</span>
+              </div>
+            </div>
+
+            <button type="button" class="btn-spin-wheel" id="btn-spin-wheel">
+              <span class="spin-text">✨ Вращать Колесо Судьбы</span>
+            </button>
+            <div id="wheel-cooldown-wrap" class="wheel-cooldown-wrap hidden">
+              <span>⏳ Следующее вращение через:</span>
+              <strong id="wheel-cooldown-timer">23:59:59</strong>
+            </div>
+          </div>
+
+          <!-- Призовой фонд Колеса -->
+          <div class="fortune-legend-card">
+            <h4>Призы на Колесе Фортуны:</h4>
+            <div class="legend-items-grid">
+              <div class="legend-item"><span class="legend-icon">🔮</span> <span>+1 или +2 Осколка Судьбы</span></div>
+              <div class="legend-item"><span class="legend-icon">⚡</span> <span>PRO-режим на 24 часа</span></div>
+              <div class="legend-item"><span class="legend-icon">🏷️</span> <span>Скидка 30% на подписку</span></div>
+              <div class="legend-item"><span class="legend-icon">🌑</span> <span>Теневая карта (Дно колоды)</span></div>
+              <div class="legend-item"><span class="legend-icon">🌊</span> <span>4 стихии & Квинтэссенция</span></div>
+              <div class="legend-item"><span class="legend-icon">🎁</span> <span>+1 полный день PRO</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── VIEW 12: 💌 ПРИГЛАСИ ДРУЗЕЙ & ЛИДЕРБОРД ── -->
+        <section id="view-invite" class="subview">
+          <div class="view-intro">
+            <h2>💌 Приглашай друзей</h2>
+            <p>Дарите близким 3 дня PRO в подарок и получайте по +2 дня к своей подписке за каждого!</p>
+          </div>
+
+          <!-- Карточка личной статистики -->
+          <div class="invite-stats-grid">
+            <div class="invite-stat-card">
+              <span class="invite-stat-num" id="stat-user-referrals">0</span>
+              <span class="invite-stat-lbl">Приглашено друзей</span>
+            </div>
+            <div class="invite-stat-card">
+              <span class="invite-stat-num" id="stat-user-bonus-days">+0</span>
+              <span class="invite-stat-lbl">Бонусных дней PRO</span>
+            </div>
+            <div class="invite-stat-card">
+              <span class="invite-stat-num" id="stat-user-rank">#1</span>
+              <span class="invite-stat-lbl">Ваш ранг в топе</span>
+            </div>
+          </div>
+
+          <!-- Реферальная ссылка и шаринг -->
+          <div class="invite-link-card">
+            <div class="invite-link-title">Ваша ссылка амбассадора:</div>
+            <div class="invite-input-row">
+              <input type="text" id="input-referral-link" class="invite-link-input" readonly value="https://t.me/MysticalTarotKlimBot?start=ref" />
+              <button type="button" class="btn-copy-link" id="btn-copy-link" title="Скопировать">📋 Скопировать</button>
+            </div>
+            <button type="button" class="btn-share-telegram" id="btn-share-telegram">
+              <span>📤 Отправить другу в Telegram</span>
+            </button>
+            <p class="invite-link-hint">За каждого друга, который запустит бота, вам мгновенно начисляется +2 дня PRO. Количество не ограничено!</p>
+          </div>
+
+          <!-- Турнирный Лидерборд (Рейтинг амбассадоров) -->
+          <div class="leaderboard-section">
+            <div class="section-head">
+              <h3>🏆 Топ амбассадоров KLIM TAROT</h3>
+            </div>
+            <div class="leaderboard-list" id="leaderboard-list">
+              <!-- Dynamically rendered or preloaded -->
+            </div>
           </div>
         </section>
 
