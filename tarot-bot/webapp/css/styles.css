@@ -672,28 +672,36 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(12px + var(--safe-top)) 16px 12px;
-  background: rgba(6, 5, 18, 0.76);
+  padding: calc(10px + var(--safe-top)) 14px 10px;
+  background: rgba(6, 5, 18, 0.82);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.top-bar-brand-group {
+.top-bar-left {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
+  flex: 1 1 0;
+}
+
+.top-bar-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin: 0 6px;
 }
 
 .top-bar-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 1 1 0;
   flex-shrink: 0;
-  margin-left: 8px;
 }
 
 .brand-pill {
@@ -702,8 +710,7 @@ button {
   gap: 8px;
   cursor: pointer;
   min-width: 0;
-  flex: 0 1 auto;
-  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .brand-logo-img {

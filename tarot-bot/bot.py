@@ -905,7 +905,7 @@ STATS_DB_PATH = BASE_DIR / "stats.db"
 PROMO_SHARE_PATH = BASE_DIR / "assets" / "promo-share.mp4"
 PROMO_VIDEO_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-share.mp4"
 PROMO_POSTER_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-poster.jpg"
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=42"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=43"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 _welcome_file_id_cache: dict[tuple[str, float], str] = {}
 _promo_video_file_id: str | None = None
@@ -950,7 +950,11 @@ def get_user_webapp_url(uid: int | None = None, is_trial: bool = False) -> str:
                     exp = sub["expires_at"]
                     if exp > now:
                         days_left = max(1, math.ceil((exp - now).total_seconds() / 86400))
-                        params.append(f"pdays={days_left}")
+                        if days_left >= 365:
+                            params.append("pdays=9999")
+                            params.append("vip=1")
+                        else:
+                            params.append(f"pdays={days_left}")
                         params.append(f"pexp={int(exp.timestamp())}")
             with sqlite3.connect(STATS_DB_PATH) as conn:
                 ref_cnt = conn.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (uid,)).fetchone()[0]
@@ -1695,6 +1699,7 @@ async def cmd_pro(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_uid = int(context.args[0])
     days = int(context.args[1]) if len(context.args) > 1 and context.args[1].isdigit() else 30
     exp = payments.grant_subscription(target_uid, "manual_vip", days, STATS_DB_PATH)
+    dump_stats_to_json()
     pro_url = get_user_webapp_url(target_uid)
 
     notified = False
@@ -2404,7 +2409,37 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 target_uid = int(parts[2])
                 days = int(parts[3])
                 exp = payments.grant_subscription(target_uid, "manual_vip", days, STATS_DB_PATH)
-                await safe_answer(query, f"⚡ Выдан PRO на {days} дн. (до {exp.strftime('%d.%m.%Y')})", show_alert=True)
+                dump_stats_to_json()
+                pro_url = get_user_webapp_url(target_uid)
+                is_forever = (days >= 365)
+                try:
+                    await context.bot.set_chat_menu_button(
+                        chat_id=target_uid,
+                        menu_button=MenuButtonWebApp(text="🔮 Таро PRO", web_app=WebAppInfo(url=pro_url)),
+                    )
+                except Exception:
+                    pass
+                try:
+                    await context.bot.send_message(
+                        chat_id=target_uid,
+                        text=(
+                            f"👑 *Вам выдан VIP-доступ к KLIM TAROT PRO навсегда!*\n\n"
+                            f"⚡ Все 35 экспертных раскладов, стихии, теневая карта (дно колоды) и квинтэссенция теперь открыты!\n\n"
+                            f"Нажмите кнопку ниже, чтобы запустить приложение:"
+                        ) if is_forever else (
+                            f"🎉 *Вам выдан доступ к KLIM TAROT PRO!*\n\n"
+                            f"⏳ Срок действия: *{days} дн.* (до `{exp.strftime('%d.%m.%Y')}`).\n"
+                            f"⚡ Все экспертные расклады и карты открыты!\n\n"
+                            f"Нажмите кнопку ниже, чтобы войти в приложение:"
+                        ),
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("🔮 Войти в KLIM TAROT PRO ✨", web_app=WebAppInfo(url=pro_url))]
+                        ]),
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                except Exception:
+                    pass
+                await safe_answer(query, f"⚡ Выдан PRO {'навсегда' if is_forever else f'на {days} дн.'} (до {exp.strftime('%d.%m.%Y')})", show_alert=True)
                 card = get_user_card_data(target_uid)
                 if card:
                     await safe_edit(
@@ -2416,6 +2451,15 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif data.startswith("admin_unpro_"):
             target_uid = int(data.split("_")[2])
             payments.revoke_subscription(target_uid, STATS_DB_PATH)
+            dump_stats_to_json()
+            try:
+                normal_url = get_user_webapp_url(target_uid)
+                await context.bot.set_chat_menu_button(
+                    chat_id=target_uid,
+                    menu_button=MenuButtonWebApp(text="🔮 KLIM TAROT", web_app=WebAppInfo(url=normal_url)),
+                )
+            except Exception:
+                pass
             await safe_answer(query, f"❌ Режим PRO забран у {target_uid}", show_alert=True)
             card = get_user_card_data(target_uid)
             if card:
@@ -3431,9 +3475,15 @@ def start_health_server() -> None:
                                     exp = sub["expires_at"]
                                     if exp > now:
                                         res["is_pro"] = True
-                                        res["pro_days"] = max(1, math.ceil((exp - now).total_seconds() / 86400))
+                                        days_left = max(1, math.ceil((exp - now).total_seconds() / 86400))
+                                        if days_left >= 365:
+                                            res["pro_days"] = 9999
+                                            res["is_forever"] = True
+                                            res["pro_expires_str"] = "Навсегда (VIP)"
+                                        else:
+                                            res["pro_days"] = days_left
+                                            res["pro_expires_str"] = sub.get("expires_str", "")
                                         res["pro_expires_at"] = exp.isoformat()
-                                        res["pro_expires_str"] = sub.get("expires_str", "")
                             with sqlite3.connect(STATS_DB_PATH) as conn:
                                 ref_cnt = conn.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (uid,)).fetchone()[0]
                                 res["referral_count"] = ref_cnt or 0

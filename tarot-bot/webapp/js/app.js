@@ -966,9 +966,10 @@ const CloudSync = {
       .then((data) => {
         if (!data || data.status !== 'ok') return;
         if (typeof state === 'undefined' || !state) return;
-        if (data.is_owner) {
-          state.isOwner = true;
+        if (data.is_owner || data.is_forever || data.pro_days >= 365 || data.pro_days >= 9999) {
+          if (data.is_owner) state.isOwner = true;
           state.proDays = 9999;
+          localStorage.setItem('klim_tarot_pro_days', '9999');
           localStorage.setItem('klim_tarot_pro_granted', 'true');
         } else if (data.pro_days !== undefined) {
           state.proDays = data.pro_days;
@@ -1000,6 +1001,7 @@ const CloudSync = {
           if (typeof checkWheelCooldown === 'function') checkWheelCooldown();
         }
         if (typeof updateProDaysUI === 'function') updateProDaysUI();
+        if (typeof updateProfileUI === 'function') updateProfileUI();
       })
       .catch(() => {});
   },
@@ -1194,7 +1196,11 @@ function checkProAccessFromEnv() {
 
     const urlDays = parseInt(urlParams.get('pdays') || hashParams.get('pdays') || '0', 10);
     const urlExp = parseInt(urlParams.get('pexp') || hashParams.get('pexp') || '0', 10);
-    if (urlDays > 0) {
+    const isVip = urlParams.get('vip') === '1' || hashParams.get('vip') === '1';
+    if (urlDays >= 365 || urlDays === 9999 || isVip) {
+      localStorage.setItem('klim_tarot_pro_days', '9999');
+      localStorage.setItem('klim_tarot_pro_granted', 'true');
+    } else if (urlDays > 0) {
       localStorage.setItem('klim_tarot_pro_days', String(urlDays));
       localStorage.setItem('klim_tarot_pro_granted', 'true');
     }
@@ -1269,13 +1275,15 @@ const state = {
 
 function getRemainingProDays() {
   const uid = getTelegramUserId();
-  if (uid === OWNER_TELEGRAM_ID || state.isOwner || state.proDays >= 9999) {
+  if (uid === OWNER_TELEGRAM_ID || state.isOwner || state.proDays >= 365 || state.proDays >= 9999) {
     return Infinity;
   }
   if (state.proExpiresAt && state.proExpiresAt > 0) {
     const diff = state.proExpiresAt - Date.now();
     if (diff <= 0) return 0;
-    return Math.max(1, Math.ceil(diff / 86400000));
+    const days = Math.ceil(diff / 86400000);
+    if (days >= 365) return Infinity;
+    return Math.max(1, days);
   }
   return Math.max(0, state.proDays || 0);
 }
@@ -2859,8 +2867,9 @@ function randomizeHeroSubtitle() {
 
 function updateSoundIcon() {
   const btn = document.getElementById('btn-sound-toggle');
-  document.getElementById('icon-sound-on').classList.toggle('hidden', !sound.enabled);
-  document.getElementById('icon-sound-off').classList.toggle('hidden', sound.enabled);
+  if (!btn) return;
+  document.getElementById('icon-sound-on')?.classList.toggle('hidden', !sound.enabled);
+  document.getElementById('icon-sound-off')?.classList.toggle('hidden', sound.enabled);
   btn.classList.toggle('muted', !sound.enabled);
 }
 
@@ -2920,9 +2929,9 @@ function bindEvents() {
   });
 
   // Topbar controls
-  document.getElementById('btn-back').addEventListener('click', goBack);
-  document.getElementById('btn-to-hero').addEventListener('click', () => navigateTo('hero'));
-  document.getElementById('btn-history-shortcut').addEventListener('click', () => navigateTo('history'));
+  document.getElementById('btn-back')?.addEventListener('click', goBack);
+  document.getElementById('btn-to-hero')?.addEventListener('click', () => navigateTo('hero'));
+  document.getElementById('btn-history-shortcut')?.addEventListener('click', () => navigateTo('history'));
   document.getElementById('btn-app-close')?.addEventListener('click', () => {
     sound.playTap();
     haptic('medium');
@@ -2932,7 +2941,7 @@ function bindEvents() {
       navigateTo('hero');
     }
   });
-  document.getElementById('btn-sound-toggle').addEventListener('click', () => {
+  document.getElementById('btn-sound-toggle')?.addEventListener('click', () => {
     const on = sound.toggle();
     updateSoundIcon();
     showToast(on ? '🔊 Музыка и звуки включены' : '🔇 Звук выключен');

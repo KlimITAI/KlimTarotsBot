@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css?v=42" />
+  <link rel="stylesheet" href="./css/styles.css?v=43" />
   <!-- Preload Burst SFX & Key Tarot Cards for Instant Zero-Lag Transition -->
   <link rel="preload" href="./assets/transition-burst.mp3" as="fetch" crossorigin="anonymous" />
   <link rel="preload" href="./assets/cards/m17.webp" as="image" type="image/webp" />
@@ -191,7 +191,7 @@
       </video>
       <!-- Top Sticky Header -->
       <header class="top-bar">
-        <div class="top-bar-brand-group">
+        <div class="top-bar-left">
           <button class="icon-btn hidden" id="btn-back" aria-label="Назад">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -201,7 +201,9 @@
             <img src="./assets/klim-logo.png" class="brand-logo-img" alt="KLIM" />
             <span class="brand-name" id="topbar-title">TAROT</span>
           </div>
-          <!-- Жёлтый переключатель Экспертного режима и статус подписки -->
+        </div>
+        <!-- Жёлтый переключатель Экспертного режима и статус подписки по центру -->
+        <div class="top-bar-center">
           <button class="btn-pro-pill" id="btn-pro-toggle" aria-label="Экспертный режим" title="Статус подписки PRO">
             <span class="pro-sparkle">⚡</span>
             <span class="pro-label" id="topbar-pro-label">PRO</span>
@@ -209,25 +211,6 @@
           </button>
         </div>
         <div class="top-bar-actions">
-          <button class="icon-btn icon-btn-compact icon-btn-profile" id="btn-topbar-profile" aria-label="Мой профиль" title="Мой профиль">
-            <div class="topbar-avatar-thumb" id="topbar-avatar-thumb">🔮</div>
-          </button>
-          <button class="icon-btn icon-btn-compact" id="btn-sound-toggle" aria-label="Звук" title="Вкл/выкл звук">
-            <svg id="icon-sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M11 5L6 9H2v6h4l5 4V5z" stroke-linejoin="round"/>
-              <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" stroke-linecap="round"/>
-            </svg>
-            <svg id="icon-sound-off" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M11 5L6 9H2v6h4l5 4V5z" stroke-linejoin="round"/>
-              <path d="M23 9l-6 6M17 9l6 6" stroke-linecap="round"/>
-            </svg>
-          </button>
-          <button class="icon-btn icon-btn-compact" id="btn-history-shortcut" aria-label="История" title="История">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <circle cx="12" cy="12" r="9"/>
-              <path d="M12 7v5l3 2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
           <button class="icon-btn icon-btn-compact" id="btn-settings" aria-label="Настройки" title="Настройки">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <circle cx="12" cy="12" r="3.2"/>
@@ -279,7 +262,7 @@
                     <strong class="pro-widget-title" id="pro-widget-title">KLIM TAROT PRO</strong>
                     <span class="pro-widget-tag" id="pro-widget-tag">АКТИВЕН</span>
                   </div>
-                  <div class="pro-widget-desc" id="pro-widget-desc">Осталось: <span id="pro-widget-days" class="pro-days-highlight">3 дня</span> · 35 раскладов и 78 карт открыты</div>
+                  <div class="pro-widget-desc" id="pro-widget-desc">Осталось: <span id="pro-widget-days" class="pro-days-highlight">...</span> · 35 раскладов и 78 карт открыты</div>
                 </div>
               </div>
               <button type="button" class="btn-pro-widget-action" id="btn-home-pro-action">
@@ -1180,6 +1163,6 @@
   <!-- Audio preload for zero-latency burst sound -->
   <audio id="snd-transition-burst" preload="auto" src="./assets/transition-burst.mp3" style="display:none;"></audio>
 
-  <script type="module" src="./js/app.js?v=42"></script>
+  <script type="module" src="./js/app.js?v=43"></script>
 </body>
 </html>
