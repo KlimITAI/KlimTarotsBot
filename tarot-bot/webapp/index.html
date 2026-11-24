@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css?v=36" />
+  <link rel="stylesheet" href="./css/styles.css?v=37" />
 </head>
 <body>
   <!-- Animated Cosmic Starfield & Nebula Canvas -->
@@ -32,8 +32,8 @@
          ══════════════════════════════════════════════════════════ -->
     <section id="view-hero" class="view active" aria-label="Главный экран">
       <!-- Atmospheric Looping Welcome Animation on Entry -->
-      <video class="hero-bg-video" autoplay loop muted playsinline preload="auto" poster="./assets/brand-hero.jpg" aria-hidden="true">
-        <source src="./assets/welcome.mp4" type="video/mp4" />
+      <video class="hero-bg-video" autoplay loop muted playsinline preload="auto" poster="./assets/cards-space-poster.jpg" aria-hidden="true">
+        <source src="./assets/cards-space-loop.mp4" type="video/mp4" />
       </video>
       <div class="hero-video-veil" aria-hidden="true"></div>
       <!-- Аккуратный авторский логотип в углу при заходе -->
@@ -236,8 +236,8 @@
         <section id="view-home" class="subview">
           <!-- Brand Atmospheric Banner (Animated Video replacing static image) -->
           <div class="modern-hero-banner" id="banner-daily-card">
-            <video class="banner-bg-img" autoplay loop muted playsinline preload="auto" poster="./assets/brand-hero.jpg" aria-hidden="true">
-              <source src="./assets/welcome.mp4" type="video/mp4" />
+            <video class="banner-bg-img" autoplay loop muted playsinline preload="auto" poster="./assets/cards-space-poster.jpg" aria-hidden="true">
+              <source src="./assets/cards-space-loop.mp4" type="video/mp4" />
             </video>
             <div class="banner-overlay"></div>
             <div class="banner-content">
@@ -802,7 +802,7 @@
         <section id="view-fortune" class="subview">
           <div class="view-intro">
             <h2>🎡 Колесо Фортуны</h2>
-            <p>X Аркан Судьбы · Вращайте колесо раз в сутки, собирайте Осколки Судьбы или выигрывайте дни PRO!</p>
+            <p>X Аркан Судьбы · Вращайте колесо каждые 5 часов, собирайте Осколки Судьбы и получайте редкие награды!</p>
           </div>
 
           <!-- Осколки Судьбы (Фрагменты) -->
@@ -842,7 +842,7 @@
             </button>
             <div id="wheel-cooldown-wrap" class="wheel-cooldown-wrap hidden">
               <span>⏳ Следующее вращение через:</span>
-              <strong id="wheel-cooldown-timer">23:59:59</strong>
+              <strong id="wheel-cooldown-timer">05:00:00</strong>
             </div>
           </div>
 
@@ -851,11 +851,13 @@
             <h4>Призы на Колесе Фортуны:</h4>
             <div class="legend-items-grid">
               <div class="legend-item"><span class="legend-icon">🔮</span> <span>+1 или +2 Осколка Судьбы</span></div>
-              <div class="legend-item"><span class="legend-icon">⚡</span> <span>PRO-режим на 24 часа</span></div>
-              <div class="legend-item"><span class="legend-icon">🏷️</span> <span>Скидка 30% на подписку</span></div>
+              <div class="legend-item"><span class="legend-icon">💎</span> <span>Супер-джекпот: +3 Осколка</span></div>
+              <div class="legend-item"><span class="legend-icon">🏷️</span> <span>Скидка 25% на подписку</span></div>
+              <div class="legend-item"><span class="legend-icon">🍀</span> <span>Талисман Удачи на день</span></div>
               <div class="legend-item"><span class="legend-icon">🌑</span> <span>Теневая карта (Дно колоды)</span></div>
               <div class="legend-item"><span class="legend-icon">🌊</span> <span>4 стихии & Квинтэссенция</span></div>
-              <div class="legend-item"><span class="legend-icon">🎁</span> <span>+1 полный день PRO</span></div>
+              <div class="legend-item"><span class="legend-icon">🌟</span> <span>Мудрость Старших Арканов</span></div>
+              <div class="legend-item"><span class="legend-icon">✨</span> <span>5 осколков = +2 дня PRO!</span></div>
             </div>
           </div>
         </section>
@@ -1026,6 +1028,6 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast hidden"></div>
 
-  <script type="module" src="./js/app.js?v=36"></script>
+  <script type="module" src="./js/app.js?v=37"></script>
 </body>
 </html>

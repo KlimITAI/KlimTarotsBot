@@ -97,6 +97,11 @@ class SoundEngine {
     const rawVol = localStorage.getItem('klim_tarot_vol_v2');
     const savedPct = rawVol !== null ? Number(rawVol) : NaN;
     this.volumePercent = Number.isFinite(savedPct) && savedPct >= 0 && savedPct <= 100 ? savedPct : 75;
+
+    const rawSfx = localStorage.getItem('klim_tarot_sfx_vol');
+    const savedSfx = rawSfx !== null ? Number(rawSfx) : NaN;
+    this.sfxVolumePercent = Number.isFinite(savedSfx) && savedSfx >= 0 && savedSfx <= 100 ? savedSfx : 80;
+
     this.ctx = null;
     this.bgm = null;
     this.bgmGain = null;
@@ -109,6 +114,18 @@ class SoundEngine {
       { src: './assets/ambient-2.mp3', name: 'Атмосфера II' },
     ];
     this.trackIndex = 0;
+  }
+
+  setSfxVolumePercent(pct) {
+    const clamped = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
+    this.sfxVolumePercent = clamped;
+    localStorage.setItem('klim_tarot_sfx_vol', String(clamped));
+    return clamped;
+  }
+
+  _sfxScale() {
+    if (!this.enabled || this.sfxVolumePercent <= 0) return 0;
+    return this.sfxVolumePercent / 100;
   }
 
   _pctToGain(pct) {
@@ -272,8 +289,22 @@ class SoundEngine {
     return this.enabled;
   }
 
+  // Особенный мистический звук перехода с разлётом карт
+  playTransitionBurst() {
+    if (!this.enabled) return;
+    try {
+      const audio = new Audio('./assets/transition-burst.mp3');
+      const scale = this._sfxScale();
+      // Комфортная громкость: отчётливо слышно, но мягко (0.38)
+      audio.volume = Math.max(0.05, Math.min(0.5, 0.38 * (scale > 0 ? scale : 0.8)));
+      audio.play().catch(() => {});
+    } catch (_) {}
+  }
+
   // Subtle crystalline UI tap
   playTap() {
+    const scale = this._sfxScale();
+    if (scale <= 0) return;
     const ctx = this._ensureCtx();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -282,7 +313,7 @@ class SoundEngine {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(680, now);
     osc.frequency.exponentialRampToValueAtTime(980, now + 0.06);
-    gain.gain.setValueAtTime(0.055, now);
+    gain.gain.setValueAtTime(0.055 * scale, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
     osc.connect(gain).connect(ctx.destination);
     osc.start(now);
@@ -291,6 +322,8 @@ class SoundEngine {
 
   // Soft velvet card-shuffle rustle (filtered noise bursts)
   playShuffle() {
+    const scale = this._sfxScale();
+    if (scale <= 0) return;
     const ctx = this._ensureCtx();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -311,7 +344,7 @@ class SoundEngine {
       filter.Q.value = 1.6;
 
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.09, start);
+      gain.gain.setValueAtTime(0.09 * scale, start);
       gain.gain.exponentialRampToValueAtTime(0.001, start + 0.09);
 
       src.connect(filter).connect(gain).connect(ctx.destination);
@@ -321,6 +354,8 @@ class SoundEngine {
 
   // Tactile card slide + delicate chime when picking from deck
   playCardPick(index = 0) {
+    const scale = this._sfxScale();
+    if (scale <= 0) return;
     const ctx = this._ensureCtx();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -338,19 +373,19 @@ class SoundEngine {
     bp.type = 'highpass';
     bp.frequency.value = 1800;
     const ng = ctx.createGain();
-    ng.gain.setValueAtTime(0.06, now);
+    ng.gain.setValueAtTime(0.06 * scale, now);
     ng.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
     noise.connect(bp).connect(ng).connect(ctx.destination);
     noise.start(now);
 
     // Ascending pentatonic sparkle note
-    const scale = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5];
-    const freq = scale[index % scale.length];
+    const scaleNotes = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5];
+    const freq = scaleNotes[index % scaleNotes.length];
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(freq, now);
-    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.setValueAtTime(0.08 * scale, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
     osc.connect(gain).connect(ctx.destination);
     osc.start(now);
@@ -359,6 +394,8 @@ class SoundEngine {
 
   // Celestial harmonic chord when a card flips face-up
   playCardFlip(isMajor = false, isReversed = false) {
+    const scale = this._sfxScale();
+    if (scale <= 0) return;
     const ctx = this._ensureCtx();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -376,7 +413,7 @@ class SoundEngine {
       const t = now + idx * 0.045;
       osc.frequency.setValueAtTime(freq, t);
       gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.linearRampToValueAtTime(isMajor ? 0.075 : 0.055, t + 0.04);
+      gain.gain.linearRampToValueAtTime((isMajor ? 0.075 : 0.055) * scale, t + 0.04);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.85);
       osc.connect(gain).connect(ctx.destination);
       osc.start(t);
@@ -386,6 +423,8 @@ class SoundEngine {
 
   // Deep mystical bell for Yes/No Oracle verdict
   playOracleReveal(weight = 0) {
+    const scale = this._sfxScale();
+    if (scale <= 0) return;
     const ctx = this._ensureCtx();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -402,7 +441,7 @@ class SoundEngine {
       osc.type = 'sine';
       const t = now + i * 0.06;
       osc.frequency.setValueAtTime(freq, t);
-      gain.gain.setValueAtTime(0.07, t);
+      gain.gain.setValueAtTime(0.07 * scale, t);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
       osc.connect(gain).connect(ctx.destination);
       osc.start(t);
@@ -942,7 +981,91 @@ function showToast(msg) {
   el._t = setTimeout(() => el.classList.add('hidden'), 2400);
 }
 
+function triggerCardBurstTransition(targetView, navOptions = {}) {
+  sound.playTransitionBurst();
+  haptic('medium');
+  sound.startAmbience();
+
+  // Authentic Tarot cards from deck to burst across screen in 3D
+  const burstCards = [
+    { src: './assets/cards/m17.webp', dx: -58, dy: -46, rot: -36, scale: 1.35, z: 220 }, // XVII Звезда (top-left)
+    { src: './assets/cards/m19.webp', dx: 58, dy: -48, rot: 34, scale: 1.3, z: 200 },   // XIX Солнце (top-right)
+    { src: './assets/cards/m10.webp', dx: 0, dy: -60, rot: 10, scale: 1.45, z: 280 },   // X Фортуна (top-center)
+    { src: './assets/cards/m0.webp',  dx: -65, dy: 6, rot: -50, scale: 1.38, z: 230 },   // 0 Шут (mid-left)
+    { src: './assets/cards/m1.webp',  dx: 65, dy: 10, rot: 46, scale: 1.36, z: 240 },   // I Маг (mid-right)
+    { src: './assets/cards/m21.webp', dx: -52, dy: 52, rot: -28, scale: 1.3, z: 190 },  // XXI Мир (bottom-left)
+    { src: './assets/cards/w01.webp', dx: 52, dy: 50, rot: 32, scale: 1.28, z: 180 },  // Туз Жезлов (bottom-right)
+  ];
+
+  const stage = document.createElement('div');
+  stage.id = 'cards-burst-stage';
+
+  burstCards.forEach((c, idx) => {
+    const cardEl = document.createElement('div');
+    cardEl.className = 'burst-card-item';
+    cardEl.innerHTML = `
+      <img src="${c.src}" class="burst-card-img" alt="Tarot" />
+      <div class="burst-card-sheen"></div>
+    `;
+    const initRot = (idx - 3) * 6;
+    cardEl.style.transform = `translate3d(0, 0, 0) rotate(${initRot}deg) scale(0.96)`;
+    cardEl.style.opacity = '1';
+    stage.appendChild(cardEl);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        cardEl.style.transform = `translate3d(${c.dx}vw, ${c.dy}vh, ${c.z}px) rotate(${c.rot}deg) scale(${c.scale})`;
+        cardEl.style.opacity = '0';
+      });
+    });
+  });
+
+  document.body.appendChild(stage);
+
+  // Fade out hero content smoothly without scaling the window
+  viewHero.classList.add('hero-transitioning-out');
+
+  // Fade in main chrome
+  mainChrome.classList.remove('hidden');
+  mainChrome.classList.add('chrome-transitioning-in');
+  document.getElementById('main-bg-video')?.classList.add('visible');
+
+  document.querySelectorAll('.subview').forEach((el) => el.classList.remove('active'));
+  const target = document.getElementById(`view-${targetView}`);
+  if (target) target.classList.add('active');
+
+  state.currentView = targetView;
+  topbarTitle.textContent = VIEW_TITLES[targetView] || 'TAROT';
+
+  const dockTabs = ['home', 'spreads', 'oracle', 'psychology', 'dictionary'];
+  const dockTab = dockTabs.includes(targetView) ? targetView : null;
+  document.querySelectorAll('.dock-item').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.tab === dockTab);
+  });
+
+  const showBack = !dockTabs.includes(targetView);
+  btnBack.classList.toggle('hidden', !showBack);
+  if (tg?.BackButton) {
+    if (showBack) tg.BackButton.show();
+    else tg.BackButton.hide();
+  }
+
+  if (targetView === 'home') refreshHomeBanner();
+
+  setTimeout(() => {
+    stage.remove();
+    viewHero.classList.add('hidden');
+    viewHero.classList.remove('hero-transitioning-out');
+    mainChrome.classList.remove('chrome-transitioning-in');
+  }, 860);
+}
+
 function navigateTo(viewName, { push = true } = {}) {
+  if (state.currentView === 'hero' && viewName !== 'hero') {
+    triggerCardBurstTransition(viewName, { push });
+    return;
+  }
+
   sound.playTap();
   haptic('light');
   sound.startAmbience();
@@ -2649,7 +2772,6 @@ function openSettingsModal() {
   sound.playTap();
   haptic('light');
   const body = document.getElementById('modal-body');
-  const curTrack = sound.playlist[sound.trackIndex]?.name || 'Атмосфера I';
 
   body.innerHTML = `
     <h2 style="margin:0 0 14px;font-family:var(--font-display);font-size:28px;">Настройки</h2>
@@ -2668,12 +2790,24 @@ function openSettingsModal() {
         step="1"
         value="${sound.enabled ? sound.volumePercent : 0}"
       />
-      <div class="settings-audio-btns">
-        <button class="btn-glass-secondary" id="settings-sound-toggle">
-          ${sound.enabled ? 'Выключить звук' : 'Включить звук'}
-        </button>
-        <button class="btn-glass-secondary" id="settings-next-track">
-          Трек: ${escapeHtml(curTrack)}
+
+      <div class="settings-row-head" style="margin-top:14px;">
+        <span class="settings-label">Громкость эффектов</span>
+        <span class="settings-val" id="settings-sfx-label">${sound.enabled ? sound.sfxVolumePercent : 0}%</span>
+      </div>
+      <input
+        type="range"
+        id="settings-sfx-slider"
+        class="volume-slider"
+        min="0"
+        max="100"
+        step="1"
+        value="${sound.enabled ? sound.sfxVolumePercent : 0}"
+      />
+
+      <div class="settings-audio-btns" style="margin-top:14px;">
+        <button class="btn-glass-secondary" id="settings-sound-toggle" style="width:100%;">
+          ${sound.enabled ? 'Выключить все звуки' : 'Включить звук'}
         </button>
       </div>
     </div>
@@ -2697,40 +2831,40 @@ function openSettingsModal() {
       <img src="./assets/klim-logo.png" alt="KLIM" class="settings-brand-logo" />
       <div class="settings-brand-info">
         <span class="settings-brand-name">KLIM TAROT</span>
-        <span class="settings-brand-author">Авторский проект & экосистема · @im_klim</span>
+        <span class="settings-brand-author">Авторский проект · @im_klim</span>
       </div>
     </div>
   `;
 
   const slider = document.getElementById('settings-vol-slider');
   const volLabel = document.getElementById('settings-vol-label');
+  const sfxSlider = document.getElementById('settings-sfx-slider');
+  const sfxLabel = document.getElementById('settings-sfx-label');
   const toggleBtn = document.getElementById('settings-sound-toggle');
-  const trackBtn = document.getElementById('settings-next-track');
 
   slider?.addEventListener('input', (e) => {
     const pct = sound.setVolumePercent(e.target.value);
     if (volLabel) volLabel.textContent = `${pct}%`;
-    if (toggleBtn) toggleBtn.textContent = pct > 0 ? 'Выключить звук' : 'Включить звук';
+    if (toggleBtn) toggleBtn.textContent = (pct > 0 || sound.sfxVolumePercent > 0) ? 'Выключить все звуки' : 'Включить звук';
     updateSoundIcon();
+  });
+
+  sfxSlider?.addEventListener('input', (e) => {
+    const pct = sound.setSfxVolumePercent(e.target.value);
+    if (sfxLabel) sfxLabel.textContent = `${pct}%`;
+    sound.playTap();
   });
 
   toggleBtn?.addEventListener('click', () => {
     const on = sound.toggle();
     updateSoundIcon();
-    const shownPct = on ? sound.volumePercent : 0;
-    if (slider) slider.value = String(shownPct);
-    if (volLabel) volLabel.textContent = `${shownPct}%`;
-    toggleBtn.textContent = on ? 'Выключить звук' : 'Включить звук';
-  });
-
-  trackBtn?.addEventListener('click', () => {
-    const info = sound.nextTrack();
-    updateSoundIcon();
-    trackBtn.textContent = `Трек: ${info.name}`;
-    if (slider) slider.value = String(sound.volumePercent);
-    if (volLabel) volLabel.textContent = `${sound.volumePercent}%`;
-    if (toggleBtn) toggleBtn.textContent = 'Выключить звук';
-    showToast(`🎵 ${info.name} (${info.index}/${info.total})`);
+    const shownMusic = on ? sound.volumePercent : 0;
+    const shownSfx = on ? sound.sfxVolumePercent : 0;
+    if (slider) slider.value = String(shownMusic);
+    if (volLabel) volLabel.textContent = `${shownMusic}%`;
+    if (sfxSlider) sfxSlider.value = String(shownSfx);
+    if (sfxLabel) sfxLabel.textContent = `${shownSfx}%`;
+    toggleBtn.textContent = on ? 'Выключить все звуки' : 'Включить звук';
   });
 
   document.getElementById('btn-contact-admin')?.addEventListener('click', () => {
@@ -3248,7 +3382,7 @@ const WHEEL_SECTORS = [
   { label: '+2 Осколка', icon: '✨', type: 'shard', val: 2, bg1: '#3b0764', bg2: '#6b21a8', border: '#d8b4fe', text: '#faf5ff' },
   { label: 'Талисман Удачи', icon: '🍀', type: 'talisman', bg1: '#064e3b', bg2: '#047857', border: '#34d399', text: '#ecfdf5' },
   { label: '4 Стихии', icon: '🌊', type: 'feature_elements', bg1: '#164e63', bg2: '#0e7490', border: '#22d3ee', text: '#ecfeff' },
-  { label: '+1 Осколок', icon: '🔮', type: 'shard', val: 1, bg1: '#4a044e', bg2: '#86198f', border: '#e879f9', text: '#fdf4ff' },
+  { label: '+3 Осколка', icon: '💎', type: 'shard', val: 3, bg1: '#854d0e', bg2: '#ca8a04', border: '#fde047', text: '#fefce8' },
   { label: 'Мудрость Таро', icon: '🌟', type: 'wisdom', bg1: '#713f12', bg2: '#b45309', border: '#fde047', text: '#fefce8' },
 ];
 
@@ -3408,7 +3542,7 @@ function drawWheel(angle = 0) {
 function checkWheelCooldown() {
   const lastSpin = parseInt(localStorage.getItem('klim_tarot_wheel_last') || '0', 10);
   const now = Date.now();
-  const cooldown = 24 * 3600 * 1000;
+  const cooldown = 5 * 3600 * 1000;
   const diff = cooldown - (now - lastSpin);
 
   const spinBtn = document.getElementById('btn-spin-wheel');
@@ -3484,8 +3618,13 @@ function applyWheelReward(prize) {
 
   if (prize.type === 'shard') {
     const cur = getShardsCount();
-    setShardsCount(cur + prize.val);
-    showToast(`🔮 Вы выиграли: ${prize.label}! (Собрано: ${cur + prize.val}/5)`);
+    const nextVal = cur + prize.val;
+    setShardsCount(nextVal);
+    if (prize.val >= 3) {
+      showToast(`💎 СУПЕР-ДЖЕКПОТ: +${prize.val} Осколка Судьбы! (Всего: ${nextVal}/5)`);
+    } else {
+      showToast(`🔮 Вы выиграли: ${prize.label}! (Собрано: ${nextVal}/5)`);
+    }
   } else if (prize.type === 'discount_25') {
     showToast(`🏷️ Вы выиграли Скидку 25%! Промокод: ${prize.code} сохранён в разделе Тарифы`);
     localStorage.setItem('klim_tarot_promo_discount', '25');
