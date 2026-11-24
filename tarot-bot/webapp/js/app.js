@@ -912,17 +912,25 @@ const CloudSync = {
               }
               if (values.klim_tarot_pro_days) {
                 const cDays = parseInt(values.klim_tarot_pro_days, 10);
-                if (cDays > 0 && typeof state !== 'undefined') state.proDays = cDays;
+                if (cDays > 0) {
+                  localStorage.setItem('klim_tarot_pro_days', String(cDays));
+                  if (typeof state !== 'undefined' && state) state.proDays = cDays;
+                }
               }
               if (values.klim_tarot_pro_exp) {
                 const cExp = parseInt(values.klim_tarot_pro_exp, 10);
-                if (cExp > 0 && typeof state !== 'undefined') state.proExpiresAt = cExp;
+                if (cExp > 0) {
+                  localStorage.setItem('klim_tarot_pro_exp', String(cExp));
+                  if (typeof state !== 'undefined' && state) state.proExpiresAt = cExp;
+                }
               }
-              if (values.klim_tarot_ref_count && typeof state !== 'undefined') {
-                state.referralCount = parseInt(values.klim_tarot_ref_count, 10);
+              if (values.klim_tarot_ref_count) {
+                localStorage.setItem('klim_tarot_ref_count', String(values.klim_tarot_ref_count));
+                if (typeof state !== 'undefined' && state) state.referralCount = parseInt(values.klim_tarot_ref_count, 10);
               }
-              if (values.klim_tarot_ref_bonus && typeof state !== 'undefined') {
-                state.referralBonusDays = parseInt(values.klim_tarot_ref_bonus, 10);
+              if (values.klim_tarot_ref_bonus) {
+                localStorage.setItem('klim_tarot_ref_bonus', String(values.klim_tarot_ref_bonus));
+                if (typeof state !== 'undefined' && state) state.referralBonusDays = parseInt(values.klim_tarot_ref_bonus, 10);
               }
               if (values.klim_tarot_daily_local) {
                 try {
@@ -957,6 +965,7 @@ const CloudSync = {
       })
       .then((data) => {
         if (!data || data.status !== 'ok') return;
+        if (typeof state === 'undefined' || !state) return;
         if (data.is_owner) {
           state.isOwner = true;
           state.proDays = 9999;
@@ -1013,7 +1022,6 @@ const CloudSync = {
     }).catch(() => {});
   }
 };
-CloudSync.initSync();
 
 function getDailyCard() {
   const period = getUserDayNightPeriod();
@@ -1172,7 +1180,6 @@ function checkProAccessFromEnv() {
   const uid = getTelegramUserId();
   if (uid && uid === OWNER_TELEGRAM_ID) {
     try { localStorage.setItem('klim_tarot_pro_granted', 'true'); } catch (e) {}
-    if (typeof state !== 'undefined') state.isOwner = true;
     return true;
   }
 
@@ -1185,22 +1192,18 @@ function checkProAccessFromEnv() {
     const urlDays = parseInt(urlParams.get('pdays') || hashParams.get('pdays') || '0', 10);
     const urlExp = parseInt(urlParams.get('pexp') || hashParams.get('pexp') || '0', 10);
     if (urlDays > 0) {
-      if (typeof state !== 'undefined') state.proDays = urlDays;
       localStorage.setItem('klim_tarot_pro_days', String(urlDays));
       localStorage.setItem('klim_tarot_pro_granted', 'true');
     }
     if (urlExp > 0) {
-      if (typeof state !== 'undefined') state.proExpiresAt = urlExp * 1000;
       localStorage.setItem('klim_tarot_pro_exp', String(urlExp * 1000));
     }
     const refc = parseInt(urlParams.get('refc') || '0', 10);
     const refd = parseInt(urlParams.get('refd') || '0', 10);
     if (refc > 0) {
-      if (typeof state !== 'undefined') state.referralCount = refc;
       localStorage.setItem('klim_tarot_ref_count', String(refc));
     }
     if (refd > 0) {
-      if (typeof state !== 'undefined') state.referralBonusDays = refd;
       localStorage.setItem('klim_tarot_ref_bonus', String(refd));
     }
 
@@ -1235,19 +1238,6 @@ function checkProAccessFromEnv() {
   return localStorage.getItem('klim_tarot_pro_granted') === 'true';
 }
 
-function getRemainingProDays() {
-  const uid = getTelegramUserId();
-  if (uid === OWNER_TELEGRAM_ID || state?.isOwner || state?.proDays >= 9999) {
-    return Infinity;
-  }
-  if (state?.proExpiresAt && state.proExpiresAt > 0) {
-    const diff = state.proExpiresAt - Date.now();
-    if (diff <= 0) return 0;
-    return Math.max(1, Math.ceil(diff / 86400000));
-  }
-  return Math.max(0, state?.proDays || 0);
-}
-
 function hasProAccess() {
   return checkProAccessFromEnv();
 }
@@ -1268,11 +1258,24 @@ const state = {
   proExpiresAt: parseInt(localStorage.getItem('klim_tarot_pro_exp') || '0', 10),
   referralCount: parseInt(localStorage.getItem('klim_tarot_ref_count') || '0', 10),
   referralBonusDays: parseInt(localStorage.getItem('klim_tarot_ref_bonus') || '0', 10),
-  isOwner: false,
+  isOwner: getTelegramUserId() === OWNER_TELEGRAM_ID,
   isProMode: hasProAccess() && (localStorage.getItem('klim_tarot_pro_mode') !== 'false'),
   proDeckMode: localStorage.getItem('klim_tarot_pro_deck') || 'all', // 'all' | 'major' | 'minor'
   proReversals: parseFloat(localStorage.getItem('klim_tarot_pro_rev') || '0.5'), // 0.5 | 0.25 | 0
 };
+
+function getRemainingProDays() {
+  const uid = getTelegramUserId();
+  if (uid === OWNER_TELEGRAM_ID || state.isOwner || state.proDays >= 9999) {
+    return Infinity;
+  }
+  if (state.proExpiresAt && state.proExpiresAt > 0) {
+    const diff = state.proExpiresAt - Date.now();
+    if (diff <= 0) return 0;
+    return Math.max(1, Math.ceil(diff / 86400000));
+  }
+  return Math.max(0, state.proDays || 0);
+}
 
 const viewHero = document.getElementById('view-hero');
 const mainChrome = document.getElementById('main-chrome');
@@ -4134,3 +4137,4 @@ document.getElementById('btn-home-pro-action')?.addEventListener('click', () => 
 });
 
 updateProDaysUI();
+CloudSync.initSync();
