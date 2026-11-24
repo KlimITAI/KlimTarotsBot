@@ -114,6 +114,10 @@ class SoundEngine {
       { src: './assets/ambient-2.mp3', name: 'Атмосфера II' },
     ];
     this.trackIndex = 0;
+    this.burstBuffer = null;
+    this._burstLoading = false;
+    this._burstArrayBuffer = null;
+    this._preloadBurst();
   }
 
   setSfxVolumePercent(pct) {
@@ -196,7 +200,36 @@ class SoundEngine {
     if (this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
+    if (this._burstArrayBuffer && !this.burstBuffer && !this._burstDecoding) {
+      this._burstDecoding = true;
+      this.ctx.decodeAudioData(this._burstArrayBuffer.slice(0))
+        .then((buf) => { this.burstBuffer = buf; })
+        .catch(() => {})
+        .finally(() => { this._burstDecoding = false; });
+    }
     return this.ctx;
+  }
+
+  _preloadBurst() {
+    if (this.burstBuffer || this._burstLoading) return;
+    this._burstLoading = true;
+    fetch('./assets/transition-burst.mp3')
+      .then((res) => {
+        if (!res.ok) throw new Error('status ' + res.status);
+        return res.arrayBuffer();
+      })
+      .then((ab) => {
+        this._burstArrayBuffer = ab;
+        if (this.ctx) {
+          return this.ctx.decodeAudioData(ab.slice(0)).then((buf) => {
+            this.burstBuffer = buf;
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        this._burstLoading = false;
+      });
   }
 
   _ensureBgm() {
@@ -289,15 +322,51 @@ class SoundEngine {
     return this.enabled;
   }
 
-  // Особенный мистический звук перехода с разлётом карт
+  // Особенный мистический звук перехода с разлётом карт (0ms задержки, мягкий бархатный свист)
   playTransitionBurst() {
     if (!this.enabled) return;
+    const scale = this._sfxScale();
+    if (scale <= 0) return;
+
+    // Смягчённая комфортная громкость: отчётливо слышна в динамике смартфона, но не бьёт по ушам (0.18)
+    const targetVol = Math.max(0.04, Math.min(0.24, 0.18 * (scale > 0 ? scale : 0.8)));
+
+    const ctx = this._ensureCtx();
+    if (ctx) {
+      if (this.burstBuffer) {
+        try {
+          const src = ctx.createBufferSource();
+          src.buffer = this.burstBuffer;
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(targetVol, ctx.currentTime);
+          src.connect(gain).connect(ctx.destination);
+          src.start(0);
+          return;
+        } catch (_) {}
+      } else if (this._burstArrayBuffer) {
+        try {
+          ctx.decodeAudioData(this._burstArrayBuffer.slice(0)).then((buf) => {
+            this.burstBuffer = buf;
+            const src = ctx.createBufferSource();
+            src.buffer = buf;
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(targetVol, ctx.currentTime);
+            src.connect(gain).connect(ctx.destination);
+            src.start(0);
+          }).catch(() => {});
+          return;
+        } catch (_) {}
+      }
+    }
+
+    // Мгновенный fallback через предзагруженный аудио-тег
     try {
-      const audio = new Audio('./assets/transition-burst.mp3');
-      const scale = this._sfxScale();
-      // Комфортная громкость: отчётливо слышно, но мягко (0.38)
-      audio.volume = Math.max(0.05, Math.min(0.5, 0.38 * (scale > 0 ? scale : 0.8)));
-      audio.play().catch(() => {});
+      const audio = document.getElementById('snd-transition-burst');
+      if (audio) {
+        audio.currentTime = 0;
+        audio.volume = targetVol;
+        audio.play().catch(() => {});
+      }
     } catch (_) {}
   }
 
@@ -1066,48 +1135,49 @@ function showToast(msg) {
 }
 
 function triggerCardBurstTransition(targetView, navOptions = {}) {
+  // 1. Play zero-latency transition burst immediately on pointer tap
   sound.playTransitionBurst();
   haptic('medium');
   sound.startAmbience();
 
   // Authentic Tarot cards from deck to burst across screen in 3D
   const burstCards = [
-    { src: './assets/cards/m17.webp', dx: -58, dy: -46, rot: -36, scale: 1.35, z: 220 }, // XVII Звезда (top-left)
-    { src: './assets/cards/m19.webp', dx: 58, dy: -48, rot: 34, scale: 1.3, z: 200 },   // XIX Солнце (top-right)
-    { src: './assets/cards/m10.webp', dx: 0, dy: -60, rot: 10, scale: 1.45, z: 280 },   // X Фортуна (top-center)
-    { src: './assets/cards/m0.webp',  dx: -65, dy: 6, rot: -50, scale: 1.38, z: 230 },   // 0 Шут (mid-left)
-    { src: './assets/cards/m1.webp',  dx: 65, dy: 10, rot: 46, scale: 1.36, z: 240 },   // I Маг (mid-right)
-    { src: './assets/cards/m21.webp', dx: -52, dy: 52, rot: -28, scale: 1.3, z: 190 },  // XXI Мир (bottom-left)
-    { src: './assets/cards/w01.webp', dx: 52, dy: 50, rot: 32, scale: 1.28, z: 180 },  // Туз Жезлов (bottom-right)
+    { src: './assets/cards/m17.webp', dx: -68, dy: -52, initRot: -12, rot: -42, scale: 1.32, z: 240, delay: 0 },   // XVII Звезда (top-left)
+    { src: './assets/cards/m19.webp', dx: 68, dy: -54, initRot: 14, rot: 40, scale: 1.30, z: 220, delay: 25 },    // XIX Солнце (top-right)
+    { src: './assets/cards/m10.webp', dx: 0, dy: -66, initRot: 2, rot: 8, scale: 1.42, z: 300, delay: 15 },       // X Колесо Фортуны (center-up)
+    { src: './assets/cards/m0.webp',  dx: -74, dy: 6, initRot: -8, rot: -52, scale: 1.34, z: 250, delay: 40 },    // 0 Шут (mid-left)
+    { src: './assets/cards/m1.webp',  dx: 74, dy: 10, initRot: 10, rot: 48, scale: 1.34, z: 260, delay: 35 },     // I Маг (mid-right)
+    { src: './assets/cards/m21.webp', dx: -62, dy: 58, initRot: -16, rot: -32, scale: 1.28, z: 210, delay: 55 },  // XXI Мир (bottom-left)
+    { src: './assets/cards/w01.webp', dx: 62, dy: 56, initRot: 18, rot: 36, scale: 1.26, z: 200, delay: 50 },    // Туз Жезлов (bottom-right)
   ];
 
   const stage = document.createElement('div');
   stage.id = 'cards-burst-stage';
 
-  burstCards.forEach((c, idx) => {
+  burstCards.forEach((c) => {
     const cardEl = document.createElement('div');
     cardEl.className = 'burst-card-item';
+    cardEl.style.setProperty('--init-rot', `${c.initRot}deg`);
+    cardEl.style.setProperty('--end-dx', `${c.dx}vw`);
+    cardEl.style.setProperty('--end-dy', `${c.dy}vh`);
+    cardEl.style.setProperty('--end-z', `${c.z}px`);
+    cardEl.style.setProperty('--end-rot', `${c.rot}deg`);
+    cardEl.style.setProperty('--end-scale', `${c.scale}`);
+    cardEl.style.setProperty('--burst-delay', `${c.delay}ms`);
+
     cardEl.innerHTML = `
-      <img src="${c.src}" class="burst-card-img" alt="Tarot" />
+      <img src="${c.src}" class="burst-card-img" alt="Tarot" loading="eager" />
       <div class="burst-card-sheen"></div>
     `;
-    const initRot = (idx - 3) * 6;
-    cardEl.style.transform = `translate3d(0, 0, 0) rotate(${initRot}deg) scale(0.96)`;
-    cardEl.style.opacity = '1';
     stage.appendChild(cardEl);
-
-    requestAnimationFrame(() => {
-      cardEl.style.transform = `translate3d(${c.dx}vw, ${c.dy}vh, ${c.z}px) rotate(${c.rot}deg) scale(${c.scale})`;
-      cardEl.style.opacity = '0';
-    });
   });
 
   document.body.appendChild(stage);
 
-  // Switch layout immediately without lag: hero fades out in absolute overlay
+  // Switch layout smoothly: hero fades out in absolute overlay
   viewHero.classList.add('hero-transitioning-out');
 
-  // Fade in main chrome immediately at top: 0
+  // Fade in main chrome in harmony with card flight
   mainChrome.classList.remove('hidden');
   mainChrome.classList.add('chrome-transitioning-in');
   document.getElementById('main-bg-video')?.classList.add('visible');
@@ -1134,12 +1204,14 @@ function triggerCardBurstTransition(targetView, navOptions = {}) {
 
   if (targetView === 'home') refreshHomeBanner();
 
+  // Full animation duration: 1350ms flight + 55ms max stagger = ~1410ms
+  // Cleanly remove stage and finalize classes at 1550ms
   setTimeout(() => {
     stage.remove();
     viewHero.classList.add('hidden');
     viewHero.classList.remove('hero-transitioning-out');
     mainChrome.classList.remove('chrome-transitioning-in');
-  }, 480);
+  }, 1550);
 }
 
 function navigateTo(viewName, { push = true } = {}) {
