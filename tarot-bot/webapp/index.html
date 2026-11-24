@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css?v=39" />
+  <link rel="stylesheet" href="./css/styles.css?v=40" />
   <!-- Preload Burst SFX & Key Tarot Cards for Instant Zero-Lag Transition -->
   <link rel="preload" href="./assets/transition-burst.mp3" as="fetch" crossorigin="anonymous" />
   <link rel="preload" href="./assets/cards/m17.webp" as="image" type="image/webp" />
@@ -91,7 +91,8 @@
             <span class="hero-eyebrow">KLIM TAROT · 78 АРКАНОВ</span>
             <button type="button" class="btn-pro-pill hero-pro-pill" id="btn-hero-pro-toggle" title="Экспертный режим">
               <span class="pro-sparkle">⚡</span>
-              <span class="pro-label">PRO РЕЖИМ</span>
+              <span class="pro-label" id="hero-pro-label">PRO РЕЖИМ</span>
+              <span class="pro-days-chip hidden" id="hero-pro-days">0 дн.</span>
             </button>
           </div>
           <h1 class="hero-title">Гадание на Таро</h1>
@@ -200,10 +201,11 @@
             <img src="./assets/klim-logo.png" class="brand-logo-img" alt="KLIM" />
             <span class="brand-name" id="topbar-title">TAROT</span>
           </div>
-          <!-- Жёлтый переключатель Экспертного режима -->
-          <button class="btn-pro-pill" id="btn-pro-toggle" aria-label="Экспертный режим" title="Переключить Экспертный режим (PRO)">
+          <!-- Жёлтый переключатель Экспертного режима и статус подписки -->
+          <button class="btn-pro-pill" id="btn-pro-toggle" aria-label="Экспертный режим" title="Статус подписки PRO">
             <span class="pro-sparkle">⚡</span>
-            <span class="pro-label">PRO</span>
+            <span class="pro-label" id="topbar-pro-label">PRO</span>
+            <span class="pro-days-chip hidden" id="topbar-pro-days">0 дн.</span>
           </button>
         </div>
         <div class="top-bar-actions">
@@ -260,6 +262,26 @@
                 </div>
                 <div class="daily-timer-pill hidden" id="daily-timer-pill"></div>
               </div>
+            </div>
+          </div>
+
+          <!-- ⚡ Карточка статуса подписки PRO и счётчика дней -->
+          <div class="pro-status-widget" id="home-pro-widget">
+            <div class="pro-widget-glow"></div>
+            <div class="pro-widget-content">
+              <div class="pro-widget-left">
+                <div class="pro-widget-icon" id="pro-widget-icon">⚡</div>
+                <div class="pro-widget-info">
+                  <div class="pro-widget-title-row">
+                    <strong class="pro-widget-title" id="pro-widget-title">KLIM TAROT PRO</strong>
+                    <span class="pro-widget-tag" id="pro-widget-tag">АКТИВЕН</span>
+                  </div>
+                  <div class="pro-widget-desc" id="pro-widget-desc">Осталось: <span id="pro-widget-days" class="pro-days-highlight">3 дня</span> · 35 раскладов и 78 карт открыты</div>
+                </div>
+              </div>
+              <button type="button" class="btn-pro-widget-action" id="btn-home-pro-action">
+                <span id="home-pro-btn-text">+ Продлить</span>
+              </button>
             </div>
           </div>
 
@@ -889,8 +911,8 @@
               <span class="invite-stat-lbl">Бонусных дней PRO</span>
             </div>
             <div class="invite-stat-card">
-              <span class="invite-stat-num" id="stat-user-rank">#1</span>
-              <span class="invite-stat-lbl">Ваш ранг в топе</span>
+              <span class="invite-stat-num" id="stat-user-pro-days">0 дн.</span>
+              <span class="invite-stat-lbl">Всего дней PRO</span>
             </div>
           </div>
 
@@ -1040,6 +1062,6 @@
   <!-- Audio preload for zero-latency burst sound -->
   <audio id="snd-transition-burst" preload="auto" src="./assets/transition-burst.mp3" style="display:none;"></audio>
 
-  <script type="module" src="./js/app.js?v=39"></script>
+  <script type="module" src="./js/app.js?v=40"></script>
 </body>
 </html>

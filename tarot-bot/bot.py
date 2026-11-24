@@ -27,6 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, date, timedelta, timezone
 from collections import defaultdict
 from pathlib import Path
+import math
 
 import httpx
 from telegram import (
@@ -904,7 +905,7 @@ STATS_DB_PATH = BASE_DIR / "stats.db"
 PROMO_SHARE_PATH = BASE_DIR / "assets" / "promo-share.mp4"
 PROMO_VIDEO_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-share.mp4"
 PROMO_POSTER_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-poster.jpg"
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=39"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=40"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 _welcome_file_id_cache: dict[tuple[str, float], str] = {}
 _promo_video_file_id: str | None = None
@@ -928,18 +929,34 @@ def user_has_pro(uid: int | None) -> bool:
 
 
 def get_user_webapp_url(uid: int | None = None, is_trial: bool = False) -> str:
-    """Возвращает персональный URL WebApp: передает PRO, UID и серверные таймеры для синхронизации."""
+    """Возвращает персональный URL WebApp: передает PRO, UID, остаток дней и серверные таймеры для синхронизации."""
     if not WEBAPP_URL:
         return ""
     params = []
-    if uid is not None and user_has_pro(uid):
+    has_pro = user_has_pro(uid) if uid is not None else False
+    if has_pro:
         params.append("pro=1")
     if is_trial:
         params.append("trial=1")
     if uid is not None:
         params.append(f"uid={uid}")
         try:
+            if uid in ADMIN_IDS:
+                params.append("pdays=9999")
+            else:
+                sub = payments.get_subscription(uid, STATS_DB_PATH)
+                if sub and sub.get("expires_at"):
+                    now = datetime.now(MSK_TZ)
+                    exp = sub["expires_at"]
+                    if exp > now:
+                        days_left = max(1, math.ceil((exp - now).total_seconds() / 86400))
+                        params.append(f"pdays={days_left}")
+                        params.append(f"pexp={int(exp.timestamp())}")
             with sqlite3.connect(STATS_DB_PATH) as conn:
+                ref_cnt = conn.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (uid,)).fetchone()[0]
+                if ref_cnt:
+                    params.append(f"refc={ref_cnt}")
+                    params.append(f"refd={ref_cnt * 2}")
                 row = conn.execute(
                     "SELECT wheel_last, shards, daily_card_key FROM user_cloud_sync WHERE user_id = ?",
                     (uid,),
@@ -3387,10 +3404,40 @@ def start_health_server() -> None:
                     qs = urllib.parse.parse_qs(parsed.query)
                     uid_raw = qs.get("uid", ["0"])[0]
                     uid = int(uid_raw) if uid_raw.isdigit() else 0
-                    res = {"status": "ok", "uid": uid, "wheel_last": 0, "shards": 0, "daily_card_key": ""}
+                    res = {
+                        "status": "ok",
+                        "uid": uid,
+                        "wheel_last": 0,
+                        "shards": 0,
+                        "daily_card_key": "",
+                        "is_pro": False,
+                        "is_owner": (uid in ADMIN_IDS) if uid else False,
+                        "pro_days": 0,
+                        "pro_expires_at": "",
+                        "pro_expires_str": "",
+                        "referral_count": 0,
+                        "referral_bonus_days": 0,
+                    }
                     if uid > 0:
                         try:
+                            if uid in ADMIN_IDS:
+                                res["is_pro"] = True
+                                res["pro_days"] = 9999
+                                res["pro_expires_str"] = "Навсегда (VIP Владелец)"
+                            else:
+                                sub = payments.get_subscription(uid, STATS_DB_PATH)
+                                if sub and sub.get("expires_at"):
+                                    now = datetime.now(MSK_TZ)
+                                    exp = sub["expires_at"]
+                                    if exp > now:
+                                        res["is_pro"] = True
+                                        res["pro_days"] = max(1, math.ceil((exp - now).total_seconds() / 86400))
+                                        res["pro_expires_at"] = exp.isoformat()
+                                        res["pro_expires_str"] = sub.get("expires_str", "")
                             with sqlite3.connect(STATS_DB_PATH) as conn:
+                                ref_cnt = conn.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (uid,)).fetchone()[0]
+                                res["referral_count"] = ref_cnt or 0
+                                res["referral_bonus_days"] = (ref_cnt or 0) * 2
                                 row = conn.execute(
                                     "SELECT wheel_last, shards, daily_card_key FROM user_cloud_sync WHERE user_id = ?",
                                     (uid,),
@@ -3424,7 +3471,17 @@ def start_health_server() -> None:
                         body = self.rfile.read(length)
                         data = json.loads(body.decode("utf-8"))
                         uid = int(data.get("uid") or data.get("user_id") or 0)
+                        resp_data = {"status": "ok"}
                         if uid > 0:
+                            # 1. Начисление бонусных дней PRO при обмене осколков
+                            grant_days = int(data.get("grant_pro_days") or 0)
+                            if 0 < grant_days <= 14:
+                                try:
+                                    exp = payments.grant_subscription(uid, "shards_reward", grant_days, STATS_DB_PATH)
+                                    resp_data["granted_pro_days"] = grant_days
+                                    resp_data["pro_expires_str"] = exp.strftime("%d.%m.%Y %H:%M МСК")
+                                except Exception:
+                                    pass
                             wl = int(data.get("wheel_last") or 0)
                             sh = int(data.get("shards") or 0)
                             dk = str(data.get("daily_card_key") or "")
@@ -3444,7 +3501,7 @@ def start_health_server() -> None:
                                 )
                                 conn.commit()
                             dump_stats_to_json()
-                        resp = json.dumps({"status": "ok"}).encode("utf-8")
+                        resp = json.dumps(resp_data).encode("utf-8")
                         self.send_response(200)
                         self.send_header("Content-Type", "application/json; charset=utf-8")
                         self._send_cors()

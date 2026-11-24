@@ -848,7 +848,7 @@ const CloudSync = {
   },
 
   initSync() {
-    // 1. Проверяем URL-параметры прямо от серверного бота (wl = wheel_last, sh = shards, dk = daily_key)
+    // 1. Проверяем URL-параметры прямо от серверного бота (wl, sh, dk, pdays, pexp, refc, refd)
     try {
       const params = new URLSearchParams(window.location.search);
       const urlWl = parseInt(params.get('wl') || '0', 10);
@@ -862,13 +862,39 @@ const CloudSync = {
       if (urlSh >= 0 && urlSh > curSh) {
         localStorage.setItem('klim_tarot_shards', String(urlSh));
       }
+
+      const urlDays = parseInt(params.get('pdays') || '0', 10);
+      const urlExp = parseInt(params.get('pexp') || '0', 10);
+      if (urlDays > 0) {
+        localStorage.setItem('klim_tarot_pro_days', String(urlDays));
+        localStorage.setItem('klim_tarot_pro_granted', 'true');
+      }
+      if (urlExp > 0) {
+        localStorage.setItem('klim_tarot_pro_exp', String(urlExp * 1000));
+      }
+      const refc = parseInt(params.get('refc') || '0', 10);
+      const refd = parseInt(params.get('refd') || '0', 10);
+      if (refc > 0) {
+        localStorage.setItem('klim_tarot_ref_count', String(refc));
+      }
+      if (refd > 0) {
+        localStorage.setItem('klim_tarot_ref_bonus', String(refd));
+      }
     } catch (_) {}
 
     // 2. Telegram CloudStorage: подтягиваем значения, сохраненные с других устройств (ПК / телефон)
     try {
       if (window.Telegram?.WebApp?.CloudStorage?.getItems) {
         window.Telegram.WebApp.CloudStorage.getItems(
-          ['klim_tarot_wheel_last', 'klim_tarot_shards', 'klim_tarot_daily_local'],
+          [
+            'klim_tarot_wheel_last',
+            'klim_tarot_shards',
+            'klim_tarot_daily_local',
+            'klim_tarot_pro_days',
+            'klim_tarot_pro_exp',
+            'klim_tarot_ref_count',
+            'klim_tarot_ref_bonus'
+          ],
           (err, values) => {
             if (!err && values) {
               const cloudWl = parseInt(values.klim_tarot_wheel_last || '0', 10);
@@ -884,6 +910,20 @@ const CloudSync = {
                 localStorage.setItem('klim_tarot_shards', String(cloudSh));
                 if (typeof renderShardsUI === 'function') renderShardsUI();
               }
+              if (values.klim_tarot_pro_days) {
+                const cDays = parseInt(values.klim_tarot_pro_days, 10);
+                if (cDays > 0 && typeof state !== 'undefined') state.proDays = cDays;
+              }
+              if (values.klim_tarot_pro_exp) {
+                const cExp = parseInt(values.klim_tarot_pro_exp, 10);
+                if (cExp > 0 && typeof state !== 'undefined') state.proExpiresAt = cExp;
+              }
+              if (values.klim_tarot_ref_count && typeof state !== 'undefined') {
+                state.referralCount = parseInt(values.klim_tarot_ref_count, 10);
+              }
+              if (values.klim_tarot_ref_bonus && typeof state !== 'undefined') {
+                state.referralBonusDays = parseInt(values.klim_tarot_ref_bonus, 10);
+              }
               if (values.klim_tarot_daily_local) {
                 try {
                   const cloudDaily = JSON.parse(values.klim_tarot_daily_local);
@@ -893,11 +933,84 @@ const CloudSync = {
                   }
                 } catch (_) {}
               }
+              if (typeof updateProDaysUI === 'function') updateProDaysUI();
             }
           }
         );
       }
     } catch (_) {}
+
+    // 3. Серверная фоновая синхронизация (Render API)
+    setTimeout(() => {
+      const uid = getTelegramUserId();
+      if (uid) CloudSync.fetchServerSync(uid);
+    }, 400);
+  },
+
+  fetchServerSync(uid) {
+    if (!uid) return;
+    const url = `https://klim-tarot-bot.onrender.com/api/sync_state?uid=${uid}`;
+    fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } })
+      .then((res) => {
+        if (!res.ok) throw new Error('Status ' + res.status);
+        return res.json();
+      })
+      .then((data) => {
+        if (!data || data.status !== 'ok') return;
+        if (data.is_owner) {
+          state.isOwner = true;
+          state.proDays = 9999;
+          localStorage.setItem('klim_tarot_pro_granted', 'true');
+        } else if (data.pro_days !== undefined) {
+          state.proDays = data.pro_days;
+          localStorage.setItem('klim_tarot_pro_days', String(data.pro_days));
+          if (data.pro_days > 0) {
+            localStorage.setItem('klim_tarot_pro_granted', 'true');
+          } else {
+            localStorage.removeItem('klim_tarot_pro_granted');
+          }
+        }
+        if (data.pro_expires_at) {
+          try {
+            state.proExpiresAt = new Date(data.pro_expires_at).getTime();
+            localStorage.setItem('klim_tarot_pro_exp', String(state.proExpiresAt));
+          } catch (_) {}
+        }
+        if (data.referral_count !== undefined) {
+          state.referralCount = data.referral_count;
+          state.referralBonusDays = data.referral_bonus_days || (data.referral_count * 2);
+          localStorage.setItem('klim_tarot_ref_count', String(state.referralCount));
+          localStorage.setItem('klim_tarot_ref_bonus', String(state.referralBonusDays));
+        }
+        if (data.shards !== undefined && data.shards > parseInt(localStorage.getItem('klim_tarot_shards') || '0', 10)) {
+          localStorage.setItem('klim_tarot_shards', String(data.shards));
+          if (typeof renderShardsUI === 'function') renderShardsUI();
+        }
+        if (data.wheel_last && data.wheel_last > parseInt(localStorage.getItem('klim_tarot_wheel_last') || '0', 10)) {
+          localStorage.setItem('klim_tarot_wheel_last', String(data.wheel_last));
+          if (typeof checkWheelCooldown === 'function') checkWheelCooldown();
+        }
+        if (typeof updateProDaysUI === 'function') updateProDaysUI();
+      })
+      .catch(() => {});
+  },
+
+  postProGrant(grantDays = 2) {
+    const uid = getTelegramUserId();
+    if (!uid) return;
+    const url = `https://klim-tarot-bot.onrender.com/api/sync_state`;
+    const body = {
+      uid,
+      grant_pro_days: grantDays,
+      wheel_last: parseInt(localStorage.getItem('klim_tarot_wheel_last') || '0', 10),
+      shards: parseInt(localStorage.getItem('klim_tarot_shards') || '0', 10),
+      daily_card_key: localStorage.getItem('klim_tarot_daily_local') || ''
+    };
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).catch(() => {});
   }
 };
 CloudSync.initSync();
@@ -1059,6 +1172,7 @@ function checkProAccessFromEnv() {
   const uid = getTelegramUserId();
   if (uid && uid === OWNER_TELEGRAM_ID) {
     try { localStorage.setItem('klim_tarot_pro_granted', 'true'); } catch (e) {}
+    if (typeof state !== 'undefined') state.isOwner = true;
     return true;
   }
 
@@ -1068,12 +1182,35 @@ function checkProAccessFromEnv() {
     const hashParams = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
     const startParam = tg?.initDataUnsafe?.start_param || '';
 
+    const urlDays = parseInt(urlParams.get('pdays') || hashParams.get('pdays') || '0', 10);
+    const urlExp = parseInt(urlParams.get('pexp') || hashParams.get('pexp') || '0', 10);
+    if (urlDays > 0) {
+      if (typeof state !== 'undefined') state.proDays = urlDays;
+      localStorage.setItem('klim_tarot_pro_days', String(urlDays));
+      localStorage.setItem('klim_tarot_pro_granted', 'true');
+    }
+    if (urlExp > 0) {
+      if (typeof state !== 'undefined') state.proExpiresAt = urlExp * 1000;
+      localStorage.setItem('klim_tarot_pro_exp', String(urlExp * 1000));
+    }
+    const refc = parseInt(urlParams.get('refc') || '0', 10);
+    const refd = parseInt(urlParams.get('refd') || '0', 10);
+    if (refc > 0) {
+      if (typeof state !== 'undefined') state.referralCount = refc;
+      localStorage.setItem('klim_tarot_ref_count', String(refc));
+    }
+    if (refd > 0) {
+      if (typeof state !== 'undefined') state.referralBonusDays = refd;
+      localStorage.setItem('klim_tarot_ref_bonus', String(refd));
+    }
+
     if (
       urlParams.get('pro') === '1' ||
       urlParams.get('pro') === 'true' ||
       hashParams.get('pro') === '1' ||
       startParam === 'pro' ||
-      startParam.startsWith('pro_')
+      startParam.startsWith('pro_') ||
+      urlDays > 0
     ) {
       localStorage.setItem('klim_tarot_pro_granted', 'true');
       localStorage.setItem('klim_tarot_pro_mode', 'true');
@@ -1081,7 +1218,34 @@ function checkProAccessFromEnv() {
     }
   } catch (e) {}
 
+  const savedExp = parseInt(localStorage.getItem('klim_tarot_pro_exp') || '0', 10);
+  if (savedExp > 0) {
+    if (Date.now() < savedExp) {
+      return true;
+    } else {
+      localStorage.removeItem('klim_tarot_pro_granted');
+      localStorage.setItem('klim_tarot_pro_days', '0');
+      return false;
+    }
+  }
+
+  const savedDays = parseInt(localStorage.getItem('klim_tarot_pro_days') || '0', 10);
+  if (savedDays > 0) return true;
+
   return localStorage.getItem('klim_tarot_pro_granted') === 'true';
+}
+
+function getRemainingProDays() {
+  const uid = getTelegramUserId();
+  if (uid === OWNER_TELEGRAM_ID || state?.isOwner || state?.proDays >= 9999) {
+    return Infinity;
+  }
+  if (state?.proExpiresAt && state.proExpiresAt > 0) {
+    const diff = state.proExpiresAt - Date.now();
+    if (diff <= 0) return 0;
+    return Math.max(1, Math.ceil(diff / 86400000));
+  }
+  return Math.max(0, state?.proDays || 0);
 }
 
 function hasProAccess() {
@@ -1100,6 +1264,11 @@ const state = {
   drawSession: null, // { spread, friendName, question, needed, pool, picked: [] }
   lastReading: null,
   oracleFlipped: false,
+  proDays: parseInt(localStorage.getItem('klim_tarot_pro_days') || '0', 10),
+  proExpiresAt: parseInt(localStorage.getItem('klim_tarot_pro_exp') || '0', 10),
+  referralCount: parseInt(localStorage.getItem('klim_tarot_ref_count') || '0', 10),
+  referralBonusDays: parseInt(localStorage.getItem('klim_tarot_ref_bonus') || '0', 10),
+  isOwner: false,
   isProMode: hasProAccess() && (localStorage.getItem('klim_tarot_pro_mode') !== 'false'),
   proDeckMode: localStorage.getItem('klim_tarot_pro_deck') || 'all', // 'all' | 'major' | 'minor'
   proReversals: parseFloat(localStorage.getItem('klim_tarot_pro_rev') || '0.5'), // 0.5 | 0.25 | 0
@@ -1982,6 +2151,65 @@ function updateProModeUI() {
     proResult.classList.toggle('hidden', !state.isProMode);
     if (state.isProMode) renderProResultMatrix(state.lastReading);
   }
+}
+
+function updateProDaysUI() {
+  const days = getRemainingProDays();
+  const hasPro = (days > 0 || days === Infinity);
+  state.isProMode = hasPro && (localStorage.getItem('klim_tarot_pro_mode') !== 'false');
+
+  const topbarChip = document.getElementById('topbar-pro-days');
+  const heroChip = document.getElementById('hero-pro-days');
+  const daysText = days === Infinity ? '👑' : `${days} дн.`;
+
+  if (topbarChip) {
+    topbarChip.textContent = daysText;
+    topbarChip.classList.toggle('hidden', !hasPro);
+  }
+  if (heroChip) {
+    heroChip.textContent = daysText;
+    heroChip.classList.toggle('hidden', !hasPro);
+  }
+
+  // Home widget
+  const homeWidget = document.getElementById('home-pro-widget');
+  const widgetTag = document.getElementById('pro-widget-tag');
+  const widgetDays = document.getElementById('pro-widget-days');
+  const widgetDesc = document.getElementById('pro-widget-desc');
+  const widgetBtnText = document.getElementById('home-pro-btn-text');
+
+  if (homeWidget && widgetTag && widgetDays) {
+    if (hasPro) {
+      widgetTag.textContent = 'АКТИВЕН';
+      widgetTag.className = 'pro-widget-tag active';
+      widgetDays.textContent = days === Infinity ? '👑 Навсегда (VIP)' : `${days} дн.`;
+      if (widgetDesc) {
+        widgetDesc.innerHTML = days === Infinity
+          ? 'Бессрочный VIP-доступ владельца · Все 35 раскладов и 78 карт открыты'
+          : `Осталось: <span class="pro-days-highlight">${days} дн.</span> · Все 35 раскладов и 78 карт открыты`;
+      }
+      if (widgetBtnText) widgetBtnText.textContent = '+ Продлить';
+    } else {
+      widgetTag.textContent = 'НЕ АКТИВЕН';
+      widgetTag.className = 'pro-widget-tag inactive';
+      widgetDays.textContent = '0 дней';
+      if (widgetDesc) {
+        widgetDesc.innerHTML = 'Режим PRO не активен · Оформите подписку или позовите друга (+2 дн.)';
+      }
+      if (widgetBtnText) widgetBtnText.textContent = '✨ Оформить PRO';
+    }
+  }
+
+  // Invite view stats
+  const statRef = document.getElementById('stat-user-referrals');
+  const statBonus = document.getElementById('stat-user-bonus-days');
+  const statPro = document.getElementById('stat-user-pro-days');
+
+  if (statRef) statRef.textContent = String(state.referralCount || 0);
+  if (statBonus) statBonus.textContent = `+${state.referralBonusDays || 0} дн.`;
+  if (statPro) statPro.textContent = days === Infinity ? '👑 Навсегда' : `${days} дн.`;
+
+  updateProModeUI();
 }
 
 function renderProResultMatrix(reading) {
@@ -3808,7 +4036,16 @@ function initFortuneWheel() {
       localStorage.setItem('klim_tarot_pro_granted', 'true');
       localStorage.setItem('klim_tarot_pro_mode', 'true');
       state.isProMode = true;
-      updateProModeUI();
+      state.proDays = (state.proDays || 0) + 2;
+      if (state.proExpiresAt && state.proExpiresAt > Date.now()) {
+        state.proExpiresAt += 2 * 86400000;
+      } else {
+        state.proExpiresAt = Date.now() + 2 * 86400000;
+      }
+      CloudSync.set('klim_tarot_pro_days', state.proDays);
+      CloudSync.set('klim_tarot_pro_exp', state.proExpiresAt);
+      CloudSync.postProGrant(2);
+      updateProDaysUI();
       sound.playShuffle();
       haptic('success');
       showToast('🎉 Осколки объединены! Вам начислено +2 дня режима PRO!');
@@ -3889,3 +4126,11 @@ function renderLeaderboard() {
 
 initFortuneWheel();
 initInviteAndLeaderboard();
+
+document.getElementById('btn-home-pro-action')?.addEventListener('click', () => {
+  sound.playTap();
+  haptic('light');
+  navigateTo('plans');
+});
+
+updateProDaysUI();
