@@ -1,0 +1,795 @@
+{
+  "users": [
+    {
+      "user_id": 1075960422,
+      "username": "Khavron_M",
+      "first_name": "-",
+      "first_seen": "2026-11-18 14:17:01",
+      "last_seen": "2026-11-18 14:18:32",
+      "total_events": 2,
+      "is_banned": 0,
+      "notes": ""
+    },
+    {
+      "user_id": 2114225397,
+      "username": "tati19ana72",
+      "first_name": "Татьяна",
+      "first_seen": "2026-11-18 12:14:11",
+      "last_seen": "2026-11-18 12:14:56",
+      "total_events": 3,
+      "is_banned": 0,
+      "notes": ""
+    },
+    {
+      "user_id": 5176473906,
+      "username": "",
+      "first_name": "Татьяна",
+      "first_seen": "2026-11-18 16:33:24",
+      "last_seen": "2026-11-18 16:36:42",
+      "total_events": 12,
+      "is_banned": 0,
+      "notes": ""
+    },
+    {
+      "user_id": 5693398937,
+      "username": "voyvoyy87",
+      "first_name": "ульянка",
+      "first_seen": "2026-11-18 10:55:19",
+      "last_seen": "2026-11-18 11:04:07",
+      "total_events": 6,
+      "is_banned": 0,
+      "notes": ""
+    },
+    {
+      "user_id": 6435175633,
+      "username": "bldtao",
+      "first_name": "буралай",
+      "first_seen": "2026-11-18 11:02:35",
+      "last_seen": "2026-11-18 13:28:50",
+      "total_events": 5,
+      "is_banned": 0,
+      "notes": ""
+    },
+    {
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "first_seen": "2026-11-18 10:30:56",
+      "last_seen": "2026-11-22 18:27:59",
+      "total_events": 35,
+      "is_banned": 0,
+      "notes": ""
+    },
+    {
+      "user_id": 7793548400,
+      "username": "",
+      "first_name": "Sasha",
+      "first_seen": "2026-11-18 11:02:18",
+      "last_seen": "2026-11-18 11:02:18",
+      "total_events": 1,
+      "is_banned": 0,
+      "notes": ""
+    },
+    {
+      "user_id": 8091781404,
+      "username": "fak_fak10",
+      "first_name": "👑",
+      "first_seen": "2026-11-18 10:37:20",
+      "last_seen": "2026-11-18 10:40:26",
+      "total_events": 2,
+      "is_banned": 0,
+      "notes": ""
+    },
+    {
+      "user_id": 8341832184,
+      "username": "",
+      "first_name": "Ирина",
+      "first_seen": "2026-11-18 12:01:45",
+      "last_seen": "2026-11-18 12:01:45",
+      "total_events": 1,
+      "is_banned": 0,
+      "notes": ""
+    },
+    {
+      "user_id": 8498707767,
+      "username": "olesya2008p",
+      "first_name": "Олеся⚜️",
+      "first_seen": "2026-11-18 10:48:34",
+      "last_seen": "2026-11-18 11:08:16",
+      "total_events": 7,
+      "is_banned": 0,
+      "notes": ""
+    },
+    {
+      "user_id": 8888831706,
+      "username": "RemControls",
+      "first_name": "Dissonance",
+      "first_seen": "2026-11-18 11:07:38",
+      "last_seen": "2026-11-18 11:07:38",
+      "total_events": 1,
+      "is_banned": 0,
+      "notes": ""
+    }
+  ],
+  "subscriptions": [],
+  "payments": [],
+  "trial_claims": [],
+  "referrals": [],
+  "events": [
+    {
+      "id": 1,
+      "ts": "2026-11-18 10:30:56",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 2,
+      "ts": "2026-11-18 10:37:20",
+      "user_id": 8091781404,
+      "username": "fak_fak10",
+      "first_name": "👑",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 3,
+      "ts": "2026-11-18 10:40:26",
+      "user_id": 8091781404,
+      "username": "fak_fak10",
+      "first_name": "👑",
+      "action": "Главное меню",
+      "detail": ""
+    },
+    {
+      "id": 4,
+      "ts": "2026-11-18 10:48:34",
+      "user_id": 8498707767,
+      "username": "olesya2008p",
+      "first_name": "Олеся⚜️",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 5,
+      "ts": "2026-11-18 10:48:43",
+      "user_id": 8498707767,
+      "username": "olesya2008p",
+      "first_name": "Олеся⚜️",
+      "action": "Главное меню",
+      "detail": ""
+    },
+    {
+      "id": 6,
+      "ts": "2026-11-18 10:48:50",
+      "user_id": 8498707767,
+      "username": "olesya2008p",
+      "first_name": "Олеся⚜️",
+      "action": "Все расклады",
+      "detail": ""
+    },
+    {
+      "id": 7,
+      "ts": "2026-11-18 10:48:56",
+      "user_id": 8498707767,
+      "username": "olesya2008p",
+      "first_name": "Олеся⚜️",
+      "action": "Расклад",
+      "detail": "💑 Отношения (7 карт)"
+    },
+    {
+      "id": 8,
+      "ts": "2026-11-18 10:55:12",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 9,
+      "ts": "2026-11-18 10:55:19",
+      "user_id": 5693398937,
+      "username": "voyvoyy87",
+      "first_name": "ульянка",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 10,
+      "ts": "2026-11-18 10:55:52",
+      "user_id": 5693398937,
+      "username": "voyvoyy87",
+      "first_name": "ульянка",
+      "action": "Главное меню",
+      "detail": ""
+    },
+    {
+      "id": 11,
+      "ts": "2026-11-18 10:55:57",
+      "user_id": 5693398937,
+      "username": "voyvoyy87",
+      "first_name": "ульянка",
+      "action": "Карта дня и ночи",
+      "detail": ""
+    },
+    {
+      "id": 12,
+      "ts": "2026-11-18 10:56:04",
+      "user_id": 5693398937,
+      "username": "voyvoyy87",
+      "first_name": "ульянка",
+      "action": "Меню Да/Нет",
+      "detail": ""
+    },
+    {
+      "id": 13,
+      "ts": "2026-11-18 10:56:07",
+      "user_id": 5693398937,
+      "username": "voyvoyy87",
+      "first_name": "ульянка",
+      "action": "Главное меню",
+      "detail": ""
+    },
+    {
+      "id": 14,
+      "ts": "2026-11-18 10:59:07",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 15,
+      "ts": "2026-11-18 11:02:18",
+      "user_id": 7793548400,
+      "username": "",
+      "first_name": "Sasha",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 16,
+      "ts": "2026-11-18 11:02:35",
+      "user_id": 6435175633,
+      "username": "bldtao",
+      "first_name": "буралай",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 17,
+      "ts": "2026-11-18 11:04:07",
+      "user_id": 5693398937,
+      "username": "voyvoyy87",
+      "first_name": "ульянка",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 18,
+      "ts": "2026-11-18 11:07:38",
+      "user_id": 8888831706,
+      "username": "RemControls",
+      "first_name": "Dissonance",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 19,
+      "ts": "2026-11-18 11:08:05",
+      "user_id": 8498707767,
+      "username": "olesya2008p",
+      "first_name": "Олеся⚜️",
+      "action": "Главное меню",
+      "detail": ""
+    },
+    {
+      "id": 20,
+      "ts": "2026-11-18 11:08:12",
+      "user_id": 8498707767,
+      "username": "olesya2008p",
+      "first_name": "Олеся⚜️",
+      "action": "Меню Да/Нет",
+      "detail": ""
+    },
+    {
+      "id": 21,
+      "ts": "2026-11-18 11:08:16",
+      "user_id": 8498707767,
+      "username": "olesya2008p",
+      "first_name": "Олеся⚜️",
+      "action": "Оракул Да/Нет",
+      "detail": ""
+    },
+    {
+      "id": 22,
+      "ts": "2026-11-18 12:01:45",
+      "user_id": 8341832184,
+      "username": "",
+      "first_name": "Ирина",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 23,
+      "ts": "2026-11-18 12:14:11",
+      "user_id": 2114225397,
+      "username": "tati19ana72",
+      "first_name": "Татьяна",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 24,
+      "ts": "2026-11-18 12:14:27",
+      "user_id": 2114225397,
+      "username": "tati19ana72",
+      "first_name": "Татьяна",
+      "action": "Главное меню",
+      "detail": ""
+    },
+    {
+      "id": 25,
+      "ts": "2026-11-18 12:14:56",
+      "user_id": 2114225397,
+      "username": "tati19ana72",
+      "first_name": "Татьяна",
+      "action": "Карта дня и ночи",
+      "detail": ""
+    },
+    {
+      "id": 26,
+      "ts": "2026-11-18 12:37:33",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 27,
+      "ts": "2026-11-18 12:37:45",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 28,
+      "ts": "2026-11-18 12:44:00",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 29,
+      "ts": "2026-11-18 12:44:51",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 30,
+      "ts": "2026-11-18 12:45:43",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 31,
+      "ts": "2026-11-18 12:45:48",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 32,
+      "ts": "2026-11-18 12:46:32",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 33,
+      "ts": "2026-11-18 12:46:36",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 34,
+      "ts": "2026-11-18 12:47:01",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 35,
+      "ts": "2026-11-18 12:48:36",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 36,
+      "ts": "2026-11-18 12:56:21",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 37,
+      "ts": "2026-11-18 13:06:57",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 38,
+      "ts": "2026-11-18 13:08:29",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 39,
+      "ts": "2026-11-18 13:09:11",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 40,
+      "ts": "2026-11-18 13:09:45",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 41,
+      "ts": "2026-11-18 13:09:56",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 42,
+      "ts": "2026-11-18 13:10:01",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 43,
+      "ts": "2026-11-18 13:14:02",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 44,
+      "ts": "2026-11-18 13:14:32",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 45,
+      "ts": "2026-11-18 13:28:32",
+      "user_id": 6435175633,
+      "username": "bldtao",
+      "first_name": "буралай",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 46,
+      "ts": "2026-11-18 13:28:43",
+      "user_id": 6435175633,
+      "username": "bldtao",
+      "first_name": "буралай",
+      "action": "Главное меню",
+      "detail": ""
+    },
+    {
+      "id": 47,
+      "ts": "2026-11-18 13:28:47",
+      "user_id": 6435175633,
+      "username": "bldtao",
+      "first_name": "буралай",
+      "action": "Словарь карт",
+      "detail": ""
+    },
+    {
+      "id": 48,
+      "ts": "2026-11-18 13:28:50",
+      "user_id": 6435175633,
+      "username": "bldtao",
+      "first_name": "буралай",
+      "action": "Кнопка",
+      "detail": "dict_suit_cups"
+    },
+    {
+      "id": 49,
+      "ts": "2026-11-18 13:48:33",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 50,
+      "ts": "2026-11-18 13:58:49",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/paytest"
+    },
+    {
+      "id": 51,
+      "ts": "2026-11-18 13:58:53",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Кнопка",
+      "detail": "pay_plan_week"
+    },
+    {
+      "id": 52,
+      "ts": "2026-11-18 14:17:01",
+      "user_id": 1075960422,
+      "username": "Khavron_M",
+      "first_name": "-",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 53,
+      "ts": "2026-11-18 14:17:11",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/"
+    },
+    {
+      "id": 54,
+      "ts": "2026-11-18 14:18:32",
+      "user_id": 1075960422,
+      "username": "Khavron_M",
+      "first_name": "-",
+      "action": "Главное меню",
+      "detail": ""
+    },
+    {
+      "id": 55,
+      "ts": "2026-11-18 16:19:35",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 56,
+      "ts": "2026-11-18 16:33:24",
+      "user_id": 5176473906,
+      "username": "",
+      "first_name": "Татьяна",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 57,
+      "ts": "2026-11-18 16:33:37",
+      "user_id": 5176473906,
+      "username": "",
+      "first_name": "Татьяна",
+      "action": "Главное меню",
+      "detail": ""
+    },
+    {
+      "id": 58,
+      "ts": "2026-11-18 16:33:47",
+      "user_id": 5176473906,
+      "username": "",
+      "first_name": "Татьяна",
+      "action": "Меню Да/Нет",
+      "detail": ""
+    },
+    {
+      "id": 59,
+      "ts": "2026-11-18 16:34:10",
+      "user_id": 5176473906,
+      "username": "",
+      "first_name": "Татьяна",
+      "action": "Оракул Да/Нет",
+      "detail": ""
+    },
+    {
+      "id": 60,
+      "ts": "2026-11-18 16:34:41",
+      "user_id": 5176473906,
+      "username": "",
+      "first_name": "Татьяна",
+      "action": "Главное меню",
+      "detail": ""
+    },
+    {
+      "id": 61,
+      "ts": "2026-11-18 16:34:50",
+      "user_id": 5176473906,
+      "username": "",
+      "first_name": "Татьяна",
+      "action": "Карта дня и ночи",
+      "detail": ""
+    },
+    {
+      "id": 62,
+      "ts": "2026-11-18 16:35:19",
+      "user_id": 5176473906,
+      "username": "",
+      "first_name": "Татьяна",
+      "action": "Тематические расклады",
+      "detail": ""
+    },
+    {
+      "id": 63,
+      "ts": "2026-11-18 16:35:29",
+      "user_id": 5176473906,
+      "username": "",
+      "first_name": "Татьяна",
+      "action": "Кнопка",
+      "detail": "cat_self"
+    },
+    {
+      "id": 64,
+      "ts": "2026-11-18 16:35:38",
+      "user_id": 5176473906,
+      "username": "",
+      "first_name": "Татьяна",
+      "action": "Расклад",
+      "detail": "🕊️ Духовный путь"
+    },
+    {
+      "id": 65,
+      "ts": "2026-11-18 16:36:21",
+      "user_id": 5176473906,
+      "username": "",
+      "first_name": "Татьяна",
+      "action": "Главное меню",
+      "detail": ""
+    },
+    {
+      "id": 66,
+      "ts": "2026-11-18 16:36:28",
+      "user_id": 5176473906,
+      "username": "",
+      "first_name": "Татьяна",
+      "action": "История",
+      "detail": ""
+    },
+    {
+      "id": 67,
+      "ts": "2026-11-18 16:36:42",
+      "user_id": 5176473906,
+      "username": "",
+      "first_name": "Татьяна",
+      "action": "Главное меню",
+      "detail": ""
+    },
+    {
+      "id": 68,
+      "ts": "2026-11-18 19:26:36",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 69,
+      "ts": "2026-11-18 19:57:15",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 70,
+      "ts": "2026-11-18 20:06:23",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 71,
+      "ts": "2026-11-22 17:57:10",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 72,
+      "ts": "2026-11-22 18:15:11",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 73,
+      "ts": "2026-11-22 18:16:18",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    },
+    {
+      "id": 74,
+      "ts": "2026-11-22 18:16:19",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Главное меню",
+      "detail": ""
+    },
+    {
+      "id": 75,
+      "ts": "2026-11-22 18:27:59",
+      "user_id": 7446803539,
+      "username": "im_klim",
+      "first_name": "Klim",
+      "action": "Команда",
+      "detail": "/start"
+    }
+  ]
+}

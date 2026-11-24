@@ -749,6 +749,90 @@ function getUserDayNightPeriod() {
   };
 }
 
+/* ══════════════════════════════════════════════════════════════
+   CLOUD SYNC & CROSS-DEVICE COOLDOWNS (TELEGRAM CLOUDSTORAGE)
+   Синхронизирует таймер Колеса, Карты Дня и Осколки между ПК и телефоном
+   ══════════════════════════════════════════════════════════════ */
+const CloudSync = {
+  get(key, fallback = null) {
+    try {
+      const v = localStorage.getItem(key);
+      if (v !== null && v !== undefined) return v;
+    } catch (_) {}
+    return fallback;
+  },
+
+  set(key, val) {
+    const sVal = String(val);
+    try {
+      localStorage.setItem(key, sVal);
+    } catch (_) {}
+
+    // 1. Telegram CloudStorage — мгновенная кросс-девайсная синхронизация в аккаунте Telegram
+    try {
+      if (window.Telegram?.WebApp?.CloudStorage?.setItem) {
+        window.Telegram.WebApp.CloudStorage.setItem(key, sVal, (err) => {
+          if (err) console.warn('[CloudStorage] setItem err:', err);
+        });
+      }
+    } catch (_) {}
+  },
+
+  initSync() {
+    // 1. Проверяем URL-параметры прямо от серверного бота (wl = wheel_last, sh = shards, dk = daily_key)
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlWl = parseInt(params.get('wl') || '0', 10);
+      const urlSh = parseInt(params.get('sh') || '-1', 10);
+      const curWl = parseInt(localStorage.getItem('klim_tarot_wheel_last') || '0', 10);
+      const curSh = parseInt(localStorage.getItem('klim_tarot_shards') || '0', 10);
+
+      if (urlWl > curWl) {
+        localStorage.setItem('klim_tarot_wheel_last', String(urlWl));
+      }
+      if (urlSh >= 0 && urlSh > curSh) {
+        localStorage.setItem('klim_tarot_shards', String(urlSh));
+      }
+    } catch (_) {}
+
+    // 2. Telegram CloudStorage: подтягиваем значения, сохраненные с других устройств (ПК / телефон)
+    try {
+      if (window.Telegram?.WebApp?.CloudStorage?.getItems) {
+        window.Telegram.WebApp.CloudStorage.getItems(
+          ['klim_tarot_wheel_last', 'klim_tarot_shards', 'klim_tarot_daily_local'],
+          (err, values) => {
+            if (!err && values) {
+              const cloudWl = parseInt(values.klim_tarot_wheel_last || '0', 10);
+              const cloudSh = parseInt(values.klim_tarot_shards || '-1', 10);
+              const curWl = parseInt(localStorage.getItem('klim_tarot_wheel_last') || '0', 10);
+              const curSh = parseInt(localStorage.getItem('klim_tarot_shards') || '0', 10);
+
+              if (cloudWl > curWl) {
+                localStorage.setItem('klim_tarot_wheel_last', String(cloudWl));
+                if (typeof checkWheelCooldown === 'function') checkWheelCooldown();
+              }
+              if (cloudSh >= 0 && cloudSh > curSh) {
+                localStorage.setItem('klim_tarot_shards', String(cloudSh));
+                if (typeof renderShardsUI === 'function') renderShardsUI();
+              }
+              if (values.klim_tarot_daily_local) {
+                try {
+                  const cloudDaily = JSON.parse(values.klim_tarot_daily_local);
+                  const localDaily = JSON.parse(localStorage.getItem('klim_tarot_daily_local') || 'null');
+                  if (cloudDaily && (!localDaily || localDaily.periodKey !== cloudDaily.periodKey)) {
+                    localStorage.setItem('klim_tarot_daily_local', values.klim_tarot_daily_local);
+                  }
+                } catch (_) {}
+              }
+            }
+          }
+        );
+      }
+    } catch (_) {}
+  }
+};
+CloudSync.initSync();
+
 function getDailyCard() {
   const period = getUserDayNightPeriod();
   try {
@@ -766,7 +850,7 @@ function drawAndSaveDailyCard() {
   if (existing) return existing;
   const period = getUserDayNightPeriod();
   const [{ card, reversed }] = drawRandomCards(1);
-  localStorage.setItem(
+  CloudSync.set(
     'klim_tarot_daily_local',
     JSON.stringify({ periodKey: period.periodKey, cardId: card.id, reversed })
   );
@@ -791,7 +875,7 @@ function markCooldown(kind) {
   try {
     const map = JSON.parse(localStorage.getItem('klim_tarot_cooldowns') || '{}');
     map[kind] = Date.now();
-    localStorage.setItem('klim_tarot_cooldowns', JSON.stringify(map));
+    CloudSync.set('klim_tarot_cooldowns', JSON.stringify(map));
   } catch (_) {}
 }
 
@@ -1013,19 +1097,17 @@ function triggerCardBurstTransition(targetView, navOptions = {}) {
     stage.appendChild(cardEl);
 
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        cardEl.style.transform = `translate3d(${c.dx}vw, ${c.dy}vh, ${c.z}px) rotate(${c.rot}deg) scale(${c.scale})`;
-        cardEl.style.opacity = '0';
-      });
+      cardEl.style.transform = `translate3d(${c.dx}vw, ${c.dy}vh, ${c.z}px) rotate(${c.rot}deg) scale(${c.scale})`;
+      cardEl.style.opacity = '0';
     });
   });
 
   document.body.appendChild(stage);
 
-  // Fade out hero content smoothly without scaling the window
+  // Switch layout immediately without lag: hero fades out in absolute overlay
   viewHero.classList.add('hero-transitioning-out');
 
-  // Fade in main chrome
+  // Fade in main chrome immediately at top: 0
   mainChrome.classList.remove('hidden');
   mainChrome.classList.add('chrome-transitioning-in');
   document.getElementById('main-bg-video')?.classList.add('visible');
@@ -1057,7 +1139,7 @@ function triggerCardBurstTransition(targetView, navOptions = {}) {
     viewHero.classList.add('hidden');
     viewHero.classList.remove('hero-transitioning-out');
     mainChrome.classList.remove('chrome-transitioning-in');
-  }, 860);
+  }, 480);
 }
 
 function navigateTo(viewName, { push = true } = {}) {
@@ -3396,7 +3478,7 @@ function getShardsCount() {
 }
 
 function setShardsCount(cnt) {
-  localStorage.setItem('klim_tarot_shards', String(Math.max(0, cnt)));
+  CloudSync.set('klim_tarot_shards', String(Math.max(0, cnt)));
   renderShardsUI();
 }
 
@@ -3603,7 +3685,7 @@ function spinWheel() {
       requestAnimationFrame(frame);
     } else {
       wheelState.isSpinning = false;
-      localStorage.setItem('klim_tarot_wheel_last', String(Date.now()));
+      CloudSync.set('klim_tarot_wheel_last', String(Date.now()));
       checkWheelCooldown();
       applyWheelReward(WHEEL_SECTORS[winningIndex]);
     }

@@ -904,7 +904,7 @@ STATS_DB_PATH = BASE_DIR / "stats.db"
 PROMO_SHARE_PATH = BASE_DIR / "assets" / "promo-share.mp4"
 PROMO_VIDEO_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-share.mp4"
 PROMO_POSTER_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-poster.jpg"
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=37"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=38"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 _welcome_file_id_cache: dict[tuple[str, float], str] = {}
 _promo_video_file_id: str | None = None
@@ -928,7 +928,7 @@ def user_has_pro(uid: int | None) -> bool:
 
 
 def get_user_webapp_url(uid: int | None = None, is_trial: bool = False) -> str:
-    """Возвращает персональный URL WebApp: для владельца и пользователей с PRO добавляет &pro=1."""
+    """Возвращает персональный URL WebApp: передает PRO, UID и серверные таймеры для синхронизации."""
     if not WEBAPP_URL:
         return ""
     params = []
@@ -936,6 +936,24 @@ def get_user_webapp_url(uid: int | None = None, is_trial: bool = False) -> str:
         params.append("pro=1")
     if is_trial:
         params.append("trial=1")
+    if uid is not None:
+        params.append(f"uid={uid}")
+        try:
+            with sqlite3.connect(STATS_DB_PATH) as conn:
+                row = conn.execute(
+                    "SELECT wheel_last, shards, daily_card_key FROM user_cloud_sync WHERE user_id = ?",
+                    (uid,),
+                ).fetchone()
+                if row:
+                    wl, sh, dk = row
+                    if wl:
+                        params.append(f"wl={wl}")
+                    if sh is not None:
+                        params.append(f"sh={sh}")
+                    if dk:
+                        params.append(f"dk={urllib.parse.quote(str(dk))}")
+        except Exception:
+            pass
     if params:
         sep = "&" if "?" in WEBAPP_URL else "?"
         return f"{WEBAPP_URL}{sep}{'&'.join(params)}"
@@ -943,8 +961,150 @@ def get_user_webapp_url(uid: int | None = None, is_trial: bool = False) -> str:
 
 
 # ─────────────────────────────────────────────────────────
-#  БАЗА ДАННЫХ СТАТИСТИКИ И ЛОГОВ (SQLite)
+#  БАЗА ДАННЫХ СТАТИСТИКИ И ЛОГОВ (SQLite) + АВТО-БЭКАП
 # ─────────────────────────────────────────────────────────
+
+BACKUP_JSON_PATH = BASE_DIR / "data" / "stats_backup.json"
+
+
+def dump_stats_to_json() -> bool:
+    """Экспорт текущей базы в JSON-бэкап (для надежного сохранения истории между обновлениями)."""
+    try:
+        BACKUP_JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
+        backup = {}
+        with sqlite3.connect(STATS_DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            for table in ["users", "subscriptions", "payments", "trial_claims", "referrals", "events", "user_cloud_sync"]:
+                try:
+                    cur.execute(f"SELECT * FROM {table}")
+                    backup[table] = [dict(r) for r in cur.fetchall()]
+                except Exception:
+                    pass
+        with open(BACKUP_JSON_PATH, "w", encoding="utf-8") as f:
+            json.dump(backup, f, ensure_ascii=False, indent=2)
+        logger.info("💾 Резервная копия базы сохранена в %s", BACKUP_JSON_PATH)
+        return True
+    except Exception as exc:
+        logger.warning("Не удалось сохранить бэкап: %s", exc)
+        return False
+
+
+def restore_stats_from_json() -> int:
+    """Восстановление пользователей и подписок из JSON-бэкапа."""
+    if not BACKUP_JSON_PATH.exists():
+        return 0
+    try:
+        with open(BACKUP_JSON_PATH, "r", encoding="utf-8") as f:
+            backup = json.load(f)
+        restored = 0
+        with sqlite3.connect(STATS_DB_PATH) as conn:
+            for u in backup.get("users", []):
+                conn.execute(
+                    """
+                    INSERT INTO users (user_id, username, first_name, first_seen, last_seen, total_events, is_banned, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        username = excluded.username,
+                        first_name = excluded.first_name,
+                        last_seen = excluded.last_seen,
+                        total_events = MAX(users.total_events, excluded.total_events)
+                    """,
+                    (
+                        u.get("user_id"),
+                        u.get("username", ""),
+                        u.get("first_name", ""),
+                        u.get("first_seen", ""),
+                        u.get("last_seen", ""),
+                        u.get("total_events", 1),
+                        u.get("is_banned", 0),
+                        u.get("notes", ""),
+                    ),
+                )
+                restored += 1
+
+            for s in backup.get("subscriptions", []):
+                conn.execute(
+                    """
+                    INSERT INTO subscriptions (user_id, plan_id, expires_at, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        expires_at = excluded.expires_at,
+                        updated_at = excluded.updated_at
+                    """,
+                    (s.get("user_id"), s.get("plan_id"), s.get("expires_at"), s.get("updated_at")),
+                )
+
+            for ev in backup.get("events", []):
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO events (id, ts, user_id, username, first_name, action, detail)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        ev.get("id"),
+                        ev.get("ts"),
+                        ev.get("user_id"),
+                        ev.get("username"),
+                        ev.get("first_name"),
+                        ev.get("action"),
+                        ev.get("detail", ""),
+                    ),
+                )
+
+            for tr in backup.get("trial_claims", []):
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO trial_claims (user_id, claimed_at)
+                    VALUES (?, ?)
+                    """,
+                    (tr.get("user_id"), tr.get("claimed_at")),
+                )
+
+            for r in backup.get("referrals", []):
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO referrals (id, referrer_id, referred_user_id, created_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (r.get("id"), r.get("referrer_id"), r.get("referred_user_id"), r.get("created_at")),
+                )
+
+            for c in backup.get("user_cloud_sync", []):
+                conn.execute(
+                    """
+                    INSERT INTO user_cloud_sync (user_id, wheel_last, shards, daily_card_key, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        wheel_last = MAX(user_cloud_sync.wheel_last, excluded.wheel_last),
+                        shards = MAX(user_cloud_sync.shards, excluded.shards),
+                        updated_at = excluded.updated_at
+                    """,
+                    (c.get("user_id"), c.get("wheel_last", 0), c.get("shards", 0), c.get("daily_card_key", ""), c.get("updated_at", "")),
+                )
+            conn.commit()
+        logger.info("✨ База успешно восстановлена из бэкапа: %d пользователей", restored)
+        return restored
+    except Exception as exc:
+        logger.error("Ошибка восстановления базы: %s", exc)
+        return 0
+
+
+def check_and_restore_database() -> None:
+    """Проверяет базу и при необходимости автоматически восстанавливает из бэкапа."""
+    try:
+        with sqlite3.connect(STATS_DB_PATH) as conn:
+            cnt = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+            if cnt == 0:
+                logger.info("ℹ️ База пользователей пуста. Запускаем автоматическое восстановление...")
+                restored = restore_stats_from_json()
+                logger.info("✅ Авто-восстановление завершено. Загружено пользователей: %d", restored)
+            else:
+                logger.info("📊 База содержит %d пользователей. Обновляем актуальный бэкап...", cnt)
+                dump_stats_to_json()
+    except Exception as exc:
+        logger.warning("Ошибка проверки/восстановления базы: %s", exc)
+
 
 def init_stats_db() -> None:
     with sqlite3.connect(STATS_DB_PATH) as conn:
@@ -980,6 +1140,18 @@ def init_stats_db() -> None:
                 first_name TEXT,
                 action TEXT,
                 detail TEXT
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_cloud_sync (
+                user_id INTEGER PRIMARY KEY,
+                wheel_last INTEGER DEFAULT 0,
+                shards INTEGER DEFAULT 0,
+                daily_card_key TEXT DEFAULT '',
+                updated_at TEXT
             )
             """
         )
@@ -1393,6 +1565,7 @@ def admin_main_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("💳 Тест оплаты", callback_data="admin_paytest"),
         ],
         [
+            InlineKeyboardButton("💾 Скачать бэкап базы", callback_data="admin_export_backup"),
             InlineKeyboardButton("🔄 Обновить сводку", callback_data="admin_dashboard"),
         ],
     ])
@@ -2315,6 +2488,34 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ]),
             )
 
+        elif data == "admin_export_backup":
+            await safe_answer(query, "⏳ Готовлю бэкап базы...")
+            dump_stats_to_json()
+            try:
+                cnt = 0
+                with sqlite3.connect(STATS_DB_PATH) as conn:
+                    cnt = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+                with open(STATS_DB_PATH, "rb") as db_f:
+                    await context.bot.send_document(
+                        chat_id=query.from_user.id,
+                        document=db_f,
+                        filename=f"stats_{datetime.now(MSK_TZ).strftime('%Y%m%d_%H%M')}.db",
+                        caption=f"💾 *Резервная копия SQLite (stats.db)*\nПользователей в базе: *{cnt}*",
+                        parse_mode="Markdown",
+                    )
+                if BACKUP_JSON_PATH.exists():
+                    with open(BACKUP_JSON_PATH, "rb") as json_f:
+                        await context.bot.send_document(
+                            chat_id=query.from_user.id,
+                            document=json_f,
+                            filename="stats_backup.json",
+                            caption="📄 *JSON-зеркало базы данных*\nАвтоматически восстанавливает людей при обновлениях на Render.",
+                            parse_mode="Markdown",
+                        )
+            except Exception as exc:
+                logger.error("Ошибка отправки бэкапа: %s", exc)
+                await query.message.reply_text(f"❌ Ошибка выгрузки: {exc}")
+
     elif data == "noop":
         await safe_answer(query)
 
@@ -3164,17 +3365,104 @@ async def post_init(app):
 
 
 def start_health_server() -> None:
-    """Мини-HTTP сервер для Render Free Web Service (отвечает 200 OK на / и /health)."""
+    """Мини-HTTP сервер для Render Free Web Service + API синхронизации таймеров между устройствами."""
     port_raw = os.environ.get("PORT", "10000").strip()
     port = int(port_raw) if port_raw.isdigit() else 10000
 
     try:
         class _HealthHandler(BaseHTTPRequestHandler):
+            def _send_cors(self):
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+            def do_OPTIONS(self):
+                self.send_response(200)
+                self._send_cors()
+                self.end_headers()
+
             def do_GET(self):
+                parsed = urllib.parse.urlparse(self.path)
+                if parsed.path == "/api/sync_state":
+                    qs = urllib.parse.parse_qs(parsed.query)
+                    uid_raw = qs.get("uid", ["0"])[0]
+                    uid = int(uid_raw) if uid_raw.isdigit() else 0
+                    res = {"status": "ok", "uid": uid, "wheel_last": 0, "shards": 0, "daily_card_key": ""}
+                    if uid > 0:
+                        try:
+                            with sqlite3.connect(STATS_DB_PATH) as conn:
+                                row = conn.execute(
+                                    "SELECT wheel_last, shards, daily_card_key FROM user_cloud_sync WHERE user_id = ?",
+                                    (uid,),
+                                ).fetchone()
+                                if row:
+                                    res["wheel_last"] = row[0] or 0
+                                    res["shards"] = row[1] or 0
+                                    res["daily_card_key"] = row[2] or ""
+                        except Exception:
+                            pass
+                    payload = json.dumps(res, ensure_ascii=False).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self._send_cors()
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
+
                 self.send_response(200)
                 self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self._send_cors()
                 self.end_headers()
                 self.wfile.write(b"OK - KLIM TAROT BOT")
+
+            def do_POST(self):
+                parsed = urllib.parse.urlparse(self.path)
+                if parsed.path == "/api/sync_state":
+                    try:
+                        length = int(self.headers.get("Content-Length", 0))
+                        body = self.rfile.read(length)
+                        data = json.loads(body.decode("utf-8"))
+                        uid = int(data.get("uid") or data.get("user_id") or 0)
+                        if uid > 0:
+                            wl = int(data.get("wheel_last") or 0)
+                            sh = int(data.get("shards") or 0)
+                            dk = str(data.get("daily_card_key") or "")
+                            now_iso = datetime.now(MSK_TZ).strftime("%Y-%m-%d %H:%M:%S")
+                            with sqlite3.connect(STATS_DB_PATH) as conn:
+                                conn.execute(
+                                    """
+                                    INSERT INTO user_cloud_sync (user_id, wheel_last, shards, daily_card_key, updated_at)
+                                    VALUES (?, ?, ?, ?, ?)
+                                    ON CONFLICT(user_id) DO UPDATE SET
+                                        wheel_last = CASE WHEN excluded.wheel_last > user_cloud_sync.wheel_last THEN excluded.wheel_last ELSE user_cloud_sync.wheel_last END,
+                                        shards = CASE WHEN excluded.shards > user_cloud_sync.shards THEN excluded.shards ELSE user_cloud_sync.shards END,
+                                        daily_card_key = CASE WHEN excluded.daily_card_key != '' THEN excluded.daily_card_key ELSE user_cloud_sync.daily_card_key END,
+                                        updated_at = excluded.updated_at
+                                    """,
+                                    (uid, wl, sh, dk, now_iso),
+                                )
+                                conn.commit()
+                            dump_stats_to_json()
+                        resp = json.dumps({"status": "ok"}).encode("utf-8")
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json; charset=utf-8")
+                        self._send_cors()
+                        self.send_header("Content-Length", str(len(resp)))
+                        self.end_headers()
+                        self.wfile.write(resp)
+                        return
+                    except Exception as e:
+                        resp = json.dumps({"status": "error", "error": str(e)}).encode("utf-8")
+                        self.send_response(400)
+                        self.send_header("Content-Type", "application/json; charset=utf-8")
+                        self._send_cors()
+                        self.end_headers()
+                        self.wfile.write(resp)
+                        return
+
+                self.send_response(404)
+                self.end_headers()
 
             def do_HEAD(self):
                 self.send_response(200)
@@ -3186,7 +3474,7 @@ def start_health_server() -> None:
         server = ThreadingHTTPServer(("0.0.0.0", port), _HealthHandler)
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
-        logger.info("🌐 Health-сервер запущен на порту %s", port)
+        logger.info("🌐 Health-сервер и API синхронизации запущены на порту %s", port)
     except Exception as exc:
         logger.warning("Не удалось запустить health-сервер: %s", exc)
 
@@ -3195,6 +3483,7 @@ def main():
     start_health_server()
     init_stats_db()
     payments.init_payments_db(STATS_DB_PATH)
+    check_and_restore_database()
     # Загрузка локального .env если переменные не заданы в системе
     for env_path in [Path(".env"), Path(__file__).resolve().parent / ".env", Path(__file__).resolve().parent.parent / ".env"]:
         if env_path.exists():
