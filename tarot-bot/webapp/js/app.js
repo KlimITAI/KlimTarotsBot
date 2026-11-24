@@ -1150,7 +1150,10 @@ function saveReadingToHistory(reading) {
     ...reading,
   });
   localStorage.setItem('klim_tarot_history', JSON.stringify(list.slice(0, 25)));
+  const total = (parseInt(localStorage.getItem('klim_tarot_total_readings') || '0', 10) || list.length) + 1;
+  localStorage.setItem('klim_tarot_total_readings', String(total));
   updateHistoryCounter();
+  if (typeof updateProfileUI === 'function') updateProfileUI();
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1296,6 +1299,7 @@ const VIEW_TITLES = {
   plans: 'Тарифы',
   fortune: 'Фортуна',
   invite: 'Друзья',
+  profile: 'Мой профиль',
 };
 
 function showToast(msg) {
@@ -1361,7 +1365,7 @@ function triggerCardBurstTransition(targetView, navOptions = {}) {
   state.currentView = targetView;
   topbarTitle.textContent = VIEW_TITLES[targetView] || 'TAROT';
 
-  const dockTabs = ['home', 'spreads', 'oracle', 'psychology', 'dictionary'];
+  const dockTabs = ['home', 'spreads', 'oracle', 'dictionary', 'profile'];
   const dockTab = dockTabs.includes(targetView) ? targetView : null;
   document.querySelectorAll('.dock-item').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.tab === dockTab);
@@ -1374,7 +1378,13 @@ function triggerCardBurstTransition(targetView, navOptions = {}) {
     else tg.BackButton.hide();
   }
 
-  if (targetView === 'home') refreshHomeBanner();
+  if (targetView === 'home') {
+    refreshHomeBanner();
+    if (typeof updateProfileUI === 'function') updateProfileUI();
+  }
+  if (targetView === 'profile') {
+    if (typeof updateProfileUI === 'function') updateProfileUI();
+  }
 
   // Full animation duration: 1350ms flight + 55ms max stagger = ~1410ms
   // Cleanly remove stage and finalize classes at 1550ms
@@ -1423,7 +1433,7 @@ function navigateTo(viewName, { push = true } = {}) {
   topbarTitle.textContent = VIEW_TITLES[viewName] || 'TAROT';
 
   // Update dock active state
-  const dockTabs = ['home', 'spreads', 'oracle', 'psychology', 'dictionary'];
+  const dockTabs = ['home', 'spreads', 'oracle', 'dictionary', 'profile'];
   const dockTab = dockTabs.includes(viewName) ? viewName : null;
   document.querySelectorAll('.dock-item').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.tab === dockTab);
@@ -1438,7 +1448,13 @@ function navigateTo(viewName, { push = true } = {}) {
   }
 
   if (viewName !== 'psychology') stopBreathing();
-  if (viewName === 'home') refreshHomeBanner();
+  if (viewName === 'home') {
+    refreshHomeBanner();
+    if (typeof updateProfileUI === 'function') updateProfileUI();
+  }
+  if (viewName === 'profile') {
+    if (typeof updateProfileUI === 'function') updateProfileUI();
+  }
   if (viewName === 'history') renderHistory();
   if (viewName === 'oracle') resetOracleStage();
 
@@ -4136,5 +4152,323 @@ document.getElementById('btn-home-pro-action')?.addEventListener('click', () => 
   navigateTo('plans');
 });
 
+/* ════════════════════════════════════════════════════════════════
+   USER PROFILE, RANKS (TITLES), STREAK & CREATOR FEEDBACK
+   ════════════════════════════════════════════════════════════════ */
+
+const TAROT_RANKS = [
+  {
+    id: 1,
+    name: 'Искатель Истины',
+    tier: 'РАНГ I · НАЧАЛО ПУТИ',
+    icon: '🧭',
+    minReadings: 0,
+    quote: 'Первые шаги к постижению скрытого. Интуиция делает первый вздох.',
+    reward: 'Открыт доступ к Карте Дня и мгновенному Оракулу'
+  },
+  {
+    id: 2,
+    name: 'Посвящённый',
+    tier: 'РАНГ II · ПРОБУЖДЕНИЕ',
+    icon: '🔮',
+    minReadings: 3,
+    quote: 'Интуиция пробуждается, знаки и символы Вселенной говорят с вами.',
+    reward: 'Скидка 10% на подписку и +1 осколок Фортуны'
+  },
+  {
+    id: 3,
+    name: 'Ученик Оракула',
+    tier: 'РАНГ III · СРЕДНИЙ КРУГ',
+    icon: '🌙',
+    minReadings: 7,
+    quote: 'Вам открываются скрытые течения грядущих событий и послания карт.',
+    reward: 'Доступ ко всем раскладам на любовь, судьбу и карьеру'
+  },
+  {
+    id: 4,
+    name: 'Хранитель Тайн',
+    tier: 'РАНГ IV · МАСТЕР ТЕНЕЙ',
+    icon: '👁️',
+    minReadings: 15,
+    quote: 'Глубокое видение арканов, баланса 4 стихий и теневых карт дна колоды.',
+    reward: 'Расчёт квинтэссенции и теневой пласт раскладов'
+  },
+  {
+    id: 5,
+    name: 'Адепт Таро',
+    tier: 'РАНГ V · ВЫСШИЙ СОВЕТ',
+    icon: '⚡',
+    minReadings: 30,
+    quote: 'Мудрость 78 арканов направляет любое ваше жизненное решение.',
+    reward: 'Неограниченные персональные темы раскладов'
+  },
+  {
+    id: 6,
+    name: 'Верховный Магистр',
+    tier: 'РАНГ VI · ВЕЛИКИЙ АРКАНУМ',
+    icon: '👑',
+    minReadings: 50,
+    quote: 'Высшая ступень интуитивного прозрения и владения колодой.',
+    reward: 'Золотая аура профиля и статус мастера карт'
+  }
+];
+
+function getTotalReadingsCount() {
+  const saved = parseInt(localStorage.getItem('klim_tarot_total_readings') || '0', 10);
+  const hist = (typeof loadHistory === 'function' ? loadHistory() : []).length;
+  return Math.max(saved, hist);
+}
+
+function getUserRank(count) {
+  let rank = TAROT_RANKS[0];
+  for (let i = TAROT_RANKS.length - 1; i >= 0; i--) {
+    if (count >= TAROT_RANKS[i].minReadings) {
+      rank = TAROT_RANKS[i];
+      break;
+    }
+  }
+  return rank;
+}
+
+function getNextUserRank(count) {
+  const current = getUserRank(count);
+  const idx = TAROT_RANKS.findIndex((r) => r.id === current.id);
+  if (idx >= 0 && idx < TAROT_RANKS.length - 1) {
+    return TAROT_RANKS[idx + 1];
+  }
+  return null;
+}
+
+function getDailyStreak() {
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const lastActive = localStorage.getItem('klim_tarot_last_active_date');
+  let streak = parseInt(localStorage.getItem('klim_tarot_streak_count') || '1', 10);
+
+  if (!lastActive) {
+    localStorage.setItem('klim_tarot_last_active_date', today);
+    localStorage.setItem('klim_tarot_streak_count', '1');
+    return 1;
+  }
+
+  if (lastActive === today) {
+    return Math.max(1, streak);
+  }
+
+  const lastParts = lastActive.split('-').map(Number);
+  const lastDate = new Date(lastParts[0], lastParts[1] - 1, lastParts[2]);
+  const curDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((curDate - lastDate) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 1) {
+    streak += 1;
+  } else if (diffDays > 1) {
+    streak = 1;
+  }
+
+  localStorage.setItem('klim_tarot_last_active_date', today);
+  localStorage.setItem('klim_tarot_streak_count', String(streak));
+  return streak;
+}
+
+function updateProfileUI() {
+  const user = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  const isOwner = Boolean(state.isOwner || (getTelegramUserId() === OWNER_TELEGRAM_ID));
+  const readingsCount = getTotalReadingsCount();
+  const rank = getUserRank(readingsCount);
+  const nextRank = getNextUserRank(readingsCount);
+  const streak = getDailyStreak();
+  const shards = parseInt(localStorage.getItem('klim_tarot_shards') || '0', 10);
+  const proDays = (typeof getRemainingProDays === 'function') ? getRemainingProDays() : 0;
+
+  // Name, Username & ID
+  let displayName = user?.first_name || (isOwner ? 'Клим' : 'Путник');
+  if (user?.last_name) displayName += ` ${user.last_name}`;
+  const username = user?.username ? `@${user.username}` : (isOwner ? '@im_klim' : '@user');
+  const uid = user?.id || (isOwner ? OWNER_TELEGRAM_ID : '7446803539');
+
+  const nameEl = document.getElementById('profile-user-name');
+  if (nameEl) nameEl.textContent = displayName;
+
+  const userTagEl = document.getElementById('profile-username');
+  if (userTagEl) userTagEl.textContent = username;
+
+  const idEl = document.getElementById('profile-user-id');
+  if (idEl) idEl.textContent = String(uid);
+
+  const ownerTag = document.getElementById('profile-owner-tag');
+  if (ownerTag) {
+    if (isOwner) ownerTag.classList.remove('hidden');
+    else ownerTag.classList.add('hidden');
+  }
+
+  // Avatars (Profile, Topbar, Home Widget)
+  const avatarImg = document.getElementById('profile-avatar-img');
+  const avatarFallback = document.getElementById('profile-avatar-fallback');
+  const topbarThumb = document.getElementById('topbar-avatar-thumb');
+  const homeMini = document.getElementById('home-user-avatar-mini');
+  const initial = (displayName.trim()[0] || '🔮').toUpperCase();
+
+  if (user?.photo_url) {
+    if (avatarImg) {
+      avatarImg.src = user.photo_url;
+      avatarImg.classList.remove('hidden');
+    }
+    if (avatarFallback) avatarFallback.classList.add('hidden');
+    if (topbarThumb) topbarThumb.innerHTML = `<img src="${user.photo_url}" class="topbar-thumb-img" alt="" />`;
+    if (homeMini) homeMini.innerHTML = `<img src="${user.photo_url}" class="home-thumb-img" alt="" />`;
+  } else {
+    if (avatarImg) avatarImg.classList.add('hidden');
+    if (avatarFallback) {
+      avatarFallback.textContent = initial;
+      avatarFallback.classList.remove('hidden');
+    }
+    if (topbarThumb) topbarThumb.textContent = initial;
+    if (homeMini) homeMini.textContent = initial;
+  }
+
+  // Home widget rank & name
+  const homeUserName = document.getElementById('home-user-name');
+  if (homeUserName) homeUserName.textContent = displayName;
+  const homeRankPill = document.getElementById('home-user-rank-pill');
+  if (homeRankPill) {
+    if (isOwner) homeRankPill.textContent = '👑 Создатель';
+    else homeRankPill.textContent = `${rank.icon} ${rank.name}`;
+  }
+
+  // Current Rank Card
+  const rankIconEl = document.getElementById('rank-badge-icon');
+  const rankTierEl = document.getElementById('rank-tier-tag');
+  const rankTitleEl = document.getElementById('rank-title');
+  const rankQuoteEl = document.getElementById('rank-quote');
+  const progressText = document.getElementById('rank-progress-text');
+  const progressNext = document.getElementById('rank-progress-next');
+  const progressBar = document.getElementById('rank-progress-bar');
+
+  if (isOwner) {
+    if (rankIconEl) rankIconEl.textContent = '👑';
+    if (rankTierEl) rankTierEl.textContent = 'ВЫСШИЙ СТАТУС · АРХИТЕКТОР';
+    if (rankTitleEl) rankTitleEl.textContent = 'Создатель KLIM TAROT';
+    if (rankQuoteEl) rankQuoteEl.textContent = '«Владелец и создатель пространства Klim Tarot. Все 78 арканов и тайные расклады открыты навсегда.»';
+    if (progressText) progressText.textContent = `Раскладов: ${readingsCount}`;
+    if (progressNext) progressNext.textContent = 'Максимальный ранг';
+    if (progressBar) progressBar.style.width = '100%';
+  } else {
+    if (rankIconEl) rankIconEl.textContent = rank.icon;
+    if (rankTierEl) rankTierEl.textContent = rank.tier;
+    if (rankTitleEl) rankTitleEl.textContent = rank.name;
+    if (rankQuoteEl) rankQuoteEl.textContent = `«${rank.quote}»`;
+
+    if (nextRank) {
+      const curReq = rank.minReadings;
+      const nextReq = nextRank.minReadings;
+      const progressInLevel = Math.max(0, readingsCount - curReq);
+      const span = Math.max(1, nextReq - curReq);
+      const percent = Math.min(100, Math.round((progressInLevel / span) * 100));
+      const remaining = Math.max(1, nextReq - readingsCount);
+
+      if (progressText) progressText.textContent = `${readingsCount} из ${nextReq} раскладов`;
+      if (progressNext) progressNext.textContent = `До «${nextRank.name}»: ${remaining}`;
+      if (progressBar) progressBar.style.width = `${percent}%`;
+    } else {
+      if (progressText) progressText.textContent = `${readingsCount} раскладов сделано`;
+      if (progressNext) progressNext.textContent = 'Высшая ступень достигнута! 👑';
+      if (progressBar) progressBar.style.width = '100%';
+    }
+  }
+
+  // Profile Stats Grid
+  const statReadings = document.getElementById('profile-stat-readings');
+  if (statReadings) statReadings.textContent = String(readingsCount);
+
+  const statStreak = document.getElementById('profile-stat-streak');
+  if (statStreak) statStreak.textContent = `${streak} дн.`;
+
+  const statShards = document.getElementById('profile-stat-shards');
+  if (statShards) statShards.textContent = `${shards} / 5`;
+
+  const statPro = document.getElementById('profile-stat-pro-days');
+  if (statPro) {
+    if (isOwner || proDays === Infinity) statPro.textContent = '∞ Создатель';
+    else if (proDays > 0) statPro.textContent = `${proDays} дн.`;
+    else statPro.textContent = 'Не активен';
+  }
+
+  // Ranks Roadmap List
+  const roadmapEl = document.getElementById('ranks-roadmap-list');
+  if (roadmapEl) {
+    roadmapEl.innerHTML = TAROT_RANKS.map((r) => {
+      const isCur = (!isOwner && r.id === rank.id);
+      const isUnlocked = isOwner || (readingsCount >= r.minReadings);
+      let statusIcon = '🔒';
+      let stateClass = 'locked';
+      if (isCur) {
+        statusIcon = '✦';
+        stateClass = 'current';
+      } else if (isUnlocked) {
+        statusIcon = '✓';
+        stateClass = 'unlocked';
+      }
+
+      return `
+        <div class="rank-roadmap-item ${stateClass}">
+          <div class="roadmap-item-icon">${r.icon}</div>
+          <div class="roadmap-item-meta">
+            <div class="roadmap-item-title-row">
+              <span class="roadmap-item-title">${r.name}</span>
+              ${isCur ? '<span class="roadmap-item-badge">ВАШ РАНГ</span>' : ''}
+            </div>
+            <span class="roadmap-item-desc">${r.reward} · от ${r.minReadings} раскл.</span>
+          </div>
+          <div class="roadmap-item-status">${statusIcon}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Feedback Claim Button Status
+  const claimBtn = document.getElementById('btn-feedback-claim');
+  if (claimBtn) {
+    const claimed = localStorage.getItem('klim_tarot_feedback_bonus') === 'true';
+    if (claimed) {
+      claimBtn.classList.add('claimed');
+      claimBtn.innerHTML = '<span>✓ Бонус +1 день PRO получен</span>';
+    }
+  }
+}
+
+// Profile & Feedback button listeners
+document.getElementById('btn-topbar-profile')?.addEventListener('click', () => {
+  sound.playTap();
+  haptic('light');
+  navigateTo('profile');
+});
+
+document.getElementById('home-profile-widget')?.addEventListener('click', () => {
+  sound.playTap();
+  haptic('light');
+  navigateTo('profile');
+});
+
+document.getElementById('btn-feedback-claim')?.addEventListener('click', () => {
+  sound.playTap();
+  haptic('medium');
+  if (localStorage.getItem('klim_tarot_feedback_bonus') === 'true') {
+    showToast('Вы уже получили бонус за отзыв! Спасибо!');
+    return;
+  }
+  localStorage.setItem('klim_tarot_feedback_bonus', 'true');
+  const curDays = parseInt(localStorage.getItem('klim_tarot_pro_days') || '0', 10);
+  const newDays = curDays + 1;
+  localStorage.setItem('klim_tarot_pro_days', String(newDays));
+  localStorage.setItem('klim_tarot_pro_granted', 'true');
+  if (typeof state !== 'undefined' && state) state.proDays = newDays;
+  CloudSync.set('klim_tarot_pro_days', String(newDays));
+  updateProDaysUI();
+  updateProfileUI();
+  showToast('🎉 +1 день PRO начислен за отзыв!');
+});
+
 updateProDaysUI();
+updateProfileUI();
 CloudSync.initSync();
