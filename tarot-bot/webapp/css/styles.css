@@ -1346,8 +1346,8 @@ button {
   border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: flex-start;
+  gap: 8px;
   transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
@@ -5376,3 +5376,204 @@ body.is-pro-mode .top-bar {
 
 
 
+
+
+/* ── Profile Hero Card & VIP Box ──────────────────────────────── */
+.profile-hero-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(30, 24, 64, 0.9), rgba(15, 12, 34, 0.96));
+  border: 1px solid rgba(245, 201, 105, 0.25);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-hero-glow {
+  position: absolute;
+  top: -40px;
+  right: -30px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(245, 201, 105, 0.22) 0%, rgba(168, 85, 247, 0.12) 50%, transparent 70%);
+  pointer-events: none;
+}
+
+.profile-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1;
+}
+
+.profile-vip-badge-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: rgba(245, 201, 105, 0.08);
+  border: 1px solid rgba(245, 201, 105, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+  text-align: right;
+  z-index: 2;
+}
+
+.profile-vip-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.profile-vip-tag {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, rgba(234, 179, 8, 0.3), rgba(245, 201, 105, 0.45));
+  border: 1px solid rgba(250, 204, 21, 0.7);
+  color: #fef08a;
+  text-transform: uppercase;
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.25);
+  display: inline-block;
+}
+
+.profile-vip-tag.inactive {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.profile-vip-days-num {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.btn-profile-extend {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: linear-gradient(135deg, rgba(245, 201, 105, 0.2), rgba(168, 85, 247, 0.2));
+  border: 1px solid rgba(245, 201, 105, 0.5);
+  color: #fef08a;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 2px;
+}
+
+.btn-profile-extend:hover {
+  background: linear-gradient(135deg, rgba(245, 201, 105, 0.35), rgba(168, 85, 247, 0.35));
+  border-color: rgba(245, 201, 105, 0.8);
+  transform: translateY(-1px);
+}
+
+.btn-profile-extend:active {
+  transform: scale(0.96);
+}
+
+.btn-profile-extend.hidden {
+  display: none !important;
+}
+
+/* Profile History Section */
+.profile-history-section {
+  margin-top: 14px;
+  margin-bottom: 24px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   RESPONSIVE DESIGN (DESKTOP & TABLET ADAPTATION)
+   ════════════════════════════════════════════════════════════════ */
+
+@media (min-width: 680px) {
+  #app-shell {
+    max-width: 720px;
+    padding: 0 16px;
+  }
+
+  .bottom-dock {
+    max-width: 540px;
+    padding: 7px 12px;
+  }
+
+  .dock-item {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .bento-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+
+  .bento-card.bento-wide {
+    grid-column: span 3;
+  }
+
+  .profile-stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  .plans-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .featured-pill-card {
+    flex: 0 0 190px;
+  }
+}
+
+@media (min-width: 960px) {
+  #app-shell {
+    max-width: 980px;
+    padding: 0 24px;
+  }
+
+  .bottom-dock {
+    max-width: 620px;
+    padding: 8px 16px;
+    border-radius: 26px;
+  }
+
+  .bento-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .bento-card.bento-wide {
+    grid-column: span 2;
+  }
+
+  .plans-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .dict-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  }
+}

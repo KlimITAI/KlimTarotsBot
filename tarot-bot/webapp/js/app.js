@@ -1462,6 +1462,7 @@ function navigateTo(viewName, { push = true } = {}) {
   }
   if (viewName === 'profile') {
     if (typeof updateProfileUI === 'function') updateProfileUI();
+    if (typeof renderHistory === 'function') renderHistory();
   }
   if (viewName === 'history') renderHistory();
   if (viewName === 'oracle') resetOracleStage();
@@ -2198,43 +2199,52 @@ function updateProDaysUI() {
     heroChip.classList.toggle('hidden', !hasPro);
   }
 
-  // Home widget
-  const homeWidget = document.getElementById('home-pro-widget');
-  const widgetTag = document.getElementById('pro-widget-tag');
-  const widgetDays = document.getElementById('pro-widget-days');
-  const widgetDesc = document.getElementById('pro-widget-desc');
-  const widgetBtnText = document.getElementById('home-pro-btn-text');
+  // Profile Top Card VIP Box
+  const profileVipTag = document.getElementById('profile-vip-tag');
+  const profileVipDays = document.getElementById('profile-vip-days');
+  const profileExtendBtn = document.getElementById('btn-profile-vip-extend');
 
-  if (homeWidget && widgetTag && widgetDays) {
-    if (hasPro) {
-      widgetTag.textContent = 'АКТИВЕН';
-      widgetTag.className = 'pro-widget-tag active';
-      widgetDays.textContent = days === Infinity ? '👑 Навсегда (VIP)' : `${days} дн.`;
-      if (widgetDesc) {
-        widgetDesc.innerHTML = days === Infinity
-          ? 'Бессрочный VIP-доступ владельца · Все 35 раскладов и 78 карт открыты'
-          : `Осталось: <span class="pro-days-highlight">${days} дн.</span> · Все 35 раскладов и 78 карт открыты`;
+  if (profileVipTag && profileVipDays) {
+    if (days === Infinity) {
+      profileVipTag.textContent = '👑 VIP НАВСЕГДА';
+      profileVipTag.className = 'profile-vip-tag';
+      profileVipDays.textContent = 'Бессрочно';
+      if (profileExtendBtn) profileExtendBtn.classList.add('hidden');
+    } else if (days > 0) {
+      profileVipTag.textContent = '⚡ PRO ДОСТУП';
+      profileVipTag.className = 'profile-vip-tag';
+      profileVipDays.textContent = `Осталось: ${days} дн.`;
+      if (profileExtendBtn) {
+        profileExtendBtn.textContent = '+ Продлить';
+        profileExtendBtn.classList.remove('hidden');
       }
-      if (widgetBtnText) widgetBtnText.textContent = '+ Продлить';
     } else {
-      widgetTag.textContent = 'НЕ АКТИВЕН';
-      widgetTag.className = 'pro-widget-tag inactive';
-      widgetDays.textContent = '0 дней';
-      if (widgetDesc) {
-        widgetDesc.innerHTML = 'Режим PRO не активен · Оформите подписку или позовите друга (+2 дн.)';
+      profileVipTag.textContent = 'Базовый доступ';
+      profileVipTag.className = 'profile-vip-tag inactive';
+      profileVipDays.textContent = '0 дней PRO';
+      if (profileExtendBtn) {
+        profileExtendBtn.textContent = '⚡ Получить PRO';
+        profileExtendBtn.classList.remove('hidden');
       }
-      if (widgetBtnText) widgetBtnText.textContent = '✨ Оформить PRO';
     }
+  }
+
+  // Profile Stats Grid - PRO Days box
+  const statPro = document.getElementById('profile-stat-pro-days');
+  if (statPro) {
+    if (days === Infinity) statPro.textContent = '👑 Бессрочно';
+    else if (days > 0) statPro.textContent = `${days} дн.`;
+    else statPro.textContent = '0 дн.';
   }
 
   // Invite view stats
   const statRef = document.getElementById('stat-user-referrals');
   const statBonus = document.getElementById('stat-user-bonus-days');
-  const statPro = document.getElementById('stat-user-pro-days');
+  const statInvitePro = document.getElementById('stat-user-pro-days');
 
   if (statRef) statRef.textContent = String(state.referralCount || 0);
   if (statBonus) statBonus.textContent = `+${state.referralBonusDays || 0} дн.`;
-  if (statPro) statPro.textContent = days === Infinity ? '👑 Навсегда' : `${days} дн.`;
+  if (statInvitePro) statInvitePro.textContent = days === Infinity ? '👑 Навсегда' : `${days} дн.`;
 
   updateProModeUI();
 }
@@ -2756,56 +2766,62 @@ function openCardModal(card, reversed = false) {
 
 function renderHistory() {
   const list = loadHistory();
-  const container = document.getElementById('history-list');
-  const clearBtn = document.getElementById('btn-clear-history');
-  clearBtn.classList.toggle('hidden', list.length === 0);
+  const containers = [
+    { container: document.getElementById('history-list'), clearBtn: document.getElementById('btn-clear-history') },
+    { container: document.getElementById('profile-history-list'), clearBtn: document.getElementById('btn-profile-clear-history') },
+  ];
 
-  if (list.length === 0) {
-    container.innerHTML = `<div class="empty-state">Вы ещё не делали раскладов в Mini App.<br/>Откройте свой первый аркан ✨</div>`;
-    return;
-  }
+  containers.forEach(({ container, clearBtn }) => {
+    if (!container) return;
+    if (clearBtn) clearBtn.classList.toggle('hidden', list.length === 0);
 
-  container.innerHTML = '';
-  list.forEach((entry) => {
-    const cardNames = (entry.cards || [])
-      .map((item) => {
-        const c = ALL_CARDS.find((x) => x.id === item.id);
-        return c ? `${c.name}${item.reversed ? ' (🔄)' : ''}` : '';
-      })
-      .filter(Boolean);
+    if (list.length === 0) {
+      container.innerHTML = `<div class="empty-state">Вы ещё не делали раскладов в Mini App.<br/>Откройте свой первый аркан ✨</div>`;
+      return;
+    }
 
-    const btn = document.createElement('button');
-    btn.className = 'history-item';
-    btn.innerHTML = `
-      <div class="history-top">
-        <span class="history-title">${entry.friendName ? `🎁 Для ${escapeHtml(entry.friendName)}: ` : ''}${escapeHtml(entry.spreadName)}</span>
-        <span class="history-time">${escapeHtml(entry.time)}</span>
-      </div>
-      ${entry.question ? `<div style="font-size:12px;color:var(--text-muted);font-style:italic;">«${escapeHtml(entry.question)}»</div>` : ''}
-      <div class="history-cards">${escapeHtml(cardNames.slice(0, 4).join(' · '))}${cardNames.length > 4 ? ` +${cardNames.length - 4}` : ''}</div>
-    `;
-    btn.addEventListener('click', () => {
-      const spread = SPREADS.find((s) => s.key === entry.spreadKey);
-      const drawn = (entry.cards || [])
-        .map((it) => {
-          const c = ALL_CARDS.find((x) => x.id === it.id);
-          return c ? { card: c, reversed: it.reversed } : null;
+    container.innerHTML = '';
+    list.forEach((entry) => {
+      const cardNames = (entry.cards || [])
+        .map((item) => {
+          const c = ALL_CARDS.find((x) => x.id === item.id);
+          return c ? `${c.name}${item.reversed ? ' (🔄)' : ''}` : '';
         })
         .filter(Boolean);
-      if (drawn.length === 0) return;
 
-      renderReadingResult({
-        spreadKey: entry.spreadKey,
-        spreadName: entry.spreadName,
-        spreadDesc: spread ? spread.desc : entry.time,
-        positions: spread ? spread.positions : drawn.map((_, i) => `Карта ${i + 1}`),
-        drawn,
-        friendName: entry.friendName || null,
-        question: entry.question || '',
+      const btn = document.createElement('button');
+      btn.className = 'history-item';
+      btn.innerHTML = `
+        <div class="history-top">
+          <span class="history-title">${entry.friendName ? `🎁 Для ${escapeHtml(entry.friendName)}: ` : ''}${escapeHtml(entry.spreadName)}</span>
+          <span class="history-time">${escapeHtml(entry.time)}</span>
+        </div>
+        ${entry.question ? `<div style="font-size:12px;color:var(--text-muted);font-style:italic;">«${escapeHtml(entry.question)}»</div>` : ''}
+        <div class="history-cards">${escapeHtml(cardNames.slice(0, 4).join(' · '))}${cardNames.length > 4 ? ` +${cardNames.length - 4}` : ''}</div>
+      `;
+      btn.addEventListener('click', () => {
+        const spread = SPREADS.find((s) => s.key === entry.spreadKey);
+        const drawn = (entry.cards || [])
+          .map((it) => {
+            const c = ALL_CARDS.find((x) => x.id === it.id);
+            return c ? { card: c, reversed: it.reversed } : null;
+          })
+          .filter(Boolean);
+        if (drawn.length === 0) return;
+
+        renderReadingResult({
+          spreadKey: entry.spreadKey,
+          spreadName: entry.spreadName,
+          spreadDesc: spread ? spread.desc : entry.time,
+          positions: spread ? spread.positions : drawn.map((_, i) => `Карта ${i + 1}`),
+          drawn,
+          friendName: entry.friendName || null,
+          question: entry.question || '',
+        });
+        navigateTo('result');
       });
-      navigateTo('result');
+      container.appendChild(btn);
     });
-    container.appendChild(btn);
   });
 }
 
@@ -4281,11 +4297,9 @@ function getDailyStreak() {
 }
 
 function updateProfileUI() {
-  const user = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  const isOwner = Boolean(state.isOwner || (getTelegramUserId() === OWNER_TELEGRAM_ID));
+  const user = getTelegramUser();
+  const isOwner = isAppOwner();
   const readingsCount = getTotalReadingsCount();
-  const rank = getUserRank(readingsCount);
-  const nextRank = getNextUserRank(readingsCount);
   const streak = getDailyStreak();
   const shards = parseInt(localStorage.getItem('klim_tarot_shards') || '0', 10);
   const proDays = (typeof getRemainingProDays === 'function') ? getRemainingProDays() : 0;
@@ -4311,11 +4325,10 @@ function updateProfileUI() {
     else ownerTag.classList.add('hidden');
   }
 
-  // Avatars (Profile, Topbar, Home Widget)
+  // Avatars
   const avatarImg = document.getElementById('profile-avatar-img');
   const avatarFallback = document.getElementById('profile-avatar-fallback');
   const topbarThumb = document.getElementById('topbar-avatar-thumb');
-  const homeMini = document.getElementById('home-user-avatar-mini');
   const initial = (displayName.trim()[0] || '🔮').toUpperCase();
 
   if (user?.photo_url) {
@@ -4325,7 +4338,6 @@ function updateProfileUI() {
     }
     if (avatarFallback) avatarFallback.classList.add('hidden');
     if (topbarThumb) topbarThumb.innerHTML = `<img src="${user.photo_url}" class="topbar-thumb-img" alt="" />`;
-    if (homeMini) homeMini.innerHTML = `<img src="${user.photo_url}" class="home-thumb-img" alt="" />`;
   } else {
     if (avatarImg) avatarImg.classList.add('hidden');
     if (avatarFallback) {
@@ -4333,60 +4345,9 @@ function updateProfileUI() {
       avatarFallback.classList.remove('hidden');
     }
     if (topbarThumb) topbarThumb.textContent = initial;
-    if (homeMini) homeMini.textContent = initial;
   }
 
-  // Home widget rank & name
-  const homeUserName = document.getElementById('home-user-name');
-  if (homeUserName) homeUserName.textContent = displayName;
-  const homeRankPill = document.getElementById('home-user-rank-pill');
-  if (homeRankPill) {
-    if (isOwner) homeRankPill.textContent = '👑 Создатель';
-    else homeRankPill.textContent = `${rank.icon} ${rank.name}`;
-  }
-
-  // Current Rank Card
-  const rankIconEl = document.getElementById('rank-badge-icon');
-  const rankTierEl = document.getElementById('rank-tier-tag');
-  const rankTitleEl = document.getElementById('rank-title');
-  const rankQuoteEl = document.getElementById('rank-quote');
-  const progressText = document.getElementById('rank-progress-text');
-  const progressNext = document.getElementById('rank-progress-next');
-  const progressBar = document.getElementById('rank-progress-bar');
-
-  if (isOwner) {
-    if (rankIconEl) rankIconEl.textContent = '👑';
-    if (rankTierEl) rankTierEl.textContent = 'ВЫСШИЙ СТАТУС · АРХИТЕКТОР';
-    if (rankTitleEl) rankTitleEl.textContent = 'Создатель KLIM TAROT';
-    if (rankQuoteEl) rankQuoteEl.textContent = '«Владелец и создатель пространства Klim Tarot. Все 78 арканов и тайные расклады открыты навсегда.»';
-    if (progressText) progressText.textContent = `Раскладов: ${readingsCount}`;
-    if (progressNext) progressNext.textContent = 'Максимальный ранг';
-    if (progressBar) progressBar.style.width = '100%';
-  } else {
-    if (rankIconEl) rankIconEl.textContent = rank.icon;
-    if (rankTierEl) rankTierEl.textContent = rank.tier;
-    if (rankTitleEl) rankTitleEl.textContent = rank.name;
-    if (rankQuoteEl) rankQuoteEl.textContent = `«${rank.quote}»`;
-
-    if (nextRank) {
-      const curReq = rank.minReadings;
-      const nextReq = nextRank.minReadings;
-      const progressInLevel = Math.max(0, readingsCount - curReq);
-      const span = Math.max(1, nextReq - curReq);
-      const percent = Math.min(100, Math.round((progressInLevel / span) * 100));
-      const remaining = Math.max(1, nextReq - readingsCount);
-
-      if (progressText) progressText.textContent = `${readingsCount} из ${nextReq} раскладов`;
-      if (progressNext) progressNext.textContent = `До «${nextRank.name}»: ${remaining}`;
-      if (progressBar) progressBar.style.width = `${percent}%`;
-    } else {
-      if (progressText) progressText.textContent = `${readingsCount} раскладов сделано`;
-      if (progressNext) progressNext.textContent = 'Высшая ступень достигнута! 👑';
-      if (progressBar) progressBar.style.width = '100%';
-    }
-  }
-
-  // Profile Stats Grid
+  // Stats Grid
   const statReadings = document.getElementById('profile-stat-readings');
   if (statReadings) statReadings.textContent = String(readingsCount);
 
@@ -4398,84 +4359,38 @@ function updateProfileUI() {
 
   const statPro = document.getElementById('profile-stat-pro-days');
   if (statPro) {
-    if (isOwner || proDays === Infinity) statPro.textContent = '∞ Создатель';
+    if (isOwner || proDays === Infinity) statPro.textContent = '👑 Бессрочно';
     else if (proDays > 0) statPro.textContent = `${proDays} дн.`;
-    else statPro.textContent = 'Не активен';
+    else statPro.textContent = '0 дн.';
   }
 
-  // Ranks Roadmap List
-  const roadmapEl = document.getElementById('ranks-roadmap-list');
-  if (roadmapEl) {
-    roadmapEl.innerHTML = TAROT_RANKS.map((r) => {
-      const isCur = (!isOwner && r.id === rank.id);
-      const isUnlocked = isOwner || (readingsCount >= r.minReadings);
-      let statusIcon = '🔒';
-      let stateClass = 'locked';
-      if (isCur) {
-        statusIcon = '✦';
-        stateClass = 'current';
-      } else if (isUnlocked) {
-        statusIcon = '✓';
-        stateClass = 'unlocked';
-      }
+  // Update VIP widget on top card
+  if (typeof updateProDaysUI === 'function') updateProDaysUI();
 
-      return `
-        <div class="rank-roadmap-item ${stateClass}">
-          <div class="roadmap-item-icon">${r.icon}</div>
-          <div class="roadmap-item-meta">
-            <div class="roadmap-item-title-row">
-              <span class="roadmap-item-title">${r.name}</span>
-              ${isCur ? '<span class="roadmap-item-badge">ВАШ РАНГ</span>' : ''}
-            </div>
-            <span class="roadmap-item-desc">${r.reward} · от ${r.minReadings} раскл.</span>
-          </div>
-          <div class="roadmap-item-status">${statusIcon}</div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  // Feedback Claim Button Status
-  const claimBtn = document.getElementById('btn-feedback-claim');
-  if (claimBtn) {
-    const claimed = localStorage.getItem('klim_tarot_feedback_bonus') === 'true';
-    if (claimed) {
-      claimBtn.classList.add('claimed');
-      claimBtn.innerHTML = '<span>✓ Бонус +1 день PRO получен</span>';
-    }
-  }
+  // Render history in profile
+  if (typeof renderHistory === 'function') renderHistory();
 }
 
-// Profile & Feedback button listeners
+// Profile & Action button listeners
 document.getElementById('btn-topbar-profile')?.addEventListener('click', () => {
   sound.playTap();
   haptic('light');
   navigateTo('profile');
 });
 
-document.getElementById('home-profile-widget')?.addEventListener('click', () => {
+document.getElementById('btn-profile-vip-extend')?.addEventListener('click', () => {
   sound.playTap();
   haptic('light');
-  navigateTo('profile');
+  navigateTo('plans');
 });
 
-document.getElementById('btn-feedback-claim')?.addEventListener('click', () => {
+document.getElementById('btn-profile-clear-history')?.addEventListener('click', () => {
   sound.playTap();
   haptic('medium');
-  if (localStorage.getItem('klim_tarot_feedback_bonus') === 'true') {
-    showToast('Вы уже получили бонус за отзыв! Спасибо!');
-    return;
-  }
-  localStorage.setItem('klim_tarot_feedback_bonus', 'true');
-  const curDays = parseInt(localStorage.getItem('klim_tarot_pro_days') || '0', 10);
-  const newDays = curDays + 1;
-  localStorage.setItem('klim_tarot_pro_days', String(newDays));
-  localStorage.setItem('klim_tarot_pro_granted', 'true');
-  if (typeof state !== 'undefined' && state) state.proDays = newDays;
-  CloudSync.set('klim_tarot_pro_days', String(newDays));
-  updateProDaysUI();
-  updateProfileUI();
-  showToast('🎉 +1 день PRO начислен за отзыв!');
+  localStorage.removeItem('klim_tarot_history');
+  updateHistoryCounter();
+  renderHistory();
+  showToast('История гаданий очищена');
 });
 
 updateProDaysUI();

@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css?v=43" />
+  <link rel="stylesheet" href="./css/styles.css?v=44" />
   <!-- Preload Burst SFX & Key Tarot Cards for Instant Zero-Lag Transition -->
   <link rel="preload" href="./assets/transition-burst.mp3" as="fetch" crossorigin="anonymous" />
   <link rel="preload" href="./assets/cards/m17.webp" as="image" type="image/webp" />
@@ -251,40 +251,6 @@
             </div>
           </div>
 
-          <!-- ⚡ Карточка статуса подписки PRO и счётчика дней -->
-          <div class="pro-status-widget" id="home-pro-widget">
-            <div class="pro-widget-glow"></div>
-            <div class="pro-widget-content">
-              <div class="pro-widget-left">
-                <div class="pro-widget-icon" id="pro-widget-icon">⚡</div>
-                <div class="pro-widget-info">
-                  <div class="pro-widget-title-row">
-                    <strong class="pro-widget-title" id="pro-widget-title">KLIM TAROT PRO</strong>
-                    <span class="pro-widget-tag" id="pro-widget-tag">АКТИВЕН</span>
-                  </div>
-                  <div class="pro-widget-desc" id="pro-widget-desc">Осталось: <span id="pro-widget-days" class="pro-days-highlight">...</span> · 35 раскладов и 78 карт открыты</div>
-                </div>
-              </div>
-              <button type="button" class="btn-pro-widget-action" id="btn-home-pro-action">
-                <span id="home-pro-btn-text">+ Продлить</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- 👤 Карточка профиля и ранга на главной -->
-          <div class="home-user-badge-widget" id="home-profile-widget" data-nav="profile">
-            <div class="home-user-badge-glow"></div>
-            <div class="home-user-avatar-mini" id="home-user-avatar-mini">🔮</div>
-            <div class="home-user-meta">
-              <div class="home-user-top">
-                <span class="home-user-title" id="home-user-name">Мой профиль</span>
-                <span class="home-user-rank-pill" id="home-user-rank-pill">🌟 Искатель</span>
-              </div>
-              <span class="home-user-sub" id="home-user-sub">Нажмите для перехода к званиям и статистике →</span>
-            </div>
-            <div class="home-user-arrow">›</div>
-          </div>
-
           <!-- Modern Bento Grid -->
           <div class="section-head">
             <h3>Быстрый доступ</h3>
@@ -368,30 +334,6 @@
               <div class="bento-meta">
                 <span class="bento-title">Психология</span>
                 <span class="bento-sub">Антистресс и гид</span>
-              </div>
-            </button>
-
-            <button class="bento-card" data-nav="dictionary">
-              <div class="bento-icon icon-violet">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15z" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </div>
-              <div class="bento-meta">
-                <span class="bento-title">Словарь карт</span>
-                <span class="bento-sub">Все 78 арканов</span>
-              </div>
-            </button>
-
-            <button class="bento-card" data-nav="history">
-              <div class="bento-icon icon-amber">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </div>
-              <div class="bento-meta">
-                <span class="bento-title">Моя история</span>
-                <span class="bento-sub" id="history-count-label">Сохранённые</span>
               </div>
             </button>
 
@@ -942,46 +884,35 @@
 
         <!-- ── VIEW 13: 👤 МОЙ ПРОФИЛЬ, ЗВАНИЯ И СВЯЗЬ С СОЗДАТЕЛЕМ ── -->
         <section id="view-profile" class="subview">
-          <!-- Верхняя карточка профиля: аватар, имя, статус -->
-          <div class="profile-hero-card">
-            <div class="profile-avatar-wrapper">
-              <div class="profile-avatar-aura"></div>
-              <img id="profile-avatar-img" class="profile-avatar-img hidden" alt="Аватарка" />
-              <div id="profile-avatar-fallback" class="profile-avatar-fallback">🔮</div>
-              <span class="profile-avatar-badge" id="profile-avatar-badge">⚡</span>
-            </div>
-            <div class="profile-user-info">
-              <div class="profile-name-row">
-                <h2 class="profile-user-name" id="profile-user-name">Путник</h2>
-                <span class="profile-owner-tag hidden" id="profile-owner-tag">👑 СОЗДАТЕЛЬ</span>
+          <!-- Верхняя карточка профиля: аватар, имя, статус и VIP-блок справа -->
+          <div class="profile-hero-card" id="profile-hero-card">
+            <div class="profile-hero-glow"></div>
+            <div class="profile-hero-left">
+              <div class="profile-avatar-wrapper">
+                <div class="profile-avatar-aura"></div>
+                <img id="profile-avatar-img" class="profile-avatar-img hidden" alt="Аватарка" />
+                <div id="profile-avatar-fallback" class="profile-avatar-fallback">🔮</div>
+                <span class="profile-avatar-badge" id="profile-avatar-badge">⚡</span>
               </div>
-              <div class="profile-username" id="profile-username">@tarot_user</div>
-              <div class="profile-id-pill" id="profile-id-pill">
-                <span>ID: </span><span id="profile-user-id">...</span>
+              <div class="profile-user-info">
+                <div class="profile-name-row">
+                  <h2 class="profile-user-name" id="profile-user-name">Путник</h2>
+                  <span class="profile-owner-tag hidden" id="profile-owner-tag">👑 СОЗДАТЕЛЬ</span>
+                </div>
+                <div class="profile-username" id="profile-username">@tarot_user</div>
+                <div class="profile-id-pill" id="profile-id-pill">
+                  <span>ID: </span><span id="profile-user-id">...</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Карточка текущего звания (Ранг Таро) -->
-          <div class="profile-rank-card" id="profile-rank-card">
-            <div class="rank-card-glow"></div>
-            <div class="rank-card-header">
-              <div class="rank-badge-icon" id="rank-badge-icon">🌙</div>
-              <div class="rank-card-title-group">
-                <span class="rank-tier-tag" id="rank-tier-tag">РАНГ III · СРЕДНИЙ КРУГ</span>
-                <h3 class="rank-card-title" id="rank-title">Ученик Оракула</h3>
+            <!-- VIP статус с таймером справа -->
+            <div class="profile-vip-badge-box" id="profile-vip-badge-box">
+              <div class="profile-vip-top-row">
+                <span class="profile-vip-tag" id="profile-vip-tag">👑 VIP</span>
               </div>
-            </div>
-            <p class="rank-card-quote" id="rank-quote">«Вам открываются скрытые течения грядущих событий и послания карт»</p>
-            
-            <div class="rank-progress-block">
-              <div class="rank-progress-labels">
-                <span id="rank-progress-text">12 из 15 раскладов</span>
-                <span id="rank-progress-next">До Хранителя Тайн: 3</span>
-              </div>
-              <div class="rank-progress-track">
-                <div class="rank-progress-fill" id="rank-progress-bar" style="width: 80%;"></div>
-              </div>
+              <div class="profile-vip-days-num" id="profile-vip-days">Бессрочно</div>
+              <button type="button" class="btn-profile-extend" id="btn-profile-vip-extend">Продлить ✦</button>
             </div>
           </div>
 
@@ -1012,12 +943,13 @@
             </div>
           </div>
 
-          <!-- Карта всех 6 званий Таро (Roadmap) -->
-          <div class="section-head" style="margin-top:22px;">
-            <h3>Все звания Арканума</h3>
-          </div>
-          <div class="ranks-roadmap" id="ranks-roadmap-list">
-            <!-- Rendered dynamically in app.js -->
+          <!-- История гаданий в профиле -->
+          <div class="profile-history-section" id="profile-history-section">
+            <div class="section-head row-between">
+              <h3>История гаданий</h3>
+              <button type="button" class="chip-danger-btn hidden" id="btn-profile-clear-history">Очистить</button>
+            </div>
+            <div class="history-list" id="profile-history-list"></div>
           </div>
 
           <!-- Карточка обратной связи с создателем (Feedback) -->
@@ -1025,7 +957,7 @@
             <div class="feedback-card-icon">💌</div>
             <div class="feedback-card-content">
               <h4>Связь с создателем</h4>
-              <p>Напишите напрямую Климу (@im_klim): поделитесь отзывом, идеей или задайте вопрос. За отзыв начисляем бонусный день PRO!</p>
+              <p>Напишите напрямую Климу (@im_klim): поделитесь отзывом, идеей или задайте вопрос.</p>
               <div class="feedback-actions">
                 <a href="https://t.me/im_klim?text=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82!%20%D0%AF%20%D0%B8%D0%B7%20%D0%BF%D1%80%D0%B8%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D1%8F%20Klim%20Tarot,%20%D1%85%D0%BE%D1%87%D1%83%20%D0%BF%D0%BE%D0%B4%D0%B5%D0%BB%D0%B8%D1%82%D1%8C%D1%81%D1%8F%20%D0%BE%D1%82%D0%B7%D1%8B%D0%B2%D0%BE%D0%BC:" target="_blank" rel="noopener" class="btn-feedback-telegram" id="btn-feedback-telegram">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;display:inline-block;vertical-align:middle;margin-right:6px;">
@@ -1033,9 +965,6 @@
                   </svg>
                   <span>Написать создателю в Telegram</span>
                 </a>
-                <button type="button" class="btn-feedback-claim" id="btn-feedback-claim">
-                  <span>🎁 Забрать +1 день PRO за отзыв</span>
-                </button>
               </div>
             </div>
           </div>
@@ -1163,6 +1092,6 @@
   <!-- Audio preload for zero-latency burst sound -->
   <audio id="snd-transition-burst" preload="auto" src="./assets/transition-burst.mp3" style="display:none;"></audio>
 
-  <script type="module" src="./js/app.js?v=43"></script>
+  <script type="module" src="./js/app.js?v=44"></script>
 </body>
 </html>
