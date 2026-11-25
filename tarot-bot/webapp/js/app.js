@@ -1,7 +1,6 @@
-﻿import { ALL_CARDS, MAJOR_IDS, SPREADS, CATEGORIES, POSITION_LEADS } from './tarot-data.js?v=15';
+import { ALL_CARDS, MAJOR_IDS, SPREADS, CATEGORIES, POSITION_LEADS } from './tarot-data.js?v=15';
 import { PSYCH_CATEGORIES, PSYCH_GUIDES } from './psychology-data.js?v=8';
 import { ZODIAC_SIGNS, ELEMENT_LABELS, calculateCompatibility } from './zodiac-data.js?v=8';
-import * as api from './api-client.js?v=2';
 
 const BOT_INVITE_URL = 'https://t.me/MysticalTarotKlimBot';
 const DEFAULT_SHARE_CTA =
@@ -1272,7 +1271,6 @@ function checkProAccessFromEnv() {
 }
 
 function hasProAccess() {
-  if (state?.serverSynced && state?.serverProAccess) return true;
   return checkProAccessFromEnv();
 }
 
@@ -1288,19 +1286,12 @@ const state = {
   drawSession: null, // { spread, friendName, question, needed, pool, picked: [] }
   lastReading: null,
   oracleFlipped: false,
-  serverSynced: false,
-  serverProAccess: false,
-  serverHistory: null,
-  serverLeaderboard: null,
-  serverDaily: null,
-  cooldownUntil: { spread: 0, oracle: 0, friend: 0 },
-  wheelCooldownUntil: 0,
   proDays: parseInt(localStorage.getItem('klim_tarot_pro_days') || '0', 10),
   proExpiresAt: parseInt(localStorage.getItem('klim_tarot_pro_exp') || '0', 10),
   referralCount: parseInt(localStorage.getItem('klim_tarot_ref_count') || '0', 10),
   referralBonusDays: parseInt(localStorage.getItem('klim_tarot_ref_bonus') || '0', 10),
   isOwner: getTelegramUserId() === OWNER_TELEGRAM_ID,
-  isProMode: checkProAccessFromEnv() && (localStorage.getItem('klim_tarot_pro_mode') !== 'false'),
+  isProMode: hasProAccess() && (localStorage.getItem('klim_tarot_pro_mode') !== 'false'),
   proDeckMode: localStorage.getItem('klim_tarot_pro_deck') || 'all', // 'all' | 'major' | 'minor'
   proReversals: parseFloat(localStorage.getItem('klim_tarot_pro_rev') || '0.5'), // 0.5 | 0.25 | 0
 };
@@ -1930,23 +1921,8 @@ function openDailyCardReading() {
   document.getElementById('synthesis-card')?.classList.add('hidden');
   document.querySelector('#view-result .result-actions')?.classList.add('hidden');
 
-  const manifestNow = async () => {
-    let daily = null;
-    if (state.serverSynced) {
-      try {
-        const res = await api.apiDrawDaily();
-        daily = { card: res.card, reversed: res.reversed, opened: res.already, period: res.period, synthesis: res.synthesis };
-        state.serverDaily = { ...daily, opened: true };
-      } catch (err) {
-        if (err.status === 403 && err.code === 'user_banned') {
-          showToast('⛔ Ваш доступ ограничен администратором');
-          return;
-        }
-      }
-    }
-    if (!daily) {
-      daily = drawAndSaveDailyCard();
-    }
+  const manifestNow = () => {
+    const daily = drawAndSaveDailyCard();
     preloadCardImage(daily.card);
     const p = daily.period;
     const reading = {
@@ -1955,7 +1931,6 @@ function openDailyCardReading() {
       spreadDesc: `${p.dateStr} (${p.timeStr}) · ${p.nextNote}`,
       positions: [p.position],
       drawn: [{ card: daily.card, reversed: daily.reversed }],
-      synthesis: daily.synthesis || null,
       friendName: null,
       question: '',
       isDaily: true,
@@ -1976,61 +1951,20 @@ function openDailyCardReading() {
   navigateTo('result');
 }
 
-async function finalizeReading() {
+function finalizeReading() {
   const s = state.drawSession;
   if (!s) return;
   const question = document.getElementById('draw-question-input').value.trim();
 
-  let reading = null;
-  if (state.serverSynced) {
-    try {
-      const res = await api.apiDrawSpread({
-        spreadKey: s.spread.key,
-        customTopic: s.spread.key === 'custom_topic' ? (s.spread.customTopic || question) : '',
-        customCount: s.spread.count,
-        friendName: s.friendName,
-        question,
-        deckMode: state.proDeckMode,
-        revProb: state.proReversals,
-      });
-      reading = {
-        spreadKey: res.spreadKey,
-        spreadName: res.spreadName,
-        spreadDesc: res.spreadDesc,
-        positions: res.positions,
-        drawn: res.drawn,
-        synthesis: res.synthesis,
-        friendName: res.friendName,
-        question: res.question,
-      };
-      if (res.cooldownsMs) {
-        Object.entries(res.cooldownsMs).forEach(([k, ms]) => {
-          state.cooldownUntil[k] = Date.now() + Number(ms || 0);
-        });
-      }
-    } catch (err) {
-      if (err.status === 429 && err.data?.remainingMs) {
-        showCooldownModal(err.data.kind || 'spread', err.data.remainingMs);
-        return;
-      }
-      if (err.status === 403) {
-        showToast(err.message || '⛔ Доступ ограничен');
-        return;
-      }
-    }
-  }
-
-  if (!reading) {
-    reading = {
-      spreadKey: s.spread.key,
-      spreadName: s.spread.name,
-      spreadDesc: s.spread.desc,
-      positions: s.spread.positions,
-      drawn: s.picked,
-      friendName: s.friendName,
-      question,
-    };
-  }
+  const reading = {
+    spreadKey: s.spread.key,
+    spreadName: s.spread.name,
+    spreadDesc: s.spread.desc,
+    positions: s.spread.positions,
+    drawn: s.picked,
+    friendName: s.friendName,
+    question,
+  };
 
   saveReadingToHistory({
     spreadKey: reading.spreadKey,
@@ -2567,57 +2501,11 @@ function triggerOracle() {
 }
 
 async function revealOracleCard() {
-  const question = document.getElementById('oracle-question-input').value.trim();
-  let card, reversed, verdict, verdictClass, energyNote;
-
-  if (state.serverSynced) {
-    try {
-      const res = await api.apiAskOracle({
-        question,
-        deckMode: state.proDeckMode,
-        revProb: state.proReversals,
-      });
-      card = res.card;
-      reversed = res.reversed;
-      verdict = res.verdict;
-      verdictClass = res.verdictClass;
-      energyNote = res.energyNote;
-      if (res.cooldownsMs) {
-        Object.entries(res.cooldownsMs).forEach(([k, ms]) => {
-          state.cooldownUntil[k] = Date.now() + Number(ms || 0);
-        });
-      }
-    } catch (err) {
-      if (err.status === 429 && err.data?.remainingMs) {
-        showCooldownModal('oracle', err.data.remainingMs);
-        return;
-      }
-      if (err.status === 403) {
-        showToast(err.message || '⛔ Доступ ограничен');
-        return;
-      }
-    }
-  }
-
-  if (!card) {
-    const [{ card: c, reversed: r }] = drawRandomCards(1);
-    card = c;
-    reversed = r;
-    let weight = card.yes_weight || 0;
-    if (reversed) weight = -weight;
-    verdict = weight > 0 ? 'ДА' : weight < 0 ? 'НЕТ' : 'ВОЗМОЖНО';
-    verdictClass = weight > 0 ? 'verdict-yes' : weight < 0 ? 'verdict-no' : 'verdict-maybe';
-    energyNote =
-      weight > 0
-        ? 'Карта несёт открытую, поддерживающую энергию — путь открыт.'
-        : weight < 0
-        ? 'Карта предупреждает о препятствии или неверном моменте.'
-        : 'Исход не предопределён — многое зависит от вашего следующего шага.';
-  }
-
+  const [{ card, reversed }] = drawRandomCards(1);
   state.currentOracleCard = card;
   state.currentOracleReversed = reversed;
-  const weight = verdict === 'ДА' ? 1 : verdict === 'НЕТ' ? -1 : 0;
+  let weight = card.yes_weight || 0;
+  if (reversed) weight = -weight;
 
   // Wait briefly for local WebP decode so the card never flips blank
   const pre = preloadCardImage(card);
@@ -2627,6 +2515,15 @@ async function revealOracleCard() {
       new Promise((r) => setTimeout(r, 180)),
     ]);
   }
+
+  const verdict = weight > 0 ? 'ДА' : weight < 0 ? 'НЕТ' : 'ВОЗМОЖНО';
+  const verdictClass = weight > 0 ? 'verdict-yes' : weight < 0 ? 'verdict-no' : 'verdict-maybe';
+  const energyNote =
+    weight > 0
+      ? 'Карта несёт открытую, поддерживающую энергию — путь открыт.'
+      : weight < 0
+      ? 'Карта предупреждает о препятствии или неверном моменте.'
+      : 'Исход не предопределён — многое зависит от вашего следующего шага.';
 
   const front = document.getElementById('oracle-front');
   front.innerHTML = `
@@ -2646,6 +2543,7 @@ async function revealOracleCard() {
   sound.playOracleReveal(weight);
   haptic(weight > 0 ? 'success' : weight < 0 ? 'warning' : 'medium');
 
+  const question = document.getElementById('oracle-question-input').value.trim();
   const panel = document.getElementById('oracle-verdict-panel');
   panel.innerHTML = `
     ${question ? `<div class="result-question-quote" style="margin:0 0 12px;">«${escapeHtml(question)}»</div>` : ''}
@@ -4042,21 +3940,10 @@ function renderShardsUI() {
   }
 }
 
-async function forgeShardsAction() {
+function forgeShardsAction() {
   const cnt = getShardsCount();
   if (cnt >= 5) {
-    if (state.serverSynced) {
-      try {
-        const res = await api.apiForgeShards();
-        setShardsCount(res.shards);
-        state.serverProAccess = true;
-      } catch (err) {
-        showToast(err.message || 'Не удалось объединить осколки');
-        return;
-      }
-    } else {
-      setShardsCount(cnt - 5);
-    }
+    setShardsCount(cnt - 5);
     localStorage.setItem('klim_tarot_pro_granted', 'true');
     localStorage.setItem('klim_tarot_pro_mode', 'true');
     state.isProMode = true;
@@ -4222,33 +4109,17 @@ function checkWheelCooldown() {
   }
 }
 
-async function spinWheel() {
+function spinWheel() {
   if (wheelState.isSpinning || !checkWheelCooldown()) return;
   wheelState.isSpinning = true;
 
   const spinBtn = document.getElementById('btn-spin-wheel');
   if (spinBtn) spinBtn.classList.add('disabled');
 
-  let winningIndex = Math.floor(Math.random() * WHEEL_SECTORS.length);
-  let serverSpinResult = null;
-  if (state.serverSynced) {
-    try {
-      serverSpinResult = await api.apiSpinWheel();
-      winningIndex = Number(serverSpinResult.sectorIndex ?? winningIndex);
-    } catch (err) {
-      wheelState.isSpinning = false;
-      if (err.status === 429 && err.data?.wheelCooldownMs) {
-        state.wheelCooldownUntil = Date.now() + Number(err.data.wheelCooldownMs);
-      }
-      checkWheelCooldown();
-      if (err.status !== 429) showToast(err.message || 'Не удалось прокрутить колесо');
-      return;
-    }
-  }
-
   sound.playShuffle();
   haptic('medium');
 
+  const winningIndex = Math.floor(Math.random() * WHEEL_SECTORS.length);
   const numSectors = WHEEL_SECTORS.length;
   const arc = (2 * Math.PI) / numSectors;
 
@@ -4381,66 +4252,26 @@ function renderLeaderboard() {
   const container = document.getElementById('leaderboard-list');
   if (!container) return;
 
-  const list = (Array.isArray(state.serverLeaderboard) && state.serverLeaderboard.length > 0)
-    ? state.serverLeaderboard
-    : MOCK_LEADERBOARD;
-
   const medals = ['🥇', '🥈', '🥉', '4', '5'];
-  container.innerHTML = list.map((item, idx) => `
+  container.innerHTML = MOCK_LEADERBOARD.map((item, idx) => `
     <div class="leaderboard-item rank-${idx + 1}">
       <div class="leaderboard-left">
         <span class="leaderboard-rank-badge">${medals[idx] || (idx + 1)}</span>
         <div class="leaderboard-info">
-          <strong>${escapeHtml(item.name)}</strong>
-          <span>${escapeHtml(item.user)} · ${escapeHtml(item.badge)}</span>
+          <strong>${item.name}</strong>
+          <span>${item.user} · ${item.badge}</span>
         </div>
       </div>
       <div class="leaderboard-right">
-        <div class="leaderboard-invited">${Number(item.count || 0)} друзей</div>
-        <div class="leaderboard-days">${escapeHtml(item.days)} PRO</div>
+        <div class="leaderboard-invited">${item.count} друзей</div>
+        <div class="leaderboard-days">${item.days} PRO</div>
       </div>
     </div>
   `).join('');
 }
 
-async function syncWithServer() {
-  try {
-    const data = await api.apiBootstrap();
-    state.serverSynced = true;
-    state.serverProAccess = Boolean(data.user?.isPro);
-    if (state.serverProAccess) {
-      state.isProMode = localStorage.getItem('klim_tarot_pro_mode') !== 'false';
-    }
-    state.serverHistory = Array.isArray(data.history) ? data.history : [];
-    state.serverLeaderboard = Array.isArray(data.leaderboard) ? data.leaderboard : [];
-    state.serverDaily = data.dailyCard || null;
-
-    if (typeof data.user?.shards === 'number') {
-      setShardsCount(data.user.shards);
-    }
-    if (typeof data.user?.wheelCooldownMs === 'number') {
-      state.wheelCooldownUntil = Date.now() + data.user.wheelCooldownMs;
-    }
-    if (data.user?.cooldownsMs) {
-      Object.entries(data.user.cooldownsMs).forEach(([k, ms]) => {
-        state.cooldownUntil[k] = Date.now() + Number(ms || 0);
-      });
-    }
-
-    updateProModeUI();
-    if (typeof updateProfileUI === 'function') updateProfileUI();
-    refreshHomeBanner();
-    updateHistoryCounter();
-    checkWheelCooldown();
-    renderLeaderboard();
-  } catch (err) {
-    console.debug('Server bootstrap skipped:', err?.message || err);
-  }
-}
-
 initFortuneWheel();
 initInviteAndLeaderboard();
-syncWithServer();
 
 document.getElementById('btn-home-pro-action')?.addEventListener('click', () => {
   sound.playTap();
