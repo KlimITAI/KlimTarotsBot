@@ -373,7 +373,7 @@ async def handle_wheel_spin(request: web.Request) -> web.Response:
         )
 
     sector_index, sector = tarot_engine.spin_wheel_server()
-    shards_gain = sector["val"] if sector.get("type") == "shard" else 0
+    shards_gain = sector.get("val", 0) if sector.get("type") in ("shard", "jackpot") else 0
     updated = database.record_wheel_spin(uid, shards_delta=shards_gain)
     database.log_user_event(uid, user["username"], user["first_name"], "wheel_spin", f"sector={sector['label']}")
 

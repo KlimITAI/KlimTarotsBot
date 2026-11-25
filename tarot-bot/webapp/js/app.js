@@ -2124,11 +2124,19 @@ function renderReadingResult(reading) {
     </div>
   `;
 
-  // PRO Preview or Full PRO Matrix
+  // PRO Preview or Full PRO Matrix (включая временные 1-часовые бонусы из Колеса)
   const oldTeaser = document.getElementById('pro-teaser-banner');
   if (oldTeaser) oldTeaser.remove();
 
-  if (state.isProMode) {
+  const isOwnerUser = isAppOwner();
+  const hasFullPro = hasProAccess();
+  const shadowExp = parseInt(localStorage.getItem('klim_tarot_item_shadow_exp') || '0', 10);
+  const elementsExp = parseInt(localStorage.getItem('klim_tarot_item_elements_exp') || '0', 10);
+  const nowTs = Date.now();
+  const hasShadowTrial = shadowExp > nowTs;
+  const hasElementsTrial = elementsExp > nowTs;
+
+  if (state.isProMode || hasShadowTrial || hasElementsTrial) {
     renderProResultMatrix(reading);
   } else {
     document.getElementById('pro-analysis-container')?.classList.add('hidden');
@@ -3865,15 +3873,87 @@ if (_savedDaily?.card) preloadCardImage(_savedDaily.card);
 /* ══════════════════════════════════════════════════════════════
    🎡 КОЛЕСО ФОРТУНЫ & ОСКОЛКИ СУДЬБЫ (X АРКАН)
    ══════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════
+   🎡 КОЛЕСО ФОРТУНЫ & ОСКОЛКИ СУДЬБЫ (X АРКАН)
+   ══════════════════════════════════════════════════════════════ */
+
+// 🥠 Печенье судьбы / Личные предсказания от карт Таро
+const FORTUNE_PREDICTIONS = [
+  "✨ Карты шепчут: сегодняшнее маленькое решение приведёт к большому счастливому повороту событий. Доверьтесь первому порыву!",
+  "🌱 Энергия Императрицы с вами: всё, во что вы вложите заботу и внимание сегодня, принесёт щедрые и радостные плоды.",
+  "☀️ Аркан Солнце озаряет ваш путь: сомнение, тревожившее вас последние дни, растает как утренний туман до заката.",
+  "🗝️ Маг напоминает: все нужные инструменты и внутренние ресурсы уже в ваших руках. Перестаньте сомневаться — начните!",
+  "🌊 Мудрость Воды: отпустите излишний контроль в одном незначительном вопросе. Позвольте миру приятно удивить вас сегодня.",
+  "🍀 Колесо Фортуны поворачивается в вашу пользу: ждите неожиданного тёплого сообщения или счастливой случайной встречи!",
+  "🕊️ Аркан Мир: сделайте глубокий вдох и отпустите недавнее напряжение. Ситуация складывается самым гармоничным образом.",
+  "💎 Карта Силы: вы гораздо сильнее и выносливее, чем вам кажется. Любое препятствие сегодня окажется лишь ступенькой вверх.",
+  "🔮 Верховная Жрица говорит: обратите внимание на сегодняшний сон или знак — Вселенная передаёт вам важную подсказку.",
+  "🕯️ Отшельник дарит ясность: всего 10 минут тишины наедине с собой сегодня откроют верный ответ на давний вопрос.",
+  "⚡ Башня освобождает пространство: если какие-то планы изменились — радуйтесь, судьба расчищает место для лучшего!",
+  "🍷 Туз Кубков переполнен любовью: проявите искреннее душевное тепло, и оно вернётся к вам стократной поддержкой.",
+  "⚔️ Туз Мечей приносит кристальную ясность: сегодня вы увидите истинную суть ситуации без иллюзий и лишних сомнений.",
+  "🪙 Туз Пентаклей стучится в дверь: новая материальная возможность уже рядом, проявите практичность и сделайте шаг.",
+  "🔥 Рыцарь Жезлов зажигает огонь: смелая идея ждёт воплощения. Действуйте решительно, удача на стороне смелых!",
+  "🌟 Аркан Звезда: ваш внутренний свет ведёт вас в верном направлении. До заветной мечты осталось гораздо меньше, чем кажется.",
+  "🦋 Умеренность дарит внутренний покой: буря улеглась, наступает период гармонии, исцеления и душевного равновесия.",
+  "🧭 Шут зовёт в новое приключение: позвольте себе лёгкость и непосредственность сегодня — день полон чистой магии!",
+  "🌺 Влюблённые благословляют выбор: выбирайте то, к чему искренне тянется сердце, а не то, что диктует страх.",
+  "⚖️ Справедливость на вашей стороне: правда и порядок восторжествуют. Сохраняйте внутреннее достоинство и покой.",
+  "💫 Колесница несёт к победе: направьте энергию в одну главную цель, не распыляясь, и триумф будет за вами!",
+  "🌙 Луна раскрывает интуицию: доверяйте не словам, а своим глубинным ощущениям — внутренний компас не ошибётся.",
+  "🌾 Восьмёрка Пентаклей: мастерство растёт с каждым днём. Труд, вложенный с душой, скоро принесёт заслуженное признание.",
+  "🎉 Четвёрка Жезлов: повод для праздника и радости уже на пороге. Разделите приятные моменты с теми, кто вам дорог!"
+];
+
+function pickRandomFortunePrediction() {
+  return FORTUNE_PREDICTIONS[Math.floor(Math.random() * FORTUNE_PREDICTIONS.length)];
+}
+
+function showFortuneCookieModal(prediction) {
+  const modal = document.getElementById('fortune-cookie-modal');
+  const textEl = document.getElementById('fortune-cookie-text');
+  if (textEl) textEl.textContent = prediction;
+
+  localStorage.setItem('klim_tarot_last_prediction', JSON.stringify({
+    text: prediction,
+    timestamp: Date.now()
+  }));
+
+  if (modal) {
+    modal.classList.remove('hidden');
+    sound.playCardPick(1);
+    haptic('success');
+  }
+
+  const closeBtn = document.getElementById('btn-fortune-accept');
+  const backdrop = document.getElementById('fortune-cookie-backdrop');
+
+  const closeModal = () => {
+    sound.playTap();
+    modal?.classList.add('hidden');
+    if (typeof updateProfileUI === 'function') updateProfileUI();
+  };
+
+  closeBtn?.replaceWith(closeBtn.cloneNode(true));
+  backdrop?.replaceWith(backdrop.cloneNode(true));
+
+  document.getElementById('btn-fortune-accept')?.addEventListener('click', closeModal);
+  document.getElementById('fortune-cookie-backdrop')?.addEventListener('click', closeModal);
+
+  renderShardsUI();
+}
+
+// Секторы Колеса Фортуны (в точности совпадают с эталонным скриншотом по часовой стрелке от 12:00)
+// Шанс на Талисман Удачи и Мудрость Таро (предсказание) существенно повышен по просьбе пользователя!
 const WHEEL_SECTORS = [
-  { label: '+1 Осколок', icon: '🔮', type: 'shard', val: 1, bg1: '#2e1065', bg2: '#581c87', border: '#c084fc', text: '#f3e8ff' },
-  { label: 'Скидка 25%', icon: '🏷️', type: 'discount_25', code: 'FORTUNA25', bg1: '#831843', bg2: '#be185d', border: '#f472b6', text: '#fff1f2' },
-  { label: 'Дно колоды', icon: '🌑', type: 'feature_shadow', bg1: '#1e1b4b', bg2: '#3730a3', border: '#818cf8', text: '#e0e7ff' },
-  { label: '+2 Осколка', icon: '✨', type: 'shard', val: 2, bg1: '#3b0764', bg2: '#6b21a8', border: '#d8b4fe', text: '#faf5ff' },
-  { label: 'Талисман Удачи', icon: '🍀', type: 'talisman', bg1: '#064e3b', bg2: '#047857', border: '#34d399', text: '#ecfdf5' },
-  { label: '4 Стихии', icon: '🌊', type: 'feature_elements', bg1: '#164e63', bg2: '#0e7490', border: '#22d3ee', text: '#ecfeff' },
-  { label: '+3 Осколка', icon: '💎', type: 'shard', val: 3, bg1: '#854d0e', bg2: '#ca8a04', border: '#fde047', text: '#fefce8' },
-  { label: 'Мудрость Таро', icon: '🌟', type: 'wisdom', bg1: '#713f12', bg2: '#b45309', border: '#fde047', text: '#fefce8' },
+  { label: '+3 Осколка', icon: '💎', type: 'shard', val: 3, weight: 1.0, bg1: '#854d0e', bg2: '#ca8a04', border: '#fde047', text: '#fefce8' },
+  { label: 'Мудрость Таро', icon: '🥠', type: 'prediction', weight: 3.5, bg1: '#9a3412', bg2: '#ea580c', border: '#fdba74', text: '#fff7ed' },
+  { label: '+1 Осколок', icon: '🔮', type: 'shard', val: 1, weight: 2.5, bg1: '#3b0764', bg2: '#7c3aed', border: '#c084fc', text: '#f3e8ff' },
+  { label: 'Супер-джекпот!', icon: '🎉', type: 'jackpot', val: 3, weight: 0.8, bg1: '#881337', bg2: '#e11d48', border: '#fb7185', text: '#fff1f2' },
+  { label: 'Дно колоды', icon: '🌑', type: 'feature_shadow', weight: 2.0, bg1: '#1e3a8a', bg2: '#2563eb', border: '#60a5fa', text: '#eff6ff' },
+  { label: '+2 Осколка', icon: '✨', type: 'shard', val: 2, weight: 2.0, bg1: '#581c87', bg2: '#9333ea', border: '#d8b4fe', text: '#faf5ff' },
+  { label: 'Талисман Удачи', icon: '🍀', type: 'talisman', weight: 3.5, bg1: '#064e3b', bg2: '#059669', border: '#34d399', text: '#ecfdf5' },
+  { label: '4 Стихии', icon: '🌊', type: 'feature_elements', weight: 2.0, bg1: '#155e75', bg2: '#06b6d4', border: '#67e8f9', text: '#ecfeff' },
 ];
 
 let wheelState = {
@@ -3894,6 +3974,7 @@ function renderShardsUI() {
   const cnt = getShardsCount();
   const isOwner = isAppOwner();
   const hasPro = hasProAccess();
+  const now = Date.now();
 
   // 1. Wheel view
   const wheelNumEl = document.getElementById('shards-num');
@@ -3939,9 +4020,9 @@ function renderShardsUI() {
   const statShards = document.getElementById('profile-stat-shards');
   if (statShards) statShards.textContent = `${cnt} / 5`;
 
-  // 4. Profile Inventory Items
+  // 4. Profile Inventory Items с обратным отсчетом 1-часовых бонусов
   const talisExp = parseInt(localStorage.getItem('klim_tarot_item_talisman') || '0', 10);
-  const hasTalisman = talisExp > Date.now();
+  const hasTalisman = talisExp > now;
   const talismanBadge = document.getElementById('inv-item-talisman');
   const talismanStatus = document.getElementById('inv-status-talisman');
   if (talismanBadge && talismanStatus) {
@@ -3949,20 +4030,42 @@ function renderShardsUI() {
     talismanStatus.textContent = hasTalisman ? 'Активен сегодня ✨' : 'В Колесе Фортуны';
   }
 
-  const hasShadow = isOwner || hasPro || localStorage.getItem('klim_tarot_item_shadow') === 'true';
+  const shadowExp = parseInt(localStorage.getItem('klim_tarot_item_shadow_exp') || '0', 10);
+  const hasShadowBonus = shadowExp > now;
+  const hasShadow = isOwner || hasPro || hasShadowBonus;
   const shadowBadge = document.getElementById('inv-item-shadow');
   const shadowStatus = document.getElementById('inv-status-shadow');
   if (shadowBadge && shadowStatus) {
     shadowBadge.classList.toggle('active', hasShadow);
-    shadowStatus.textContent = hasShadow ? 'Открыт (Дно колоды)' : 'Закрыт';
+    if (isOwner || hasPro) {
+      shadowStatus.textContent = '⚡ PRO Навсегда';
+    } else if (hasShadowBonus) {
+      const rem = shadowExp - now;
+      const mins = Math.floor(rem / 60000);
+      const secs = Math.floor((rem % 60000) / 1000);
+      shadowStatus.textContent = `⏳ ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} (PRO 1ч)`;
+    } else {
+      shadowStatus.textContent = '🔒 Закрыт';
+    }
   }
 
-  const hasElements = isOwner || hasPro || localStorage.getItem('klim_tarot_item_elements') === 'true';
+  const elementsExp = parseInt(localStorage.getItem('klim_tarot_item_elements_exp') || '0', 10);
+  const hasElementsBonus = elementsExp > now;
+  const hasElements = isOwner || hasPro || hasElementsBonus;
   const elementsBadge = document.getElementById('inv-item-elements');
   const elementsStatus = document.getElementById('inv-status-elements');
   if (elementsBadge && elementsStatus) {
     elementsBadge.classList.toggle('active', hasElements);
-    elementsStatus.textContent = hasElements ? 'Открыт (4 стихии)' : 'Закрыт';
+    if (isOwner || hasPro) {
+      elementsStatus.textContent = '⚡ PRO Навсегда';
+    } else if (hasElementsBonus) {
+      const rem = elementsExp - now;
+      const mins = Math.floor(rem / 60000);
+      const secs = Math.floor((rem % 60000) / 1000);
+      elementsStatus.textContent = `⏳ ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} (PRO 1ч)`;
+    } else {
+      elementsStatus.textContent = '🔒 Закрыт';
+    }
   }
 
   const promoDiscount = localStorage.getItem('klim_tarot_promo_discount');
@@ -3971,7 +4074,25 @@ function renderShardsUI() {
   if (discountBadge && discountStatus) {
     const hasDiscount = !!promoDiscount;
     discountBadge.classList.toggle('active', hasDiscount);
-    discountStatus.textContent = hasDiscount ? `Скидка ${promoDiscount}% активна` : 'В Колесе Фортуны';
+    discountStatus.textContent = hasDiscount ? `Скидка ${promoDiscount}% активна` : 'Не активирована';
+  }
+
+  // 5. Карточка личного предсказания в профиле
+  const predCard = document.getElementById('profile-prediction-card');
+  const predText = document.getElementById('profile-prediction-text');
+  const savedPred = localStorage.getItem('klim_tarot_last_prediction');
+  if (predCard && predText) {
+    if (savedPred) {
+      try {
+        const parsed = JSON.parse(savedPred);
+        predText.textContent = parsed.text || savedPred;
+      } catch (e) {
+        predText.textContent = savedPred;
+      }
+      predCard.classList.remove('hidden');
+    } else {
+      predCard.classList.add('hidden');
+    }
   }
 }
 
@@ -4013,107 +4134,155 @@ function drawWheel(angle = 0) {
 
   ctx.clearRect(0, 0, size, size);
 
-  // Outer Gold Rim with Engravings
   ctx.save();
   ctx.translate(center, center);
 
-  // Outer metallic ring
+  // 1. Внешнее золотое руническое кольцо (обод)
   const outerGrad = ctx.createLinearGradient(-radius, -radius, radius, radius);
   outerGrad.addColorStop(0, '#fde047');
-  outerGrad.addColorStop(0.3, '#d97706');
+  outerGrad.addColorStop(0.25, '#d97706');
   outerGrad.addColorStop(0.5, '#fef08a');
-  outerGrad.addColorStop(0.7, '#b45309');
+  outerGrad.addColorStop(0.75, '#b45309');
   outerGrad.addColorStop(1, '#eab308');
 
   ctx.beginPath();
   ctx.arc(0, 0, radius + 4, 0, 2 * Math.PI);
-  ctx.fillStyle = '#0f0b18';
+  ctx.fillStyle = '#0b0816';
   ctx.fill();
   ctx.lineWidth = 6;
   ctx.strokeStyle = outerGrad;
   ctx.stroke();
 
-  // Rotate sectors
+  // 2. Вращающиеся секторы
   ctx.rotate(angle);
+
+  // Смещение, чтобы граница между сектором 7 и 0 была строго на 12 часах (-Math.PI/2)
+  const angleOffset = -Math.PI / 2;
 
   for (let i = 0; i < numSectors; i++) {
     const sec = WHEEL_SECTORS[i];
-    const startAngle = i * arc;
+    const startAngle = angleOffset + i * arc;
     const endAngle = startAngle + arc;
 
-    // Sector arc with radial gradient
+    // Сектор
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.arc(0, 0, radius - 3, startAngle, endAngle);
+    ctx.arc(0, 0, radius - 2, startAngle, endAngle);
     ctx.closePath();
 
-    const secGrad = ctx.createRadialGradient(0, 0, 20, 0, 0, radius);
+    const secGrad = ctx.createRadialGradient(0, 0, 15, 0, 0, radius);
     secGrad.addColorStop(0, sec.bg1);
     secGrad.addColorStop(1, sec.bg2);
     ctx.fillStyle = secGrad;
     ctx.fill();
 
-    // Sector divider with gold trim
+    // Золотая граница сектора
     ctx.lineWidth = 2;
     ctx.strokeStyle = 'rgba(253, 224, 71, 0.45)';
     ctx.stroke();
 
-    // Arcana X Occult runes/letters on rim (T - A - R - O / R - O - T - A)
+    // Текст и иконка (выровнены по радиусу к центру)
     const midAngle = startAngle + arc / 2;
-    const occultGlyphs = ['T', 'א', 'A', 'מ', 'R', 'ש', 'O', 'ה'];
     ctx.save();
     ctx.rotate(midAngle);
     ctx.textAlign = 'right';
-    ctx.fillStyle = '#fde047';
-    ctx.font = 'bold 11px Cinzel, serif';
-    ctx.shadowColor = 'rgba(253, 224, 71, 0.6)';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
     ctx.shadowBlur = 4;
-    ctx.fillText(occultGlyphs[i % occultGlyphs.length], radius - 8, 4);
-
-    // Text & icon
-    ctx.shadowBlur = 0;
     ctx.fillStyle = sec.text;
-    ctx.font = 'bold 11.5px sans-serif';
-    ctx.fillText(`${sec.icon} ${sec.label}`, radius - 26, 4.5);
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText(`${sec.icon} ${sec.label}`, radius - 24, 0);
     ctx.restore();
   }
 
-  // Inner decorative gold ring
+  // 3. Рунические глифы Аркана X по внешнему ободу
+  const runes = ['ᚠ', 'ᚢ', 'ᚦ', 'ᚨ', 'ᚱ', 'ᚲ', 'ᚷ', 'ᚹ', 'ᚺ', 'ᚾ', 'ᛁ', 'ᛃ', 'ᛇ', 'ᛈ', 'ᛉ', 'ᛋ'];
+  for (let r = 0; r < 16; r++) {
+    const rAngle = angleOffset + (r * (Math.PI / 8)) + (Math.PI / 16);
+    ctx.save();
+    ctx.rotate(rAngle);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fde047';
+    ctx.font = '9px serif';
+    ctx.shadowColor = 'rgba(253, 224, 71, 0.5)';
+    ctx.shadowBlur = 3;
+    ctx.fillText(runes[r % runes.length], radius - 7, 0);
+    ctx.restore();
+  }
+
+  // 4. Драгоценные камни на стыках секторов
+  const gemColors = ['#38bdf8', '#facc15', '#c084fc', '#f43f5e', '#3b82f6', '#a855f7', '#10b981', '#06b6d4'];
+  for (let g = 0; g < numSectors; g++) {
+    const gAngle = angleOffset + g * arc;
+    ctx.save();
+    ctx.rotate(gAngle);
+    ctx.translate(radius - 1, 0);
+
+    // Золотое гнездо камня
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, 2 * Math.PI);
+    ctx.fillStyle = '#d97706';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#fef08a';
+    ctx.stroke();
+
+    // Сам кристалл с ярким свечением
+    ctx.beginPath();
+    ctx.arc(0, 0, 3, 0, 2 * Math.PI);
+    ctx.fillStyle = gemColors[g % gemColors.length];
+    ctx.shadowColor = gemColors[g % gemColors.length];
+    ctx.shadowBlur = 6;
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Внутреннее тонкое золотое кольцо
   ctx.beginPath();
-  ctx.arc(0, 0, radius * 0.38, 0, 2 * Math.PI);
-  ctx.lineWidth = 2.5;
+  ctx.arc(0, 0, radius * 0.36, 0, 2 * Math.PI);
+  ctx.lineWidth = 2;
   ctx.strokeStyle = outerGrad;
   ctx.stroke();
 
   ctx.restore();
 
-  // Central Mystical Pentagram Hub
+  // 5. Центральный медальон Аркана X Колеса Фортуны
   ctx.save();
   ctx.translate(center, center);
 
-  const hubGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, 28);
+  const hubGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, 26);
   hubGrad.addColorStop(0, '#fef08a');
-  hubGrad.addColorStop(0.4, '#d97706');
-  hubGrad.addColorStop(0.8, '#78350f');
+  hubGrad.addColorStop(0.35, '#d97706');
+  hubGrad.addColorStop(0.75, '#78350f');
   hubGrad.addColorStop(1, '#1c1917');
 
   ctx.beginPath();
-  ctx.arc(0, 0, 26, 0, 2 * Math.PI);
+  ctx.arc(0, 0, 25, 0, 2 * Math.PI);
   ctx.fillStyle = hubGrad;
   ctx.fill();
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2.5;
   ctx.strokeStyle = '#fde047';
-  ctx.shadowColor = 'rgba(253, 224, 71, 0.8)';
+  ctx.shadowColor = 'rgba(253, 224, 71, 0.7)';
   ctx.shadowBlur = 8;
   ctx.stroke();
 
-  // Hub Occult Seal (Eye / Star of Fortune)
-  ctx.shadowBlur = 0;
+  // Внутренняя золотая каймa
+  ctx.beginPath();
+  ctx.arc(0, 0, 21, 0, 2 * Math.PI);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(253, 224, 71, 0.5)';
+  ctx.stroke();
+
+  // Римская цифра X (10 Аркан)
+  ctx.shadowBlur = 4;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#fff';
-  ctx.font = '16px sans-serif';
-  ctx.fillText('☸️', 0, 0);
+  ctx.fillStyle = '#1c1917';
+  ctx.font = 'bold 20px "Cormorant Garamond", "Times New Roman", serif';
+  ctx.fillText('X', 0, 1);
 
   ctx.restore();
 }
@@ -4145,6 +4314,17 @@ function checkWheelCooldown() {
   }
 }
 
+function pickWinningSector() {
+  const totalWeight = WHEEL_SECTORS.reduce((sum, s) => sum + (s.weight || 1), 0);
+  let r = Math.random() * totalWeight;
+  for (let i = 0; i < WHEEL_SECTORS.length; i++) {
+    const w = WHEEL_SECTORS[i].weight || 1;
+    if (r < w) return i;
+    r -= w;
+  }
+  return 1;
+}
+
 function spinWheel() {
   if (wheelState.isSpinning || !checkWheelCooldown()) return;
   wheelState.isSpinning = true;
@@ -4155,12 +4335,23 @@ function spinWheel() {
   sound.playShuffle();
   haptic('medium');
 
-  const winningIndex = Math.floor(Math.random() * WHEEL_SECTORS.length);
+  const winningIndex = pickWinningSector();
   const numSectors = WHEEL_SECTORS.length;
   const arc = (2 * Math.PI) / numSectors;
 
+  // Легкий джиттер внутри сектора
+  const jitter = (Math.random() - 0.5) * (arc * 0.35);
   const totalRounds = 6 + Math.floor(Math.random() * 3);
-  const targetAngle = wheelState.currentAngle + totalRounds * 2 * Math.PI + (numSectors - winningIndex) * arc - (arc / 2) - (Math.PI / 2);
+
+  // Выравнивание центра сектора под стрелку на 12 часах
+  const curNorm = wheelState.currentAngle % (2 * Math.PI);
+  let destOffset = (2 * Math.PI) - ((winningIndex + 0.5) * arc) + jitter;
+  destOffset = ((destOffset % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+
+  let delta = destOffset - curNorm;
+  if (delta < 0) delta += 2 * Math.PI;
+
+  const targetAngle = wheelState.currentAngle + totalRounds * 2 * Math.PI + delta;
 
   const duration = 4600;
   const startAngle = wheelState.currentAngle;
@@ -4195,7 +4386,7 @@ function applyWheelReward(prize) {
   sound.playCardPick(0);
   haptic('success');
 
-  if (prize.type === 'shard') {
+  if (prize.type === 'shard' || prize.type === 'jackpot') {
     const cur = getShardsCount();
     const nextVal = cur + prize.val;
     setShardsCount(nextVal);
@@ -4204,21 +4395,22 @@ function applyWheelReward(prize) {
     } else {
       showToast(`🔮 Вы выиграли: ${prize.label}! (Собрано: ${nextVal}/5)`);
     }
-  } else if (prize.type === 'discount_25') {
-    showToast(`🏷️ Вы выиграли Скидку 25%! Промокод: ${prize.code} сохранён в разделе Тарифы`);
-    localStorage.setItem('klim_tarot_promo_discount', '25');
   } else if (prize.type === 'talisman') {
     localStorage.setItem('klim_tarot_item_talisman', String(Date.now() + 86400000));
-    showToast('🍀 Вы выиграли Талисман Удачи! Добавлен в инвентарь профиля');
-  } else if (prize.type === 'wisdom') {
-    localStorage.setItem('klim_tarot_item_wisdom', 'true');
-    showToast('🌟 Вы выиграли Мудрость Старших Арканов! Совет Высших сил открыт');
+    showToast('🍀 Вы выиграли Талисман Удачи! Действует 24 часа. Добавлен в профиль');
+  } else if (prize.type === 'prediction' || prize.type === 'wisdom') {
+    const pred = prize.prediction || pickRandomFortunePrediction();
+    showFortuneCookieModal(pred);
   } else if (prize.type === 'feature_shadow') {
+    const exp = Date.now() + 3600000;
+    localStorage.setItem('klim_tarot_item_shadow_exp', String(exp));
     localStorage.setItem('klim_tarot_item_shadow', 'true');
-    showToast('🌑 Вы выиграли Теневую карту колоды (Дно колоды)!');
+    showToast('🌑 Вы выиграли «Теневой Аркан» (Дно колоды) из режима PRO на 1 час!');
   } else if (prize.type === 'feature_elements') {
+    const exp = Date.now() + 3600000;
+    localStorage.setItem('klim_tarot_item_elements_exp', String(exp));
     localStorage.setItem('klim_tarot_item_elements', 'true');
-    showToast('🌊 Вы выиграли Баланс 4 стихий и Квинтэссенцию раскладов!');
+    showToast('🌊 Вы выиграли «Баланс 4 стихий» из режима PRO на 1 час!');
   }
   renderShardsUI();
 }
@@ -4228,9 +4420,9 @@ function initFortuneWheel() {
   drawWheel(0);
   checkWheelCooldown();
   setInterval(checkWheelCooldown, 1000);
+  setInterval(renderShardsUI, 1000); // Динамический обратный отсчет таймеров 1ч бонусов
 
   document.getElementById('btn-spin-wheel')?.addEventListener('click', spinWheel);
-
   document.getElementById('btn-forge-shards')?.addEventListener('click', forgeShardsAction);
   document.getElementById('btn-profile-forge-shards')?.addEventListener('click', forgeShardsAction);
 }
@@ -4543,6 +4735,21 @@ function updateProfileUI() {
 
   // 🏆 1. Горизонтальная линейная система рангов («вдоль»)
   const rankInfo = calculateUserRank(readingsCount, isOwner);
+
+  // 🏅 Магическое ожерелье и аура вокруг аватарки по рангу
+  const avatarWrapper = document.getElementById('profile-avatar-wrapper');
+  if (avatarWrapper) {
+    for (let i = 1; i <= 5; i++) {
+      avatarWrapper.classList.remove(`rank-necklace-${i}`);
+    }
+    const curRankId = rankInfo.current.id || 1;
+    avatarWrapper.classList.add(`rank-necklace-${curRankId}`);
+  }
+
+  const avatarBadge = document.getElementById('profile-avatar-badge');
+  if (avatarBadge) {
+    avatarBadge.textContent = isOwner ? '👑' : (rankInfo.current.icon || '⚡');
+  }
 
   const pill = document.getElementById('ranks-current-pill');
   if (pill) {

@@ -4380,19 +4380,33 @@ body.is-pro-mode .top-bar {
 
 .wheel-pointer {
   position: absolute;
-  top: -14px;
+  top: -16px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10;
-  font-size: 26px;
-  color: #fde047;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 10px #f59e0b);
-  line-height: 1;
+  z-index: 12;
+  width: 28px;
+  height: 36px;
+  background: linear-gradient(180deg, #fef08a 0%, #f59e0b 60%, #b45309 100%);
+  clip-path: polygon(50% 100%, 0% 25%, 25% 0%, 75% 0%, 100% 25%);
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 12px #facc15);
+}
+
+.wheel-pointer::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 14px;
+  background: #fff;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  opacity: 0.85;
 }
 
 .wheel-canvas-wrap {
-  width: 300px;
-  height: 300px;
+  width: 320px;
+  height: 320px;
   border-radius: 50%;
   overflow: hidden;
   box-shadow: 0 0 35px rgba(168, 85, 247, 0.35), inset 0 0 15px rgba(0, 0, 0, 0.8);
@@ -4412,19 +4426,20 @@ body.is-pro-mode .top-bar {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 52px;
-  height: 52px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
-  background: radial-gradient(circle, #fde047 10%, #d97706 70%, #78350f 100%);
-  border: 2px solid #fff;
-  box-shadow: 0 0 18px rgba(250, 204, 21, 0.8);
+  background: radial-gradient(circle, #fef08a 0%, #f59e0b 45%, #b45309 80%, #78350f 100%);
+  border: 3px solid #fef08a;
+  box-shadow: 0 0 24px rgba(250, 204, 21, 0.85), inset 0 0 10px rgba(120, 53, 15, 0.9);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-cinzel), serif;
-  font-weight: 800;
-  font-size: 20px;
-  color: #1a0f00;
+  font-family: var(--font-cinzel), 'Times New Roman', serif;
+  font-weight: 900;
+  font-size: 24px;
+  color: #451a03;
+  text-shadow: 0 1px 1px rgba(254, 240, 138, 0.8);
   z-index: 8;
   pointer-events: none;
 }
@@ -4434,14 +4449,16 @@ body.is-pro-mode .top-bar {
   max-width: 320px;
   padding: 16px 24px;
   border-radius: var(--radius-pill);
-  background: linear-gradient(135deg, #e040fb 0%, #7c3aed 50%, #f59e0b 100%);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: linear-gradient(135deg, #c026d3 0%, #ea580c 50%, #f59e0b 100%);
+  border: 1.5px solid rgba(254, 240, 138, 0.6);
   color: #fff;
-  font-size: 15.5px;
+  font-size: 16px;
   font-weight: 800;
-  box-shadow: 0 6px 26px rgba(168, 85, 247, 0.45);
+  box-shadow: 0 6px 30px rgba(234, 88, 12, 0.55), 0 0 20px rgba(245, 158, 11, 0.35);
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
+  letter-spacing: 0.3px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .btn-spin-wheel:active {
@@ -4963,6 +4980,91 @@ body.is-pro-mode .top-bar {
   opacity: 0.7;
   filter: blur(4px);
   animation: rotateAura 10s linear infinite;
+}
+
+.profile-avatar-necklace {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 3;
+  transition: all 0.4s ease;
+}
+
+/* Rank 1: Искатель Знаков — Серебряно-лунное ожерелье со звёздами */
+.rank-necklace-1 .profile-avatar-aura {
+  background: conic-gradient(from 0deg, #94a3b8, #e2e8f0, #38bdf8, #94a3b8);
+  opacity: 0.65;
+  filter: blur(5px);
+}
+.rank-necklace-1 .profile-avatar-necklace {
+  border: 2px dashed rgba(226, 232, 240, 0.85);
+  box-shadow: 0 0 14px rgba(148, 163, 184, 0.5), inset 0 0 6px rgba(56, 189, 248, 0.4);
+  animation: rotateNecklace 24s linear infinite;
+}
+
+/* Rank 2: Хранитель Тайн — Изумрудное ожерелье тайн с нефритовыми бусинами */
+.rank-necklace-2 .profile-avatar-aura {
+  background: conic-gradient(from 0deg, #059669, #10b981, #0284c7, #059669);
+  opacity: 0.75;
+  filter: blur(6px);
+}
+.rank-necklace-2 .profile-avatar-necklace {
+  border: 2px dotted #34d399;
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.6), inset 0 0 8px rgba(52, 211, 153, 0.5);
+  animation: rotateNecklace 20s linear infinite reverse;
+}
+
+/* Rank 3: Оракул Эфира — Аметистовое кольцо эфира с пульсирующими рунами */
+.rank-necklace-3 .profile-avatar-aura {
+  background: conic-gradient(from 0deg, #7c3aed, #c084fc, #ec4899, #7c3aed);
+  opacity: 0.82;
+  filter: blur(7px);
+}
+.rank-necklace-3 .profile-avatar-necklace {
+  border: 2.5px solid #c084fc;
+  box-shadow: 0 0 22px rgba(168, 85, 247, 0.7), inset 0 0 10px rgba(236, 72, 153, 0.6);
+  animation: pulseNecklace 3s ease-in-out infinite;
+}
+
+/* Rank 4: Архитектор Судеб — Солнечно-золотой венец судеб с пламенными лучами */
+.rank-necklace-4 .profile-avatar-aura {
+  background: conic-gradient(from 0deg, #d97706, #fbbf24, #f59e0b, #ef4444, #d97706);
+  opacity: 0.88;
+  filter: blur(8px);
+}
+.rank-necklace-4 .profile-avatar-necklace {
+  border: 2.5px double #fde047;
+  box-shadow: 0 0 28px rgba(245, 158, 11, 0.8), inset 0 0 12px rgba(251, 191, 36, 0.7);
+  animation: rotateNecklace 16s linear infinite;
+}
+
+/* Rank 5: Верховный Демиург / Владелец — Космическая корона Вседержителя */
+.rank-necklace-5 .profile-avatar-aura {
+  background: conic-gradient(from 0deg, #f59e0b, #ec4899, #8b5cf6, #06b6d4, #10b981, #f59e0b);
+  opacity: 0.95;
+  filter: blur(10px);
+  animation: rotateAura 6s linear infinite;
+}
+.rank-necklace-5 .profile-avatar-necklace {
+  border: 3px solid #facc15;
+  box-shadow: 0 0 35px rgba(250, 204, 21, 0.9), 0 0 18px rgba(225, 29, 72, 0.7), inset 0 0 14px rgba(254, 240, 138, 0.9);
+  animation: pulseDemiurge 2.5s ease-in-out infinite alternate;
+}
+
+@keyframes rotateNecklace {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulseNecklace {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.05); filter: brightness(1.25); }
+}
+
+@keyframes pulseDemiurge {
+  0% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 8px #f59e0b); }
+  100% { transform: scale(1.06) rotate(15deg); filter: drop-shadow(0 0 16px #ec4899); }
 }
 
 @keyframes rotateAura {
@@ -5939,21 +6041,22 @@ body.is-pro-mode .top-bar {
 .inventory-item-badge {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 11px;
+  gap: 8px;
+  padding: 7px 9px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  transition: border-color 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .inventory-item-badge.active {
-  border-color: rgba(245, 201, 105, 0.45);
-  background: rgba(245, 201, 105, 0.06);
+  border-color: rgba(245, 201, 105, 0.55);
+  background: rgba(245, 201, 105, 0.08);
+  box-shadow: 0 0 12px rgba(245, 201, 105, 0.15);
 }
 
 .inv-item-icon {
-  font-size: 20px;
+  font-size: 19px;
   flex-shrink: 0;
 }
 
@@ -5962,10 +6065,11 @@ body.is-pro-mode .top-bar {
   flex-direction: column;
   gap: 1px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .inv-item-name {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 700;
   color: #fff;
   white-space: nowrap;
@@ -5973,8 +6077,17 @@ body.is-pro-mode .top-bar {
   text-overflow: ellipsis;
 }
 
+.inv-item-desc {
+  font-size: 9px;
+  color: rgba(254, 240, 138, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.1;
+}
+
 .inv-item-status {
-  font-size: 10px;
+  font-size: 9.5px;
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -5984,6 +6097,164 @@ body.is-pro-mode .top-bar {
 .inventory-item-badge.active .inv-item-status {
   color: #fef08a;
   font-weight: 600;
+}
+
+/* 🥠 Personal Prediction Card in Profile */
+.profile-prediction-card {
+  margin-top: 10px;
+  padding: 11px 13px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(234, 88, 12, 0.12), rgba(30, 24, 64, 0.5));
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.profile-prediction-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.prediction-head-icon {
+  font-size: 15px;
+}
+
+.prediction-head-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fed7aa;
+  flex: 1;
+}
+
+.prediction-head-badge {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: rgba(251, 146, 60, 0.2);
+  color: #ffedd5;
+  border: 1px solid rgba(251, 146, 60, 0.4);
+}
+
+.profile-prediction-text {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #fff7ed;
+  font-style: italic;
+  margin: 0;
+}
+
+/* 🥠 Fortune Cookie / Tarot Personal Prediction Modal */
+.fortune-cookie-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  transition: opacity 0.3s ease;
+}
+
+.fortune-cookie-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 6, 20, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.fortune-cookie-box {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  background: linear-gradient(150deg, #1c1433 0%, #100b1e 100%);
+  border: 1.5px solid rgba(251, 191, 36, 0.65);
+  border-radius: 24px;
+  padding: 26px 20px 22px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 35px rgba(245, 158, 11, 0.35);
+  animation: fortunePop 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes fortunePop {
+  0% { transform: scale(0.85); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.fortune-cookie-glow {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 160px;
+  height: 160px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.4) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.fortune-cookie-icon {
+  font-size: 46px;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 0 16px rgba(251, 191, 36, 0.7));
+  animation: floatCookie 3s ease-in-out infinite alternate;
+}
+
+@keyframes floatCookie {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-6px); }
+}
+
+.fortune-cookie-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #fbbf24;
+  margin-bottom: 4px;
+}
+
+.fortune-cookie-title {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 14px;
+}
+
+.fortune-cookie-parchment {
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.08), rgba(217, 119, 6, 0.08));
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+
+.fortune-cookie-text {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #fef3c7;
+  font-style: italic;
+  margin: 0;
+}
+
+.btn-fortune-accept {
+  width: 100%;
+  padding: 13px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(234, 88, 12, 0.45);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.btn-fortune-accept:active {
+  transform: scale(0.98);
+  filter: brightness(1.1);
 }
 
 

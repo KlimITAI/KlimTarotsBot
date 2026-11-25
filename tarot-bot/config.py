@@ -49,7 +49,7 @@ ADMIN_IDS: set[int] = {int(x.strip()) for x in _raw_admins.split(",") if x.strip
 ADMIN_IDS.add(OWNER_TELEGRAM_ID)
 
 # Важно: всегда актуальная версия кэша для GitHub Pages
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=51"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=53"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 
 PROMO_VIDEO_PUBLIC_URL = os.environ.get(
