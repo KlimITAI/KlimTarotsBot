@@ -2424,9 +2424,9 @@ function randomizeHeroSubtitle() {
 
 function updateSoundIcon() {
   const btn = document.getElementById('btn-sound-toggle');
-  document.getElementById('icon-sound-on').classList.toggle('hidden', !sound.enabled);
-  document.getElementById('icon-sound-off').classList.toggle('hidden', sound.enabled);
-  btn.classList.toggle('muted', !sound.enabled);
+  document.getElementById('icon-sound-on')?.classList.toggle('hidden', !sound.enabled);
+  document.getElementById('icon-sound-off')?.classList.toggle('hidden', sound.enabled);
+  btn?.classList.toggle('muted', !sound.enabled);
 }
 
 function bindEvents() {
@@ -2485,9 +2485,9 @@ function bindEvents() {
   });
 
   // Topbar controls
-  document.getElementById('btn-back').addEventListener('click', goBack);
-  document.getElementById('btn-to-hero').addEventListener('click', () => navigateTo('hero'));
-  document.getElementById('btn-history-shortcut').addEventListener('click', () => navigateTo('history'));
+  document.getElementById('btn-back')?.addEventListener('click', goBack);
+  document.getElementById('btn-to-hero')?.addEventListener('click', () => navigateTo('hero'));
+  document.getElementById('btn-history-shortcut')?.addEventListener('click', () => navigateTo('history'));
   document.getElementById('btn-app-close')?.addEventListener('click', () => {
     sound.playTap();
     haptic('medium');
@@ -2497,7 +2497,7 @@ function bindEvents() {
       navigateTo('hero');
     }
   });
-  document.getElementById('btn-sound-toggle').addEventListener('click', () => {
+  document.getElementById('btn-sound-toggle')?.addEventListener('click', () => {
     const on = sound.toggle();
     updateSoundIcon();
     showToast(on ? '🔊 Музыка и звуки включены' : '🔇 Звук выключен');
