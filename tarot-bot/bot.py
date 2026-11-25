@@ -29,6 +29,9 @@ from collections import defaultdict
 from pathlib import Path
 import math
 
+import api_server
+import database
+
 import httpx
 from telegram import (
     Update,
@@ -905,7 +908,7 @@ STATS_DB_PATH = BASE_DIR / "stats.db"
 PROMO_SHARE_PATH = BASE_DIR / "assets" / "promo-share.mp4"
 PROMO_VIDEO_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-share.mp4"
 PROMO_POSTER_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-poster.jpg"
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=50"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=51"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 _welcome_file_id_cache: dict[tuple[str, float], str] = {}
 _promo_video_file_id: str | None = None
@@ -3424,6 +3427,21 @@ async def post_init(app):
         except Exception as exc:
             logger.warning("Не удалось установить MenuButtonWebApp: %s", exc)
 
+    try:
+        runner = await api_server.start_api_server()
+        app.bot_data["api_runner"] = runner
+    except Exception as exc:
+        logger.warning("Не удалось запустить aiohttp REST API сервер: %s", exc)
+
+
+async def post_shutdown(app):
+    runner = app.bot_data.get("api_runner")
+    if runner:
+        try:
+            await runner.cleanup()
+        except Exception:
+            pass
+
 
 def start_health_server() -> None:
     """Мини-HTTP сервер для Render Free Web Service + API синхронизации таймеров между устройствами."""
@@ -3587,8 +3605,7 @@ def start_health_server() -> None:
 
 
 def main():
-    start_health_server()
-    init_stats_db()
+    database.init_db(STATS_DB_PATH)
     payments.init_payments_db(STATS_DB_PATH)
     check_and_restore_database()
     # Загрузка локального .env если переменные не заданы в системе
@@ -3650,6 +3667,7 @@ def main():
         .get_updates_request(polling_request)
         .concurrent_updates(True)
         .post_init(post_init)
+        .post_shutdown(post_shutdown)
         .build()
     )
 

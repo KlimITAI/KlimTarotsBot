@@ -1,6 +1,7 @@
 import { ALL_CARDS, MAJOR_IDS, SPREADS, CATEGORIES, POSITION_LEADS } from './tarot-data.js?v=15';
 import { PSYCH_CATEGORIES, PSYCH_GUIDES } from './psychology-data.js?v=8';
 import { ZODIAC_SIGNS, ELEMENT_LABELS, calculateCompatibility } from './zodiac-data.js?v=8';
+import * as api from './api-client.js?v=51';
 
 const BOT_INVITE_URL = 'https://t.me/MysticalTarotKlimBot';
 const DEFAULT_SHARE_CTA =
@@ -1167,15 +1168,36 @@ const OWNER_TELEGRAM_ID = 7446803539;
 function getTelegramUserId() {
   try {
     const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
-    if (u && u.id) return Number(u.id);
+    if (u && u.id) {
+      const numId = Number(u.id);
+      localStorage.setItem('klim_tarot_uid', String(numId));
+      return numId;
+    }
     const raw = window.Telegram?.WebApp?.initData || '';
     if (raw) {
       const sp = new URLSearchParams(raw);
       const userStr = sp.get('user');
       if (userStr) {
         const parsed = JSON.parse(userStr);
-        if (parsed.id) return Number(parsed.id);
+        if (parsed.id) {
+          const numId = Number(parsed.id);
+          localStorage.setItem('klim_tarot_uid', String(numId));
+          return numId;
+        }
       }
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const hash = window.location.hash || '';
+    const hashParams = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
+    const qUid = urlParams.get('uid') || hashParams.get('uid');
+    if (qUid && !isNaN(Number(qUid))) {
+      const numId = Number(qUid);
+      localStorage.setItem('klim_tarot_uid', String(numId));
+      return numId;
+    }
+    const cached = localStorage.getItem('klim_tarot_uid');
+    if (cached && !isNaN(Number(cached))) {
+      return Number(cached);
     }
   } catch (e) {}
   return null;
@@ -1193,6 +1215,10 @@ function getTelegramUser() {
         const parsed = JSON.parse(userStr);
         if (parsed && (parsed.first_name || parsed.id)) return parsed;
       }
+    }
+    const uid = getTelegramUserId();
+    if (uid === OWNER_TELEGRAM_ID) {
+      return { id: OWNER_TELEGRAM_ID, first_name: 'Клим', username: 'im_klim' };
     }
   } catch (e) {}
   return null;
@@ -1271,6 +1297,8 @@ function checkProAccessFromEnv() {
 }
 
 function hasProAccess() {
+  if (isAppOwner()) return true;
+  if (typeof state !== 'undefined' && state?.serverSynced && state?.serverProAccess) return true;
   return checkProAccessFromEnv();
 }
 
@@ -1286,6 +1314,13 @@ const state = {
   drawSession: null, // { spread, friendName, question, needed, pool, picked: [] }
   lastReading: null,
   oracleFlipped: false,
+  serverSynced: false,
+  serverProAccess: false,
+  serverHistory: null,
+  serverLeaderboard: null,
+  serverDaily: null,
+  cooldownUntil: { spread: 0, oracle: 0, friend: 0 },
+  wheelCooldownUntil: 0,
   proDays: parseInt(localStorage.getItem('klim_tarot_pro_days') || '0', 10),
   proExpiresAt: parseInt(localStorage.getItem('klim_tarot_pro_exp') || '0', 10),
   referralCount: parseInt(localStorage.getItem('klim_tarot_ref_count') || '0', 10),
@@ -3956,6 +3991,7 @@ function forgeShardsAction() {
     CloudSync.set('klim_tarot_pro_days', state.proDays);
     CloudSync.set('klim_tarot_pro_exp', state.proExpiresAt);
     CloudSync.postProGrant(2);
+    api.apiForgeShards().catch(() => {});
     updateProDaysUI();
     renderShardsUI();
     if (typeof updateProfileUI === 'function') updateProfileUI();
@@ -4606,10 +4642,56 @@ document.getElementById('btn-profile-clear-history')?.addEventListener('click', 
 
 document.getElementById('btn-profile-forge-shards')?.addEventListener('click', forgeShardsAction);
 
+async function syncWithServer() {
+  try {
+    const data = await api.apiBootstrap();
+    if (!data || data.status !== 'ok') return;
+    state.serverSynced = true;
+    if (data.user) {
+      if (data.user.isOwner) {
+        state.isOwner = true;
+      }
+      if (data.user.isPro) {
+        state.serverProAccess = true;
+        state.isProMode = localStorage.getItem('klim_tarot_pro_mode') !== 'false';
+      }
+      if (typeof data.user.shards === 'number') {
+        const localShards = parseInt(localStorage.getItem('klim_tarot_shards') || '0', 10);
+        if (data.user.shards > localShards) {
+          localStorage.setItem('klim_tarot_shards', String(data.user.shards));
+          renderShardsUI();
+        }
+      }
+      if (typeof data.user.wheelCooldownMs === 'number') {
+        state.wheelCooldownUntil = Date.now() + data.user.wheelCooldownMs;
+      }
+      if (data.user.cooldownsMs) {
+        Object.entries(data.user.cooldownsMs).forEach(([k, ms]) => {
+          state.cooldownUntil[k] = Date.now() + Number(ms || 0);
+        });
+      }
+    }
+    if (Array.isArray(data.history) && data.history.length > 0) {
+      state.serverHistory = data.history;
+    }
+    if (Array.isArray(data.leaderboard) && data.leaderboard.length > 0) {
+      state.serverLeaderboard = data.leaderboard;
+      if (typeof renderLeaderboard === 'function') renderLeaderboard();
+    }
+    updateProModeUI();
+    updateProfileUI();
+    updateHistoryCounter();
+    if (typeof checkWheelCooldown === 'function') checkWheelCooldown();
+  } catch (err) {
+    console.debug('Server bootstrap (graceful offline fallback):', err?.message || err);
+  }
+}
+
 updateProDaysUI();
 renderShardsUI();
 updateProfileUI();
 CloudSync.initSync();
+syncWithServer();
 
 document.getElementById('btn-exit-to-home')?.addEventListener('click', () => {
   sound.playTap();
