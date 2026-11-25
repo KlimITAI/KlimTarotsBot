@@ -2062,7 +2062,6 @@ async function revealOracleCard() {
   sound.playOracleReveal(weight);
   haptic(weight > 0 ? 'success' : weight < 0 ? 'warning' : 'medium');
 
-  const question = document.getElementById('oracle-question-input').value.trim();
   const panel = document.getElementById('oracle-verdict-panel');
   panel.innerHTML = `
     ${question ? `<div class="result-question-quote" style="margin:0 0 12px;">«${escapeHtml(question)}»</div>` : ''}
