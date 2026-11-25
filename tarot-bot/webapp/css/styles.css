@@ -52,6 +52,7 @@ html {
   overflow-x: hidden;
   overflow-y: auto !important;
   scroll-behavior: smooth;
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -66,6 +67,8 @@ body {
   line-height: 1.5;
   overflow-x: hidden;
   overflow-y: auto !important;
+  overscroll-behavior-y: none;
+  touch-action: pan-y;
   -webkit-font-smoothing: antialiased;
   -webkit-overflow-scrolling: touch;
   user-select: none;
@@ -136,6 +139,7 @@ button {
 /* ── App Shell (Centered Mobile Viewport on Desktop) ─────────── */
 
 #app-shell {
+  overflow-x: hidden;
   position: relative;
   z-index: 1;
   width: 100%;
@@ -5510,6 +5514,7 @@ body.is-pro-mode .top-bar {
 
 @media (min-width: 680px) {
   #app-shell {
+  overflow-x: hidden;
     max-width: 720px;
     padding: 0 16px;
   }
@@ -5551,6 +5556,7 @@ body.is-pro-mode .top-bar {
 
 @media (min-width: 960px) {
   #app-shell {
+  overflow-x: hidden;
     max-width: 980px;
     padding: 0 24px;
   }

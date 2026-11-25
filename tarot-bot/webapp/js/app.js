@@ -1,8 +1,3 @@
-function isAppOwner() {
-  const uid = getTelegramUserId();
-  return uid === OWNER_TELEGRAM_ID || (typeof state !== 'undefined' && state && !!state.isOwner);
-}
-
 import { ALL_CARDS, MAJOR_IDS, SPREADS, CATEGORIES, POSITION_LEADS } from './tarot-data.js?v=15';
 import { PSYCH_CATEGORIES, PSYCH_GUIDES } from './psychology-data.js?v=8';
 import { ZODIAC_SIGNS, ELEMENT_LABELS, calculateCompatibility } from './zodiac-data.js?v=8';
@@ -1185,6 +1180,29 @@ function getTelegramUserId() {
   } catch (e) {}
   return null;
 }
+
+function getTelegramUser() {
+  try {
+    const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (u && (u.first_name || u.id)) return u;
+    const raw = window.Telegram?.WebApp?.initData || '';
+    if (raw) {
+      const sp = new URLSearchParams(raw);
+      const userStr = sp.get('user');
+      if (userStr) {
+        const parsed = JSON.parse(userStr);
+        if (parsed && (parsed.first_name || parsed.id)) return parsed;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+function isAppOwner() {
+  const uid = getTelegramUserId();
+  return uid === OWNER_TELEGRAM_ID || (typeof state !== 'undefined' && state && !!state.isOwner);
+}
+
 
 function checkProAccessFromEnv() {
   const uid = getTelegramUserId();
