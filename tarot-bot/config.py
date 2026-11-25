@@ -46,7 +46,7 @@ _raw_admins = os.environ.get("ADMIN_USER_IDS", "7446803539")
 ADMIN_IDS: set[int] = {int(x.strip()) for x in _raw_admins.split(",") if x.strip().isdigit()}
 ADMIN_IDS.add(7446803539)
 
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=20"
+DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=32"
 WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
 
 PROMO_VIDEO_PUBLIC_URL = os.environ.get(
