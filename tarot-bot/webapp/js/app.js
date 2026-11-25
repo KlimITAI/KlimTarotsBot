@@ -2124,7 +2124,7 @@ function renderReadingResult(reading) {
     </div>
   `;
 
-  // PRO Preview or Full PRO Matrix (включая временные 1-часовые бонусы из Колеса)
+  // PRO Preview or Full PRO Matrix (включая временные 30-минутные бонусы из Колеса)
   const oldTeaser = document.getElementById('pro-teaser-banner');
   if (oldTeaser) oldTeaser.remove();
 
@@ -4043,7 +4043,7 @@ function renderShardsUI() {
       const rem = shadowExp - now;
       const mins = Math.floor(rem / 60000);
       const secs = Math.floor((rem % 60000) / 1000);
-      shadowStatus.textContent = `⏳ ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} (PRO 1ч)`;
+      shadowStatus.textContent = `⏳ ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} (PRO 30м)`;
     } else {
       shadowStatus.textContent = '🔒 Закрыт';
     }
@@ -4062,7 +4062,7 @@ function renderShardsUI() {
       const rem = elementsExp - now;
       const mins = Math.floor(rem / 60000);
       const secs = Math.floor((rem % 60000) / 1000);
-      elementsStatus.textContent = `⏳ ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} (PRO 1ч)`;
+      elementsStatus.textContent = `⏳ ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} (PRO 30м)`;
     } else {
       elementsStatus.textContent = '🔒 Закрыт';
     }
@@ -4402,15 +4402,15 @@ function applyWheelReward(prize) {
     const pred = prize.prediction || pickRandomFortunePrediction();
     showFortuneCookieModal(pred);
   } else if (prize.type === 'feature_shadow') {
-    const exp = Date.now() + 3600000;
+    const exp = Date.now() + 1800000; // 30 минут
     localStorage.setItem('klim_tarot_item_shadow_exp', String(exp));
     localStorage.setItem('klim_tarot_item_shadow', 'true');
-    showToast('🌑 Вы выиграли «Теневой Аркан» (Дно колоды) из режима PRO на 1 час!');
+    showToast('🌑 Вы выиграли «Теневой Аркан» (Дно колоды) из режима PRO на 30 минут!');
   } else if (prize.type === 'feature_elements') {
-    const exp = Date.now() + 3600000;
+    const exp = Date.now() + 1800000; // 30 минут
     localStorage.setItem('klim_tarot_item_elements_exp', String(exp));
     localStorage.setItem('klim_tarot_item_elements', 'true');
-    showToast('🌊 Вы выиграли «Баланс 4 стихий» из режима PRO на 1 час!');
+    showToast('🌊 Вы выиграли «Баланс 4 стихий» из режима PRO на 30 минут!');
   }
   renderShardsUI();
 }
@@ -4420,7 +4420,7 @@ function initFortuneWheel() {
   drawWheel(0);
   checkWheelCooldown();
   setInterval(checkWheelCooldown, 1000);
-  setInterval(renderShardsUI, 1000); // Динамический обратный отсчет таймеров 1ч бонусов
+  setInterval(renderShardsUI, 1000); // Динамический обратный отсчет таймеров 30м бонусов
 
   document.getElementById('btn-spin-wheel')?.addEventListener('click', spinWheel);
   document.getElementById('btn-forge-shards')?.addEventListener('click', forgeShardsAction);
