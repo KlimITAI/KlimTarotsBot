@@ -108,6 +108,14 @@ class TestApiServer(AioHTTPTestCase):
         self.assertEqual(resp_unauth.status, 401)
 
     async def test_full_user_flow_and_ban(self):
+        orig_pay = payments.PAYMENTS_ENABLED
+        payments.PAYMENTS_ENABLED = True
+        try:
+            await self._run_full_user_flow_and_ban()
+        finally:
+            payments.PAYMENTS_ENABLED = orig_pay
+
+    async def _run_full_user_flow_and_ban(self):
         init_hdr = {"X-Telegram-Init-Data": make_init_data({"id": 55501, "first_name": "Алиса", "username": "alice"})}
 
         # 1. Bootstrap

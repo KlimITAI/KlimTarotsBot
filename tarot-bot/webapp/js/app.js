@@ -1,7 +1,7 @@
-import { ALL_CARDS, MAJOR_IDS, SPREADS, CATEGORIES, POSITION_LEADS } from './tarot-data.js?v=15';
+﻿import { ALL_CARDS, MAJOR_IDS, SPREADS, CATEGORIES, POSITION_LEADS } from './tarot-data.js?v=15';
 import { PSYCH_CATEGORIES, PSYCH_GUIDES } from './psychology-data.js?v=8';
 import { ZODIAC_SIGNS, ELEMENT_LABELS, calculateCompatibility } from './zodiac-data.js?v=8';
-import * as api from './api-client.js?v=1';
+import * as api from './api-client.js?v=2';
 
 const BOT_INVITE_URL = 'https://t.me/MysticalTarotKlimBot';
 const DEFAULT_SHARE_CTA =
@@ -98,6 +98,11 @@ class SoundEngine {
     const rawVol = localStorage.getItem('klim_tarot_vol_v2');
     const savedPct = rawVol !== null ? Number(rawVol) : NaN;
     this.volumePercent = Number.isFinite(savedPct) && savedPct >= 0 && savedPct <= 100 ? savedPct : 75;
+
+    const rawSfx = localStorage.getItem('klim_tarot_sfx_vol');
+    const savedSfx = rawSfx !== null ? Number(rawSfx) : NaN;
+    this.sfxVolumePercent = Number.isFinite(savedSfx) && savedSfx >= 0 && savedSfx <= 100 ? savedSfx : 80;
+
     this.ctx = null;
     this.bgm = null;
     this.bgmGain = null;
@@ -110,6 +115,22 @@ class SoundEngine {
       { src: './assets/ambient-2.mp3', name: 'Атмосфера II' },
     ];
     this.trackIndex = 0;
+    this.burstBuffer = null;
+    this._burstLoading = false;
+    this._burstArrayBuffer = null;
+    this._preloadBurst();
+  }
+
+  setSfxVolumePercent(pct) {
+    const clamped = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
+    this.sfxVolumePercent = clamped;
+    localStorage.setItem('klim_tarot_sfx_vol', String(clamped));
+    return clamped;
+  }
+
+  _sfxScale() {
+    if (!this.enabled || this.sfxVolumePercent <= 0) return 0;
+    return this.sfxVolumePercent / 100;
   }
 
   _pctToGain(pct) {
@@ -180,7 +201,36 @@ class SoundEngine {
     if (this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
+    if (this._burstArrayBuffer && !this.burstBuffer && !this._burstDecoding) {
+      this._burstDecoding = true;
+      this.ctx.decodeAudioData(this._burstArrayBuffer.slice(0))
+        .then((buf) => { this.burstBuffer = buf; })
+        .catch(() => {})
+        .finally(() => { this._burstDecoding = false; });
+    }
     return this.ctx;
+  }
+
+  _preloadBurst() {
+    if (this.burstBuffer || this._burstLoading) return;
+    this._burstLoading = true;
+    fetch('./assets/transition-burst.mp3')
+      .then((res) => {
+        if (!res.ok) throw new Error('status ' + res.status);
+        return res.arrayBuffer();
+      })
+      .then((ab) => {
+        this._burstArrayBuffer = ab;
+        if (this.ctx) {
+          return this.ctx.decodeAudioData(ab.slice(0)).then((buf) => {
+            this.burstBuffer = buf;
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        this._burstLoading = false;
+      });
   }
 
   _ensureBgm() {
@@ -273,8 +323,58 @@ class SoundEngine {
     return this.enabled;
   }
 
+  // Особенный мистический звук перехода с разлётом карт (0ms задержки, мягкий бархатный свист)
+  playTransitionBurst() {
+    if (!this.enabled) return;
+    const scale = this._sfxScale();
+    if (scale <= 0) return;
+
+    // Смягчённая комфортная громкость: отчётливо слышна в динамике смартфона, но не бьёт по ушам (0.18)
+    const targetVol = Math.max(0.04, Math.min(0.24, 0.18 * (scale > 0 ? scale : 0.8)));
+
+    const ctx = this._ensureCtx();
+    if (ctx) {
+      if (this.burstBuffer) {
+        try {
+          const src = ctx.createBufferSource();
+          src.buffer = this.burstBuffer;
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(targetVol, ctx.currentTime);
+          src.connect(gain).connect(ctx.destination);
+          src.start(0);
+          return;
+        } catch (_) {}
+      } else if (this._burstArrayBuffer) {
+        try {
+          ctx.decodeAudioData(this._burstArrayBuffer.slice(0)).then((buf) => {
+            this.burstBuffer = buf;
+            const src = ctx.createBufferSource();
+            src.buffer = buf;
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(targetVol, ctx.currentTime);
+            src.connect(gain).connect(ctx.destination);
+            src.start(0);
+          }).catch(() => {});
+          return;
+        } catch (_) {}
+      }
+    }
+
+    // Мгновенный fallback через предзагруженный аудио-тег
+    try {
+      const audio = document.getElementById('snd-transition-burst');
+      if (audio) {
+        audio.currentTime = 0;
+        audio.volume = targetVol;
+        audio.play().catch(() => {});
+      }
+    } catch (_) {}
+  }
+
   // Subtle crystalline UI tap
   playTap() {
+    const scale = this._sfxScale();
+    if (scale <= 0) return;
     const ctx = this._ensureCtx();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -283,7 +383,7 @@ class SoundEngine {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(680, now);
     osc.frequency.exponentialRampToValueAtTime(980, now + 0.06);
-    gain.gain.setValueAtTime(0.055, now);
+    gain.gain.setValueAtTime(0.055 * scale, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
     osc.connect(gain).connect(ctx.destination);
     osc.start(now);
@@ -292,6 +392,8 @@ class SoundEngine {
 
   // Soft velvet card-shuffle rustle (filtered noise bursts)
   playShuffle() {
+    const scale = this._sfxScale();
+    if (scale <= 0) return;
     const ctx = this._ensureCtx();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -312,7 +414,7 @@ class SoundEngine {
       filter.Q.value = 1.6;
 
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.09, start);
+      gain.gain.setValueAtTime(0.09 * scale, start);
       gain.gain.exponentialRampToValueAtTime(0.001, start + 0.09);
 
       src.connect(filter).connect(gain).connect(ctx.destination);
@@ -322,6 +424,8 @@ class SoundEngine {
 
   // Tactile card slide + delicate chime when picking from deck
   playCardPick(index = 0) {
+    const scale = this._sfxScale();
+    if (scale <= 0) return;
     const ctx = this._ensureCtx();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -339,19 +443,19 @@ class SoundEngine {
     bp.type = 'highpass';
     bp.frequency.value = 1800;
     const ng = ctx.createGain();
-    ng.gain.setValueAtTime(0.06, now);
+    ng.gain.setValueAtTime(0.06 * scale, now);
     ng.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
     noise.connect(bp).connect(ng).connect(ctx.destination);
     noise.start(now);
 
     // Ascending pentatonic sparkle note
-    const scale = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5];
-    const freq = scale[index % scale.length];
+    const scaleNotes = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5];
+    const freq = scaleNotes[index % scaleNotes.length];
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(freq, now);
-    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.setValueAtTime(0.08 * scale, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
     osc.connect(gain).connect(ctx.destination);
     osc.start(now);
@@ -360,6 +464,8 @@ class SoundEngine {
 
   // Celestial harmonic chord when a card flips face-up
   playCardFlip(isMajor = false, isReversed = false) {
+    const scale = this._sfxScale();
+    if (scale <= 0) return;
     const ctx = this._ensureCtx();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -377,7 +483,7 @@ class SoundEngine {
       const t = now + idx * 0.045;
       osc.frequency.setValueAtTime(freq, t);
       gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.linearRampToValueAtTime(isMajor ? 0.075 : 0.055, t + 0.04);
+      gain.gain.linearRampToValueAtTime((isMajor ? 0.075 : 0.055) * scale, t + 0.04);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.85);
       osc.connect(gain).connect(ctx.destination);
       osc.start(t);
@@ -387,6 +493,8 @@ class SoundEngine {
 
   // Deep mystical bell for Yes/No Oracle verdict
   playOracleReveal(weight = 0) {
+    const scale = this._sfxScale();
+    if (scale <= 0) return;
     const ctx = this._ensureCtx();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -403,7 +511,7 @@ class SoundEngine {
       osc.type = 'sine';
       const t = now + i * 0.06;
       osc.frequency.setValueAtTime(freq, t);
-      gain.gain.setValueAtTime(0.07, t);
+      gain.gain.setValueAtTime(0.07 * scale, t);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
       osc.connect(gain).connect(ctx.destination);
       osc.start(t);
@@ -711,10 +819,214 @@ function getUserDayNightPeriod() {
   };
 }
 
-function getDailyCard() {
-  if (state.serverDaily && state.serverDaily.card) {
-    return state.serverDaily;
+/* ══════════════════════════════════════════════════════════════
+   CLOUD SYNC & CROSS-DEVICE COOLDOWNS (TELEGRAM CLOUDSTORAGE)
+   Синхронизирует таймер Колеса, Карты Дня и Осколки между ПК и телефоном
+   ══════════════════════════════════════════════════════════════ */
+const CloudSync = {
+  get(key, fallback = null) {
+    try {
+      const v = localStorage.getItem(key);
+      if (v !== null && v !== undefined) return v;
+    } catch (_) {}
+    return fallback;
+  },
+
+  set(key, val) {
+    const sVal = String(val);
+    try {
+      localStorage.setItem(key, sVal);
+    } catch (_) {}
+
+    // 1. Telegram CloudStorage — мгновенная кросс-девайсная синхронизация в аккаунте Telegram
+    try {
+      if (window.Telegram?.WebApp?.CloudStorage?.setItem) {
+        window.Telegram.WebApp.CloudStorage.setItem(key, sVal, (err) => {
+          if (err) console.warn('[CloudStorage] setItem err:', err);
+        });
+      }
+    } catch (_) {}
+  },
+
+  initSync() {
+    // 1. Проверяем URL-параметры прямо от серверного бота (wl, sh, dk, pdays, pexp, refc, refd)
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlWl = parseInt(params.get('wl') || '0', 10);
+      const urlSh = parseInt(params.get('sh') || '-1', 10);
+      const curWl = parseInt(localStorage.getItem('klim_tarot_wheel_last') || '0', 10);
+      const curSh = parseInt(localStorage.getItem('klim_tarot_shards') || '0', 10);
+
+      if (urlWl > curWl) {
+        localStorage.setItem('klim_tarot_wheel_last', String(urlWl));
+      }
+      if (urlSh >= 0 && urlSh > curSh) {
+        localStorage.setItem('klim_tarot_shards', String(urlSh));
+      }
+
+      const urlDays = parseInt(params.get('pdays') || '0', 10);
+      const urlExp = parseInt(params.get('pexp') || '0', 10);
+      if (urlDays > 0) {
+        localStorage.setItem('klim_tarot_pro_days', String(urlDays));
+        localStorage.setItem('klim_tarot_pro_granted', 'true');
+      }
+      if (urlExp > 0) {
+        localStorage.setItem('klim_tarot_pro_exp', String(urlExp * 1000));
+      }
+      const refc = parseInt(params.get('refc') || '0', 10);
+      const refd = parseInt(params.get('refd') || '0', 10);
+      if (refc > 0) {
+        localStorage.setItem('klim_tarot_ref_count', String(refc));
+      }
+      if (refd > 0) {
+        localStorage.setItem('klim_tarot_ref_bonus', String(refd));
+      }
+    } catch (_) {}
+
+    // 2. Telegram CloudStorage: подтягиваем значения, сохраненные с других устройств (ПК / телефон)
+    try {
+      if (window.Telegram?.WebApp?.CloudStorage?.getItems) {
+        window.Telegram.WebApp.CloudStorage.getItems(
+          [
+            'klim_tarot_wheel_last',
+            'klim_tarot_shards',
+            'klim_tarot_daily_local',
+            'klim_tarot_pro_days',
+            'klim_tarot_pro_exp',
+            'klim_tarot_ref_count',
+            'klim_tarot_ref_bonus'
+          ],
+          (err, values) => {
+            if (!err && values) {
+              const cloudWl = parseInt(values.klim_tarot_wheel_last || '0', 10);
+              const cloudSh = parseInt(values.klim_tarot_shards || '-1', 10);
+              const curWl = parseInt(localStorage.getItem('klim_tarot_wheel_last') || '0', 10);
+              const curSh = parseInt(localStorage.getItem('klim_tarot_shards') || '0', 10);
+
+              if (cloudWl > curWl) {
+                localStorage.setItem('klim_tarot_wheel_last', String(cloudWl));
+                if (typeof checkWheelCooldown === 'function') checkWheelCooldown();
+              }
+              if (cloudSh >= 0 && cloudSh > curSh) {
+                localStorage.setItem('klim_tarot_shards', String(cloudSh));
+                if (typeof renderShardsUI === 'function') renderShardsUI();
+              }
+              if (values.klim_tarot_pro_days) {
+                const cDays = parseInt(values.klim_tarot_pro_days, 10);
+                if (cDays > 0) {
+                  localStorage.setItem('klim_tarot_pro_days', String(cDays));
+                  if (typeof state !== 'undefined' && state) state.proDays = cDays;
+                }
+              }
+              if (values.klim_tarot_pro_exp) {
+                const cExp = parseInt(values.klim_tarot_pro_exp, 10);
+                if (cExp > 0) {
+                  localStorage.setItem('klim_tarot_pro_exp', String(cExp));
+                  if (typeof state !== 'undefined' && state) state.proExpiresAt = cExp;
+                }
+              }
+              if (values.klim_tarot_ref_count) {
+                localStorage.setItem('klim_tarot_ref_count', String(values.klim_tarot_ref_count));
+                if (typeof state !== 'undefined' && state) state.referralCount = parseInt(values.klim_tarot_ref_count, 10);
+              }
+              if (values.klim_tarot_ref_bonus) {
+                localStorage.setItem('klim_tarot_ref_bonus', String(values.klim_tarot_ref_bonus));
+                if (typeof state !== 'undefined' && state) state.referralBonusDays = parseInt(values.klim_tarot_ref_bonus, 10);
+              }
+              if (values.klim_tarot_daily_local) {
+                try {
+                  const cloudDaily = JSON.parse(values.klim_tarot_daily_local);
+                  const localDaily = JSON.parse(localStorage.getItem('klim_tarot_daily_local') || 'null');
+                  if (cloudDaily && (!localDaily || localDaily.periodKey !== cloudDaily.periodKey)) {
+                    localStorage.setItem('klim_tarot_daily_local', values.klim_tarot_daily_local);
+                  }
+                } catch (_) {}
+              }
+              if (typeof updateProDaysUI === 'function') updateProDaysUI();
+            }
+          }
+        );
+      }
+    } catch (_) {}
+
+    // 3. Серверная фоновая синхронизация (Render API)
+    setTimeout(() => {
+      const uid = getTelegramUserId();
+      if (uid) CloudSync.fetchServerSync(uid);
+    }, 400);
+  },
+
+  fetchServerSync(uid) {
+    if (!uid) return;
+    const url = `https://klim-tarot-bot.onrender.com/api/sync_state?uid=${uid}`;
+    fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } })
+      .then((res) => {
+        if (!res.ok) throw new Error('Status ' + res.status);
+        return res.json();
+      })
+      .then((data) => {
+        if (!data || data.status !== 'ok') return;
+        if (typeof state === 'undefined' || !state) return;
+        if (data.is_owner || data.is_forever || data.pro_days >= 365 || data.pro_days >= 9999) {
+          if (data.is_owner) state.isOwner = true;
+          state.proDays = 9999;
+          localStorage.setItem('klim_tarot_pro_days', '9999');
+          localStorage.setItem('klim_tarot_pro_granted', 'true');
+        } else if (data.pro_days !== undefined) {
+          state.proDays = data.pro_days;
+          localStorage.setItem('klim_tarot_pro_days', String(data.pro_days));
+          if (data.pro_days > 0) {
+            localStorage.setItem('klim_tarot_pro_granted', 'true');
+          } else {
+            localStorage.removeItem('klim_tarot_pro_granted');
+          }
+        }
+        if (data.pro_expires_at) {
+          try {
+            state.proExpiresAt = new Date(data.pro_expires_at).getTime();
+            localStorage.setItem('klim_tarot_pro_exp', String(state.proExpiresAt));
+          } catch (_) {}
+        }
+        if (data.referral_count !== undefined) {
+          state.referralCount = data.referral_count;
+          state.referralBonusDays = data.referral_bonus_days || (data.referral_count * 2);
+          localStorage.setItem('klim_tarot_ref_count', String(state.referralCount));
+          localStorage.setItem('klim_tarot_ref_bonus', String(state.referralBonusDays));
+        }
+        if (data.shards !== undefined && data.shards > parseInt(localStorage.getItem('klim_tarot_shards') || '0', 10)) {
+          localStorage.setItem('klim_tarot_shards', String(data.shards));
+          if (typeof renderShardsUI === 'function') renderShardsUI();
+        }
+        if (data.wheel_last && data.wheel_last > parseInt(localStorage.getItem('klim_tarot_wheel_last') || '0', 10)) {
+          localStorage.setItem('klim_tarot_wheel_last', String(data.wheel_last));
+          if (typeof checkWheelCooldown === 'function') checkWheelCooldown();
+        }
+        if (typeof updateProDaysUI === 'function') updateProDaysUI();
+        if (typeof updateProfileUI === 'function') updateProfileUI();
+      })
+      .catch(() => {});
+  },
+
+  postProGrant(grantDays = 2) {
+    const uid = getTelegramUserId();
+    if (!uid) return;
+    const url = `https://klim-tarot-bot.onrender.com/api/sync_state`;
+    const body = {
+      uid,
+      grant_pro_days: grantDays,
+      wheel_last: parseInt(localStorage.getItem('klim_tarot_wheel_last') || '0', 10),
+      shards: parseInt(localStorage.getItem('klim_tarot_shards') || '0', 10),
+      daily_card_key: localStorage.getItem('klim_tarot_daily_local') || ''
+    };
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).catch(() => {});
   }
+};
+
+function getDailyCard() {
   const period = getUserDayNightPeriod();
   try {
     const saved = JSON.parse(localStorage.getItem('klim_tarot_daily_local') || 'null');
@@ -731,7 +1043,7 @@ function drawAndSaveDailyCard() {
   if (existing) return existing;
   const period = getUserDayNightPeriod();
   const [{ card, reversed }] = drawRandomCards(1);
-  localStorage.setItem(
+  CloudSync.set(
     'klim_tarot_daily_local',
     JSON.stringify({ periodKey: period.periodKey, cardId: card.id, reversed })
   );
@@ -739,10 +1051,6 @@ function drawAndSaveDailyCard() {
 }
 
 function getCooldownRemaining(kind) {
-  if (state.serverSynced && state.cooldownUntil && state.cooldownUntil[kind]) {
-    const rem = state.cooldownUntil[kind] - Date.now();
-    if (rem > 0) return rem;
-  }
   const limit = COOLDOWNS_MS[kind] || 0;
   if (!limit) return 0;
   try {
@@ -757,13 +1065,10 @@ function getCooldownRemaining(kind) {
 }
 
 function markCooldown(kind) {
-  if (state.cooldownUntil) {
-    state.cooldownUntil[kind] = Date.now() + (COOLDOWNS_MS[kind] || 0);
-  }
   try {
     const map = JSON.parse(localStorage.getItem('klim_tarot_cooldowns') || '{}');
     map[kind] = Date.now();
-    localStorage.setItem('klim_tarot_cooldowns', JSON.stringify(map));
+    CloudSync.set('klim_tarot_cooldowns', JSON.stringify(map));
   } catch (_) {}
 }
 
@@ -833,9 +1138,6 @@ function showCooldownModal(kind, remainingMs) {
 }
 
 function loadHistory() {
-  if (state.serverSynced && Array.isArray(state.serverHistory)) {
-    return state.serverHistory;
-  }
   try {
     return JSON.parse(localStorage.getItem('klim_tarot_history') || '[]');
   } catch (_) {
@@ -844,25 +1146,24 @@ function loadHistory() {
 }
 
 function saveReadingToHistory(reading) {
-  const entry = {
+  const list = loadHistory();
+  list.unshift({
     id: Date.now(),
     time: new Date().toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
     ...reading,
-  };
-  if (state.serverSynced && Array.isArray(state.serverHistory)) {
-    state.serverHistory = [entry, ...state.serverHistory].slice(0, 25);
-  }
-  const list = (() => {
-    try { return JSON.parse(localStorage.getItem('klim_tarot_history') || '[]'); } catch (_) { return []; }
-  })();
-  list.unshift(entry);
+  });
   localStorage.setItem('klim_tarot_history', JSON.stringify(list.slice(0, 25)));
+  const total = (parseInt(localStorage.getItem('klim_tarot_total_readings') || '0', 10) || list.length) + 1;
+  localStorage.setItem('klim_tarot_total_readings', String(total));
   updateHistoryCounter();
+  if (typeof updateProfileUI === 'function') updateProfileUI();
 }
 
 /* ════════════════════════════════════════════════════════════════
    5. APP STATE & NAVIGATION
    ════════════════════════════════════════════════════════════════ */
+
+const OWNER_TELEGRAM_ID = 7446803539;
 
 function getTelegramUserId() {
   try {
@@ -881,8 +1182,98 @@ function getTelegramUserId() {
   return null;
 }
 
+function getTelegramUser() {
+  try {
+    const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (u && (u.first_name || u.id)) return u;
+    const raw = window.Telegram?.WebApp?.initData || '';
+    if (raw) {
+      const sp = new URLSearchParams(raw);
+      const userStr = sp.get('user');
+      if (userStr) {
+        const parsed = JSON.parse(userStr);
+        if (parsed && (parsed.first_name || parsed.id)) return parsed;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+function isAppOwner() {
+  const uid = getTelegramUserId();
+  return uid === OWNER_TELEGRAM_ID || (typeof state !== 'undefined' && state && !!state.isOwner);
+}
+
+
+function checkProAccessFromEnv() {
+  const uid = getTelegramUserId();
+  if (uid && uid === OWNER_TELEGRAM_ID) {
+    try { localStorage.setItem('klim_tarot_pro_granted', 'true'); } catch (e) {}
+    return true;
+  }
+
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hash = window.location.hash || '';
+    const hashParams = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
+    const startParam = tg?.initDataUnsafe?.start_param || '';
+
+    const urlDays = parseInt(urlParams.get('pdays') || hashParams.get('pdays') || '0', 10);
+    const urlExp = parseInt(urlParams.get('pexp') || hashParams.get('pexp') || '0', 10);
+    const isVip = urlParams.get('vip') === '1' || hashParams.get('vip') === '1';
+    if (urlDays >= 365 || urlDays === 9999 || isVip) {
+      localStorage.setItem('klim_tarot_pro_days', '9999');
+      localStorage.setItem('klim_tarot_pro_granted', 'true');
+    } else if (urlDays > 0) {
+      localStorage.setItem('klim_tarot_pro_days', String(urlDays));
+      localStorage.setItem('klim_tarot_pro_granted', 'true');
+    }
+    if (urlExp > 0) {
+      localStorage.setItem('klim_tarot_pro_exp', String(urlExp * 1000));
+    }
+    const refc = parseInt(urlParams.get('refc') || '0', 10);
+    const refd = parseInt(urlParams.get('refd') || '0', 10);
+    if (refc > 0) {
+      localStorage.setItem('klim_tarot_ref_count', String(refc));
+    }
+    if (refd > 0) {
+      localStorage.setItem('klim_tarot_ref_bonus', String(refd));
+    }
+
+    if (
+      urlParams.get('pro') === '1' ||
+      urlParams.get('pro') === 'true' ||
+      hashParams.get('pro') === '1' ||
+      startParam === 'pro' ||
+      startParam.startsWith('pro_') ||
+      urlDays > 0
+    ) {
+      localStorage.setItem('klim_tarot_pro_granted', 'true');
+      localStorage.setItem('klim_tarot_pro_mode', 'true');
+      return true;
+    }
+  } catch (e) {}
+
+  const savedExp = parseInt(localStorage.getItem('klim_tarot_pro_exp') || '0', 10);
+  if (savedExp > 0) {
+    if (Date.now() < savedExp) {
+      return true;
+    } else {
+      localStorage.removeItem('klim_tarot_pro_granted');
+      localStorage.setItem('klim_tarot_pro_days', '0');
+      return false;
+    }
+  }
+
+  const savedDays = parseInt(localStorage.getItem('klim_tarot_pro_days') || '0', 10);
+  if (savedDays > 0) return true;
+
+  return localStorage.getItem('klim_tarot_pro_granted') === 'true';
+}
+
 function hasProAccess() {
-  return Boolean(state?.isProAccess);
+  if (state?.serverSynced && state?.serverProAccess) return true;
+  return checkProAccessFromEnv();
 }
 
 const state = {
@@ -898,16 +1289,36 @@ const state = {
   lastReading: null,
   oracleFlipped: false,
   serverSynced: false,
-  isProAccess: false,
-  isProMode: false,
+  serverProAccess: false,
   serverHistory: null,
   serverLeaderboard: null,
   serverDaily: null,
   cooldownUntil: { spread: 0, oracle: 0, friend: 0 },
   wheelCooldownUntil: 0,
+  proDays: parseInt(localStorage.getItem('klim_tarot_pro_days') || '0', 10),
+  proExpiresAt: parseInt(localStorage.getItem('klim_tarot_pro_exp') || '0', 10),
+  referralCount: parseInt(localStorage.getItem('klim_tarot_ref_count') || '0', 10),
+  referralBonusDays: parseInt(localStorage.getItem('klim_tarot_ref_bonus') || '0', 10),
+  isOwner: getTelegramUserId() === OWNER_TELEGRAM_ID,
+  isProMode: checkProAccessFromEnv() && (localStorage.getItem('klim_tarot_pro_mode') !== 'false'),
   proDeckMode: localStorage.getItem('klim_tarot_pro_deck') || 'all', // 'all' | 'major' | 'minor'
   proReversals: parseFloat(localStorage.getItem('klim_tarot_pro_rev') || '0.5'), // 0.5 | 0.25 | 0
 };
+
+function getRemainingProDays() {
+  const uid = getTelegramUserId();
+  if (uid === OWNER_TELEGRAM_ID || state.isOwner || state.proDays >= 365 || state.proDays >= 9999) {
+    return Infinity;
+  }
+  if (state.proExpiresAt && state.proExpiresAt > 0) {
+    const diff = state.proExpiresAt - Date.now();
+    if (diff <= 0) return 0;
+    const days = Math.ceil(diff / 86400000);
+    if (days >= 365) return Infinity;
+    return Math.max(1, days);
+  }
+  return Math.max(0, state.proDays || 0);
+}
 
 const viewHero = document.getElementById('view-hero');
 const mainChrome = document.getElementById('main-chrome');
@@ -928,6 +1339,7 @@ const VIEW_TITLES = {
   plans: 'Тарифы',
   fortune: 'Фортуна',
   invite: 'Друзья',
+  profile: 'Мой профиль',
 };
 
 function showToast(msg) {
@@ -938,7 +1350,98 @@ function showToast(msg) {
   el._t = setTimeout(() => el.classList.add('hidden'), 2400);
 }
 
+function triggerCardBurstTransition(targetView, navOptions = {}) {
+  // 1. Play zero-latency transition burst immediately on pointer tap
+  sound.playTransitionBurst();
+  haptic('medium');
+  sound.startAmbience();
+
+  // Authentic Tarot cards from deck to burst across screen in 3D
+  const burstCards = [
+    { src: './assets/cards/m17.webp', dx: -68, dy: -52, initRot: -12, rot: -42, scale: 1.32, z: 240, delay: 0 },   // XVII Звезда (top-left)
+    { src: './assets/cards/m19.webp', dx: 68, dy: -54, initRot: 14, rot: 40, scale: 1.30, z: 220, delay: 25 },    // XIX Солнце (top-right)
+    { src: './assets/cards/m10.webp', dx: 0, dy: -66, initRot: 2, rot: 8, scale: 1.42, z: 300, delay: 15 },       // X Колесо Фортуны (center-up)
+    { src: './assets/cards/m0.webp',  dx: -74, dy: 6, initRot: -8, rot: -52, scale: 1.34, z: 250, delay: 40 },    // 0 Шут (mid-left)
+    { src: './assets/cards/m1.webp',  dx: 74, dy: 10, initRot: 10, rot: 48, scale: 1.34, z: 260, delay: 35 },     // I Маг (mid-right)
+    { src: './assets/cards/m21.webp', dx: -62, dy: 58, initRot: -16, rot: -32, scale: 1.28, z: 210, delay: 55 },  // XXI Мир (bottom-left)
+    { src: './assets/cards/w01.webp', dx: 62, dy: 56, initRot: 18, rot: 36, scale: 1.26, z: 200, delay: 50 },    // Туз Жезлов (bottom-right)
+  ];
+
+  const stage = document.createElement('div');
+  stage.id = 'cards-burst-stage';
+
+  burstCards.forEach((c) => {
+    const cardEl = document.createElement('div');
+    cardEl.className = 'burst-card-item';
+    cardEl.style.setProperty('--init-rot', `${c.initRot}deg`);
+    cardEl.style.setProperty('--end-dx', `${c.dx}vw`);
+    cardEl.style.setProperty('--end-dy', `${c.dy}vh`);
+    cardEl.style.setProperty('--end-z', `${c.z}px`);
+    cardEl.style.setProperty('--end-rot', `${c.rot}deg`);
+    cardEl.style.setProperty('--end-scale', `${c.scale}`);
+    cardEl.style.setProperty('--burst-delay', `${c.delay}ms`);
+
+    cardEl.innerHTML = `
+      <img src="${c.src}" class="burst-card-img" alt="Tarot" loading="eager" />
+      <div class="burst-card-sheen"></div>
+    `;
+    stage.appendChild(cardEl);
+  });
+
+  document.body.appendChild(stage);
+
+  // Switch layout smoothly: hero fades out in absolute overlay
+  viewHero.classList.add('hero-transitioning-out');
+
+  // Fade in main chrome in harmony with card flight
+  mainChrome.classList.remove('hidden');
+  mainChrome.classList.add('chrome-transitioning-in');
+  document.getElementById('main-bg-video')?.classList.add('visible');
+
+  document.querySelectorAll('.subview').forEach((el) => el.classList.remove('active'));
+  const target = document.getElementById(`view-${targetView}`);
+  if (target) target.classList.add('active');
+
+  state.currentView = targetView;
+  topbarTitle.textContent = VIEW_TITLES[targetView] || 'TAROT';
+
+  const dockTabs = ['home', 'spreads', 'oracle', 'dictionary', 'profile'];
+  const dockTab = dockTabs.includes(targetView) ? targetView : null;
+  document.querySelectorAll('.dock-item').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.tab === dockTab);
+  });
+
+  const showBack = !dockTabs.includes(targetView);
+  btnBack.classList.toggle('hidden', !showBack);
+  if (tg?.BackButton) {
+    if (showBack) tg.BackButton.show();
+    else tg.BackButton.hide();
+  }
+
+  if (targetView === 'home') {
+    refreshHomeBanner();
+    if (typeof updateProfileUI === 'function') updateProfileUI();
+  }
+  if (targetView === 'profile') {
+    if (typeof updateProfileUI === 'function') updateProfileUI();
+  }
+
+  // Full animation duration: 1350ms flight + 55ms max stagger = ~1410ms
+  // Cleanly remove stage and finalize classes at 1550ms
+  setTimeout(() => {
+    stage.remove();
+    viewHero.classList.add('hidden');
+    viewHero.classList.remove('hero-transitioning-out');
+    mainChrome.classList.remove('chrome-transitioning-in');
+  }, 1550);
+}
+
 function navigateTo(viewName, { push = true } = {}) {
+  if (state.currentView === 'hero' && viewName !== 'hero') {
+    triggerCardBurstTransition(viewName, { push });
+    return;
+  }
+
   sound.playTap();
   haptic('light');
   sound.startAmbience();
@@ -970,7 +1473,7 @@ function navigateTo(viewName, { push = true } = {}) {
   topbarTitle.textContent = VIEW_TITLES[viewName] || 'TAROT';
 
   // Update dock active state
-  const dockTabs = ['home', 'spreads', 'oracle', 'psychology', 'dictionary'];
+  const dockTabs = ['home', 'spreads', 'oracle', 'dictionary', 'profile'];
   const dockTab = dockTabs.includes(viewName) ? viewName : null;
   document.querySelectorAll('.dock-item').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.tab === dockTab);
@@ -984,8 +1487,21 @@ function navigateTo(viewName, { push = true } = {}) {
     else tg.BackButton.hide();
   }
 
+  // Floating Exit to Home button («✕» ниже настроек)
+  const exitBtn = document.getElementById('btn-exit-to-home');
+  if (exitBtn) {
+    exitBtn.classList.toggle('hidden', viewName === 'home' || viewName === 'hero');
+  }
+
   if (viewName !== 'psychology') stopBreathing();
-  if (viewName === 'home') refreshHomeBanner();
+  if (viewName === 'home') {
+    refreshHomeBanner();
+    if (typeof updateProfileUI === 'function') updateProfileUI();
+  }
+  if (viewName === 'profile') {
+    if (typeof updateProfileUI === 'function') updateProfileUI();
+    if (typeof renderHistory === 'function') renderHistory();
+  }
   if (viewName === 'history') renderHistory();
   if (viewName === 'oracle') resetOracleStage();
 
@@ -1760,6 +2276,74 @@ function updateProModeUI() {
   }
 }
 
+function updateProDaysUI() {
+  const days = getRemainingProDays();
+  const hasPro = (days > 0 || days === Infinity);
+  state.isProMode = hasPro && (localStorage.getItem('klim_tarot_pro_mode') !== 'false');
+
+  const topbarChip = document.getElementById('topbar-pro-days');
+  const heroChip = document.getElementById('hero-pro-days');
+  const daysText = days === Infinity ? '👑' : `${days} дн.`;
+
+  if (topbarChip) {
+    topbarChip.textContent = daysText;
+    topbarChip.classList.toggle('hidden', !hasPro);
+  }
+  if (heroChip) {
+    heroChip.textContent = daysText;
+    heroChip.classList.toggle('hidden', !hasPro);
+  }
+
+  // Profile Top Card VIP Box
+  const profileVipTag = document.getElementById('profile-vip-tag');
+  const profileVipDays = document.getElementById('profile-vip-days');
+  const profileExtendBtn = document.getElementById('btn-profile-vip-extend');
+
+  if (profileVipTag && profileVipDays) {
+    if (days === Infinity) {
+      profileVipTag.textContent = '👑 VIP НАВСЕГДА';
+      profileVipTag.className = 'profile-vip-tag';
+      profileVipDays.textContent = 'Бессрочно';
+      if (profileExtendBtn) profileExtendBtn.classList.add('hidden');
+    } else if (days > 0) {
+      profileVipTag.textContent = '⚡ PRO ДОСТУП';
+      profileVipTag.className = 'profile-vip-tag';
+      profileVipDays.textContent = `Осталось: ${days} дн.`;
+      if (profileExtendBtn) {
+        profileExtendBtn.textContent = '+ Продлить';
+        profileExtendBtn.classList.remove('hidden');
+      }
+    } else {
+      profileVipTag.textContent = 'Базовый доступ';
+      profileVipTag.className = 'profile-vip-tag inactive';
+      profileVipDays.textContent = '0 дней PRO';
+      if (profileExtendBtn) {
+        profileExtendBtn.textContent = '⚡ Получить PRO';
+        profileExtendBtn.classList.remove('hidden');
+      }
+    }
+  }
+
+  // Profile Stats Grid - PRO Days box
+  const statPro = document.getElementById('profile-stat-pro-days');
+  if (statPro) {
+    if (days === Infinity) statPro.textContent = '👑 Бессрочно';
+    else if (days > 0) statPro.textContent = `${days} дн.`;
+    else statPro.textContent = '0 дн.';
+  }
+
+  // Invite view stats
+  const statRef = document.getElementById('stat-user-referrals');
+  const statBonus = document.getElementById('stat-user-bonus-days');
+  const statInvitePro = document.getElementById('stat-user-pro-days');
+
+  if (statRef) statRef.textContent = String(state.referralCount || 0);
+  if (statBonus) statBonus.textContent = `+${state.referralBonusDays || 0} дн.`;
+  if (statInvitePro) statInvitePro.textContent = days === Infinity ? '👑 Навсегда' : `${days} дн.`;
+
+  updateProModeUI();
+}
+
 function renderProResultMatrix(reading) {
   const container = document.getElementById('pro-analysis-container');
   if (!container || !reading || !reading.drawn) return;
@@ -2313,56 +2897,62 @@ function openCardModal(card, reversed = false) {
 
 function renderHistory() {
   const list = loadHistory();
-  const container = document.getElementById('history-list');
-  const clearBtn = document.getElementById('btn-clear-history');
-  clearBtn.classList.toggle('hidden', list.length === 0);
+  const containers = [
+    { container: document.getElementById('history-list'), clearBtn: document.getElementById('btn-clear-history') },
+    { container: document.getElementById('profile-history-list'), clearBtn: document.getElementById('btn-profile-clear-history') },
+  ];
 
-  if (list.length === 0) {
-    container.innerHTML = `<div class="empty-state">Вы ещё не делали раскладов в Mini App.<br/>Откройте свой первый аркан ✨</div>`;
-    return;
-  }
+  containers.forEach(({ container, clearBtn }) => {
+    if (!container) return;
+    if (clearBtn) clearBtn.classList.toggle('hidden', list.length === 0);
 
-  container.innerHTML = '';
-  list.forEach((entry) => {
-    const cardNames = (entry.cards || [])
-      .map((item) => {
-        const c = ALL_CARDS.find((x) => x.id === item.id);
-        return c ? `${c.name}${item.reversed ? ' (🔄)' : ''}` : '';
-      })
-      .filter(Boolean);
+    if (list.length === 0) {
+      container.innerHTML = `<div class="empty-state">Вы ещё не делали раскладов в Mini App.<br/>Откройте свой первый аркан ✨</div>`;
+      return;
+    }
 
-    const btn = document.createElement('button');
-    btn.className = 'history-item';
-    btn.innerHTML = `
-      <div class="history-top">
-        <span class="history-title">${entry.friendName ? `🎁 Для ${escapeHtml(entry.friendName)}: ` : ''}${escapeHtml(entry.spreadName)}</span>
-        <span class="history-time">${escapeHtml(entry.time)}</span>
-      </div>
-      ${entry.question ? `<div style="font-size:12px;color:var(--text-muted);font-style:italic;">«${escapeHtml(entry.question)}»</div>` : ''}
-      <div class="history-cards">${escapeHtml(cardNames.slice(0, 4).join(' · '))}${cardNames.length > 4 ? ` +${cardNames.length - 4}` : ''}</div>
-    `;
-    btn.addEventListener('click', () => {
-      const spread = SPREADS.find((s) => s.key === entry.spreadKey);
-      const drawn = (entry.cards || [])
-        .map((it) => {
-          const c = ALL_CARDS.find((x) => x.id === it.id);
-          return c ? { card: c, reversed: it.reversed } : null;
+    container.innerHTML = '';
+    list.forEach((entry) => {
+      const cardNames = (entry.cards || [])
+        .map((item) => {
+          const c = ALL_CARDS.find((x) => x.id === item.id);
+          return c ? `${c.name}${item.reversed ? ' (🔄)' : ''}` : '';
         })
         .filter(Boolean);
-      if (drawn.length === 0) return;
 
-      renderReadingResult({
-        spreadKey: entry.spreadKey,
-        spreadName: entry.spreadName,
-        spreadDesc: spread ? spread.desc : entry.time,
-        positions: spread ? spread.positions : drawn.map((_, i) => `Карта ${i + 1}`),
-        drawn,
-        friendName: entry.friendName || null,
-        question: entry.question || '',
+      const btn = document.createElement('button');
+      btn.className = 'history-item';
+      btn.innerHTML = `
+        <div class="history-top">
+          <span class="history-title">${entry.friendName ? `🎁 Для ${escapeHtml(entry.friendName)}: ` : ''}${escapeHtml(entry.spreadName)}</span>
+          <span class="history-time">${escapeHtml(entry.time)}</span>
+        </div>
+        ${entry.question ? `<div style="font-size:12px;color:var(--text-muted);font-style:italic;">«${escapeHtml(entry.question)}»</div>` : ''}
+        <div class="history-cards">${escapeHtml(cardNames.slice(0, 4).join(' · '))}${cardNames.length > 4 ? ` +${cardNames.length - 4}` : ''}</div>
+      `;
+      btn.addEventListener('click', () => {
+        const spread = SPREADS.find((s) => s.key === entry.spreadKey);
+        const drawn = (entry.cards || [])
+          .map((it) => {
+            const c = ALL_CARDS.find((x) => x.id === it.id);
+            return c ? { card: c, reversed: it.reversed } : null;
+          })
+          .filter(Boolean);
+        if (drawn.length === 0) return;
+
+        renderReadingResult({
+          spreadKey: entry.spreadKey,
+          spreadName: entry.spreadName,
+          spreadDesc: spread ? spread.desc : entry.time,
+          positions: spread ? spread.positions : drawn.map((_, i) => `Карта ${i + 1}`),
+          drawn,
+          friendName: entry.friendName || null,
+          question: entry.question || '',
+        });
+        navigateTo('result');
       });
-      navigateTo('result');
+      container.appendChild(btn);
     });
-    container.appendChild(btn);
   });
 }
 
@@ -2424,9 +3014,10 @@ function randomizeHeroSubtitle() {
 
 function updateSoundIcon() {
   const btn = document.getElementById('btn-sound-toggle');
+  if (!btn) return;
   document.getElementById('icon-sound-on')?.classList.toggle('hidden', !sound.enabled);
   document.getElementById('icon-sound-off')?.classList.toggle('hidden', sound.enabled);
-  btn?.classList.toggle('muted', !sound.enabled);
+  btn.classList.toggle('muted', !sound.enabled);
 }
 
 function bindEvents() {
@@ -2600,13 +3191,7 @@ function bindEvents() {
   });
 
   // History clear
-  document.getElementById('btn-clear-history').addEventListener('click', async () => {
-    if (state.serverSynced) {
-      try {
-        await api.apiClearHistory();
-        state.serverHistory = [];
-      } catch (_) {}
-    }
+  document.getElementById('btn-clear-history').addEventListener('click', () => {
     localStorage.removeItem('klim_tarot_history');
     updateHistoryCounter();
     renderHistory();
@@ -2623,21 +3208,13 @@ function bindEvents() {
   document.getElementById('btn-send-to-bot').addEventListener('click', async () => {
     if (!state.lastReading) return;
     sound.playTap();
-    const summaryText = formatReadingAsPlainText(state.lastReading);
     const payload = {
       type: 'reading_result',
       spreadName: state.lastReading.spreadName,
       friendName: state.lastReading.friendName,
       question: state.lastReading.question,
-      summary: summaryText,
+      summary: formatReadingAsPlainText(state.lastReading),
     };
-    if (state.serverSynced) {
-      try {
-        await api.apiSendReadingToChat(summaryText);
-        showToast('📩 Расклад отправлен в чат с ботом!');
-        return;
-      } catch (_) {}
-    }
     if (tg?.sendData) {
       try {
         tg.sendData(JSON.stringify(payload));
@@ -2752,7 +3329,6 @@ function openSettingsModal() {
   sound.playTap();
   haptic('light');
   const body = document.getElementById('modal-body');
-  const curTrack = sound.playlist[sound.trackIndex]?.name || 'Атмосфера I';
 
   body.innerHTML = `
     <h2 style="margin:0 0 14px;font-family:var(--font-display);font-size:28px;">Настройки</h2>
@@ -2771,12 +3347,24 @@ function openSettingsModal() {
         step="1"
         value="${sound.enabled ? sound.volumePercent : 0}"
       />
-      <div class="settings-audio-btns">
-        <button class="btn-glass-secondary" id="settings-sound-toggle">
-          ${sound.enabled ? 'Выключить звук' : 'Включить звук'}
-        </button>
-        <button class="btn-glass-secondary" id="settings-next-track">
-          Трек: ${escapeHtml(curTrack)}
+
+      <div class="settings-row-head" style="margin-top:14px;">
+        <span class="settings-label">Громкость эффектов</span>
+        <span class="settings-val" id="settings-sfx-label">${sound.enabled ? sound.sfxVolumePercent : 0}%</span>
+      </div>
+      <input
+        type="range"
+        id="settings-sfx-slider"
+        class="volume-slider"
+        min="0"
+        max="100"
+        step="1"
+        value="${sound.enabled ? sound.sfxVolumePercent : 0}"
+      />
+
+      <div class="settings-audio-btns" style="margin-top:14px;">
+        <button class="btn-glass-secondary" id="settings-sound-toggle" style="width:100%;">
+          ${sound.enabled ? 'Выключить все звуки' : 'Включить звук'}
         </button>
       </div>
     </div>
@@ -2800,40 +3388,40 @@ function openSettingsModal() {
       <img src="./assets/klim-logo.png" alt="KLIM" class="settings-brand-logo" />
       <div class="settings-brand-info">
         <span class="settings-brand-name">KLIM TAROT</span>
-        <span class="settings-brand-author">Авторский проект & экосистема · @im_klim</span>
+        <span class="settings-brand-author">Авторский проект · @im_klim</span>
       </div>
     </div>
   `;
 
   const slider = document.getElementById('settings-vol-slider');
   const volLabel = document.getElementById('settings-vol-label');
+  const sfxSlider = document.getElementById('settings-sfx-slider');
+  const sfxLabel = document.getElementById('settings-sfx-label');
   const toggleBtn = document.getElementById('settings-sound-toggle');
-  const trackBtn = document.getElementById('settings-next-track');
 
   slider?.addEventListener('input', (e) => {
     const pct = sound.setVolumePercent(e.target.value);
     if (volLabel) volLabel.textContent = `${pct}%`;
-    if (toggleBtn) toggleBtn.textContent = pct > 0 ? 'Выключить звук' : 'Включить звук';
+    if (toggleBtn) toggleBtn.textContent = (pct > 0 || sound.sfxVolumePercent > 0) ? 'Выключить все звуки' : 'Включить звук';
     updateSoundIcon();
+  });
+
+  sfxSlider?.addEventListener('input', (e) => {
+    const pct = sound.setSfxVolumePercent(e.target.value);
+    if (sfxLabel) sfxLabel.textContent = `${pct}%`;
+    sound.playTap();
   });
 
   toggleBtn?.addEventListener('click', () => {
     const on = sound.toggle();
     updateSoundIcon();
-    const shownPct = on ? sound.volumePercent : 0;
-    if (slider) slider.value = String(shownPct);
-    if (volLabel) volLabel.textContent = `${shownPct}%`;
-    toggleBtn.textContent = on ? 'Выключить звук' : 'Включить звук';
-  });
-
-  trackBtn?.addEventListener('click', () => {
-    const info = sound.nextTrack();
-    updateSoundIcon();
-    trackBtn.textContent = `Трек: ${info.name}`;
-    if (slider) slider.value = String(sound.volumePercent);
-    if (volLabel) volLabel.textContent = `${sound.volumePercent}%`;
-    if (toggleBtn) toggleBtn.textContent = 'Выключить звук';
-    showToast(`🎵 ${info.name} (${info.index}/${info.total})`);
+    const shownMusic = on ? sound.volumePercent : 0;
+    const shownSfx = on ? sound.sfxVolumePercent : 0;
+    if (slider) slider.value = String(shownMusic);
+    if (volLabel) volLabel.textContent = `${shownMusic}%`;
+    if (sfxSlider) sfxSlider.value = String(shownSfx);
+    if (sfxLabel) sfxLabel.textContent = `${shownSfx}%`;
+    toggleBtn.textContent = on ? 'Выключить все звуки' : 'Включить звук';
   });
 
   document.getElementById('btn-contact-admin')?.addEventListener('click', () => {
@@ -3271,29 +3859,32 @@ window.addEventListener('wheel', (e) => {
 }, { passive: true });
 updateProModeUI();
 
-// 🎁 Проверка и показ приветственного подарка: 3 дня PRO
+// 🎁 Проверка и показ приветственного подарка: 3 дня PRO (строго 1 раз для новых пользователей)
 function checkAndShowWelcomeGift() {
   const giftModal = document.getElementById('gift-modal');
   if (!giftModal) return;
 
   const alreadyClaimed = localStorage.getItem('klim_tarot_gift_claimed');
   const params = new URLSearchParams(window.location.search);
-  const isTrialUrl = params.get('trial') === '1';
+  const isProParam = params.get('pro') === '1';
 
-  if (!alreadyClaimed || isTrialUrl) {
-    try {
-      localStorage.setItem('klim_tarot_pro_granted', 'true');
-      localStorage.setItem('klim_tarot_pro_mode', 'true');
-      state.isProMode = true;
-      updateProModeUI();
-    } catch (e) {}
-
-    setTimeout(() => {
-      giftModal.classList.remove('hidden');
-      sound.playShuffle();
-      haptic('success');
-    }, 450);
+  // Если подарок уже забирали или у пользователя уже есть PRO-режим — окно не показываем
+  if (alreadyClaimed === 'true' || isProParam || state.isProMode) {
+    return;
   }
+
+  try {
+    localStorage.setItem('klim_tarot_pro_granted', 'true');
+    localStorage.setItem('klim_tarot_pro_mode', 'true');
+    state.isProMode = true;
+    updateProModeUI();
+  } catch (e) {}
+
+  setTimeout(() => {
+    giftModal.classList.remove('hidden');
+    sound.playShuffle();
+    haptic('success');
+  }, 450);
 
   const closeBtn = document.getElementById('btn-close-gift-modal');
   const claimBtn = document.getElementById('btn-gift-claim');
@@ -3348,7 +3939,7 @@ const WHEEL_SECTORS = [
   { label: '+2 Осколка', icon: '✨', type: 'shard', val: 2, bg1: '#3b0764', bg2: '#6b21a8', border: '#d8b4fe', text: '#faf5ff' },
   { label: 'Талисман Удачи', icon: '🍀', type: 'talisman', bg1: '#064e3b', bg2: '#047857', border: '#34d399', text: '#ecfdf5' },
   { label: '4 Стихии', icon: '🌊', type: 'feature_elements', bg1: '#164e63', bg2: '#0e7490', border: '#22d3ee', text: '#ecfeff' },
-  { label: '+1 Осколок', icon: '🔮', type: 'shard', val: 1, bg1: '#4a044e', bg2: '#86198f', border: '#e879f9', text: '#fdf4ff' },
+  { label: '+3 Осколка', icon: '💎', type: 'shard', val: 3, bg1: '#854d0e', bg2: '#ca8a04', border: '#fde047', text: '#fefce8' },
   { label: 'Мудрость Таро', icon: '🌟', type: 'wisdom', bg1: '#713f12', bg2: '#b45309', border: '#fde047', text: '#fefce8' },
 ];
 
@@ -3362,29 +3953,128 @@ function getShardsCount() {
 }
 
 function setShardsCount(cnt) {
-  localStorage.setItem('klim_tarot_shards', String(Math.max(0, cnt)));
+  CloudSync.set('klim_tarot_shards', String(Math.max(0, cnt)));
   renderShardsUI();
 }
 
 function renderShardsUI() {
   const cnt = getShardsCount();
-  const numEl = document.getElementById('shards-num');
-  if (numEl) numEl.textContent = cnt;
+  const isOwner = isAppOwner();
+  const hasPro = hasProAccess();
 
-  const slots = document.querySelectorAll('#shards-slots .shard-slot');
-  slots.forEach((slot, idx) => {
+  // 1. Wheel view
+  const wheelNumEl = document.getElementById('shards-num');
+  if (wheelNumEl) wheelNumEl.textContent = cnt;
+
+  const wheelSlots = document.querySelectorAll('#shards-slots .shard-slot');
+  wheelSlots.forEach((slot, idx) => {
     slot.classList.toggle('filled', idx < cnt);
   });
 
-  const forgeBtn = document.getElementById('btn-forge-shards');
-  if (forgeBtn) {
+  const wheelForgeBtn = document.getElementById('btn-forge-shards');
+  if (wheelForgeBtn) {
     if (cnt >= 5) {
-      forgeBtn.classList.remove('disabled');
-      forgeBtn.textContent = '✨ Собрать 5 осколков (+2 дня PRO)!';
+      wheelForgeBtn.classList.remove('disabled');
+      wheelForgeBtn.textContent = '✨ Собрать 5 осколков (+2 дня PRO)!';
     } else {
-      forgeBtn.classList.add('disabled');
-      forgeBtn.textContent = `✨ Собрать 5 осколков (нужно ещё ${5 - cnt})`;
+      wheelForgeBtn.classList.add('disabled');
+      wheelForgeBtn.textContent = `✨ Собрать 5 осколков (нужно ещё ${5 - cnt})`;
     }
+  }
+
+  // 2. Profile view (Осколки и Инвентарь для всех пользователей)
+  const profileNumEl = document.getElementById('profile-shards-num');
+  if (profileNumEl) profileNumEl.textContent = cnt;
+
+  const profileSlots = document.querySelectorAll('#profile-shards-slots .shard-slot');
+  profileSlots.forEach((slot, idx) => {
+    slot.classList.toggle('filled', idx < cnt);
+  });
+
+  const profileForgeBtn = document.getElementById('btn-profile-forge-shards');
+  if (profileForgeBtn) {
+    if (cnt >= 5) {
+      profileForgeBtn.classList.remove('disabled');
+      profileForgeBtn.textContent = '✨ Собрать (+2 дня PRO)';
+    } else {
+      profileForgeBtn.classList.add('disabled');
+      profileForgeBtn.textContent = `Собрать (${cnt}/5)`;
+    }
+  }
+
+  // 3. Profile Stats Grid Shards Box
+  const statShards = document.getElementById('profile-stat-shards');
+  if (statShards) statShards.textContent = `${cnt} / 5`;
+
+  // 4. Profile Inventory Items
+  const talisExp = parseInt(localStorage.getItem('klim_tarot_item_talisman') || '0', 10);
+  const hasTalisman = talisExp > Date.now();
+  const talismanBadge = document.getElementById('inv-item-talisman');
+  const talismanStatus = document.getElementById('inv-status-talisman');
+  if (talismanBadge && talismanStatus) {
+    talismanBadge.classList.toggle('active', hasTalisman);
+    talismanStatus.textContent = hasTalisman ? 'Активен сегодня ✨' : 'В Колесе Фортуны';
+  }
+
+  const hasShadow = isOwner || hasPro || localStorage.getItem('klim_tarot_item_shadow') === 'true';
+  const shadowBadge = document.getElementById('inv-item-shadow');
+  const shadowStatus = document.getElementById('inv-status-shadow');
+  if (shadowBadge && shadowStatus) {
+    shadowBadge.classList.toggle('active', hasShadow);
+    shadowStatus.textContent = hasShadow ? 'Открыт (Дно колоды)' : 'Закрыт';
+  }
+
+  const hasElements = isOwner || hasPro || localStorage.getItem('klim_tarot_item_elements') === 'true';
+  const elementsBadge = document.getElementById('inv-item-elements');
+  const elementsStatus = document.getElementById('inv-status-elements');
+  if (elementsBadge && elementsStatus) {
+    elementsBadge.classList.toggle('active', hasElements);
+    elementsStatus.textContent = hasElements ? 'Открыт (4 стихии)' : 'Закрыт';
+  }
+
+  const promoDiscount = localStorage.getItem('klim_tarot_promo_discount');
+  const discountBadge = document.getElementById('inv-item-discount');
+  const discountStatus = document.getElementById('inv-status-discount');
+  if (discountBadge && discountStatus) {
+    const hasDiscount = !!promoDiscount;
+    discountBadge.classList.toggle('active', hasDiscount);
+    discountStatus.textContent = hasDiscount ? `Скидка ${promoDiscount}% активна` : 'В Колесе Фортуны';
+  }
+}
+
+async function forgeShardsAction() {
+  const cnt = getShardsCount();
+  if (cnt >= 5) {
+    if (state.serverSynced) {
+      try {
+        const res = await api.apiForgeShards();
+        setShardsCount(res.shards);
+        state.serverProAccess = true;
+      } catch (err) {
+        showToast(err.message || 'Не удалось объединить осколки');
+        return;
+      }
+    } else {
+      setShardsCount(cnt - 5);
+    }
+    localStorage.setItem('klim_tarot_pro_granted', 'true');
+    localStorage.setItem('klim_tarot_pro_mode', 'true');
+    state.isProMode = true;
+    state.proDays = (state.proDays || 0) + 2;
+    if (state.proExpiresAt && state.proExpiresAt > Date.now()) {
+      state.proExpiresAt += 2 * 86400000;
+    } else {
+      state.proExpiresAt = Date.now() + 2 * 86400000;
+    }
+    CloudSync.set('klim_tarot_pro_days', state.proDays);
+    CloudSync.set('klim_tarot_pro_exp', state.proExpiresAt);
+    CloudSync.postProGrant(2);
+    updateProDaysUI();
+    renderShardsUI();
+    if (typeof updateProfileUI === 'function') updateProfileUI();
+    sound.playShuffle();
+    haptic('success');
+    showToast('🎉 5 осколков объединены! Вам начислено +2 дня режима PRO!');
   }
 }
 
@@ -3506,14 +4196,10 @@ function drawWheel(angle = 0) {
 }
 
 function checkWheelCooldown() {
-  let diff = 0;
-  if (state.serverSynced && state.wheelCooldownUntil) {
-    diff = state.wheelCooldownUntil - Date.now();
-  } else if (!state.serverSynced) {
-    const lastSpin = parseInt(localStorage.getItem('klim_tarot_wheel_last') || '0', 10);
-    const cooldown = 24 * 3600 * 1000;
-    diff = cooldown - (Date.now() - lastSpin);
-  }
+  const lastSpin = parseInt(localStorage.getItem('klim_tarot_wheel_last') || '0', 10);
+  const now = Date.now();
+  const cooldown = 5 * 3600 * 1000;
+  const diff = cooldown - (now - lastSpin);
 
   const spinBtn = document.getElementById('btn-spin-wheel');
   const cdWrap = document.getElementById('wheel-cooldown-wrap');
@@ -3553,11 +4239,9 @@ async function spinWheel() {
       wheelState.isSpinning = false;
       if (err.status === 429 && err.data?.wheelCooldownMs) {
         state.wheelCooldownUntil = Date.now() + Number(err.data.wheelCooldownMs);
-        checkWheelCooldown();
-      } else {
-        checkWheelCooldown();
-        showToast(err.message || 'Не удалось прокрутить колесо');
       }
+      checkWheelCooldown();
+      if (err.status !== 429) showToast(err.message || 'Не удалось прокрутить колесо');
       return;
     }
   }
@@ -3591,43 +4275,45 @@ async function spinWheel() {
       requestAnimationFrame(frame);
     } else {
       wheelState.isSpinning = false;
-      if (serverSpinResult) {
-        state.wheelCooldownUntil = Date.now() + Number(serverSpinResult.wheelCooldownMs || 24 * 3600 * 1000);
-        if (typeof serverSpinResult.shards === 'number') {
-          setShardsCount(serverSpinResult.shards);
-        }
-      } else {
-        localStorage.setItem('klim_tarot_wheel_last', String(Date.now()));
-      }
+      CloudSync.set('klim_tarot_wheel_last', String(Date.now()));
       checkWheelCooldown();
-      applyWheelReward(WHEEL_SECTORS[winningIndex], Boolean(serverSpinResult));
+      applyWheelReward(WHEEL_SECTORS[winningIndex]);
     }
   }
 
   requestAnimationFrame(frame);
 }
 
-function applyWheelReward(prize, fromServer = false) {
+function applyWheelReward(prize) {
   sound.playCardPick(0);
   haptic('success');
 
   if (prize.type === 'shard') {
     const cur = getShardsCount();
-    const nextVal = fromServer ? cur : cur + prize.val;
-    if (!fromServer) setShardsCount(nextVal);
-    showToast(`🔮 Вы выиграли: ${prize.label}! (Собрано: ${nextVal}/5)`);
+    const nextVal = cur + prize.val;
+    setShardsCount(nextVal);
+    if (prize.val >= 3) {
+      showToast(`💎 СУПЕР-ДЖЕКПОТ: +${prize.val} Осколка Судьбы! (Всего: ${nextVal}/5)`);
+    } else {
+      showToast(`🔮 Вы выиграли: ${prize.label}! (Собрано: ${nextVal}/5)`);
+    }
   } else if (prize.type === 'discount_25') {
     showToast(`🏷️ Вы выиграли Скидку 25%! Промокод: ${prize.code} сохранён в разделе Тарифы`);
     localStorage.setItem('klim_tarot_promo_discount', '25');
   } else if (prize.type === 'talisman') {
-    showToast('🍀 Вы выиграли Талисман Удачи! Судьба благоволит вашим начинаниям');
+    localStorage.setItem('klim_tarot_item_talisman', String(Date.now() + 86400000));
+    showToast('🍀 Вы выиграли Талисман Удачи! Добавлен в инвентарь профиля');
   } else if (prize.type === 'wisdom') {
+    localStorage.setItem('klim_tarot_item_wisdom', 'true');
     showToast('🌟 Вы выиграли Мудрость Старших Арканов! Совет Высших сил открыт');
   } else if (prize.type === 'feature_shadow') {
+    localStorage.setItem('klim_tarot_item_shadow', 'true');
     showToast('🌑 Вы выиграли Теневую карту колоды (Дно колоды)!');
   } else if (prize.type === 'feature_elements') {
+    localStorage.setItem('klim_tarot_item_elements', 'true');
     showToast('🌊 Вы выиграли Баланс 4 стихий и Квинтэссенцию раскладов!');
   }
+  renderShardsUI();
 }
 
 function initFortuneWheel() {
@@ -3638,36 +4324,8 @@ function initFortuneWheel() {
 
   document.getElementById('btn-spin-wheel')?.addEventListener('click', spinWheel);
 
-  document.getElementById('btn-forge-shards')?.addEventListener('click', async () => {
-    const cnt = getShardsCount();
-    if (cnt < 5) return;
-
-    if (state.serverSynced) {
-      try {
-        const res = await api.apiForgeShards();
-        setShardsCount(res.shards);
-        state.isProAccess = true;
-        state.isProMode = true;
-        localStorage.setItem('klim_tarot_pro_mode', 'true');
-        updateProModeUI();
-        sound.playShuffle();
-        haptic('success');
-        showToast('🎉 Осколки объединены! Вам начислено +2 дня режима PRO!');
-      } catch (err) {
-        showToast(err.message || 'Не удалось объединить осколки');
-      }
-      return;
-    }
-
-    setShardsCount(cnt - 5);
-    state.isProAccess = true;
-    state.isProMode = true;
-    localStorage.setItem('klim_tarot_pro_mode', 'true');
-    updateProModeUI();
-    sound.playShuffle();
-    haptic('success');
-    showToast('🎉 Осколки объединены! Вам начислено +2 дня режима PRO!');
-  });
+  document.getElementById('btn-forge-shards')?.addEventListener('click', forgeShardsAction);
+  document.getElementById('btn-profile-forge-shards')?.addEventListener('click', forgeShardsAction);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -3749,8 +4407,10 @@ async function syncWithServer() {
   try {
     const data = await api.apiBootstrap();
     state.serverSynced = true;
-    state.isProAccess = Boolean(data.user?.isPro);
-    state.isProMode = state.isProAccess && (localStorage.getItem('klim_tarot_pro_mode') !== 'false');
+    state.serverProAccess = Boolean(data.user?.isPro);
+    if (state.serverProAccess) {
+      state.isProMode = localStorage.getItem('klim_tarot_pro_mode') !== 'false';
+    }
     state.serverHistory = Array.isArray(data.history) ? data.history : [];
     state.serverLeaderboard = Array.isArray(data.leaderboard) ? data.leaderboard : [];
     state.serverDaily = data.dailyCard || null;
@@ -3768,12 +4428,12 @@ async function syncWithServer() {
     }
 
     updateProModeUI();
+    if (typeof updateProfileUI === 'function') updateProfileUI();
     refreshHomeBanner();
     updateHistoryCounter();
     checkWheelCooldown();
     renderLeaderboard();
   } catch (err) {
-    // Graceful offline / preview fallback when opened outside Telegram or without API
     console.debug('Server bootstrap skipped:', err?.message || err);
   }
 }
@@ -3781,3 +4441,347 @@ async function syncWithServer() {
 initFortuneWheel();
 initInviteAndLeaderboard();
 syncWithServer();
+
+document.getElementById('btn-home-pro-action')?.addEventListener('click', () => {
+  sound.playTap();
+  haptic('light');
+  navigateTo('plans');
+});
+
+/* ════════════════════════════════════════════════════════════════
+   USER PROFILE, RANKS (TITLES), STREAK & CREATOR FEEDBACK
+   ════════════════════════════════════════════════════════════════ */
+
+const TAROT_RANKS = [
+  {
+    id: 1,
+    name: 'Искатель Истины',
+    tier: 'РАНГ I · НАЧАЛО ПУТИ',
+    icon: '🧭',
+    minReadings: 0,
+    quote: 'Первые шаги к постижению скрытого. Интуиция делает первый вздох.',
+    reward: 'Открыт доступ к Карте Дня и мгновенному Оракулу'
+  },
+  {
+    id: 2,
+    name: 'Посвящённый',
+    tier: 'РАНГ II · ПРОБУЖДЕНИЕ',
+    icon: '🔮',
+    minReadings: 3,
+    quote: 'Интуиция пробуждается, знаки и символы Вселенной говорят с вами.',
+    reward: 'Скидка 10% на подписку и +1 осколок Фортуны'
+  },
+  {
+    id: 3,
+    name: 'Ученик Оракула',
+    tier: 'РАНГ III · СРЕДНИЙ КРУГ',
+    icon: '🌙',
+    minReadings: 7,
+    quote: 'Вам открываются скрытые течения грядущих событий и послания карт.',
+    reward: 'Доступ ко всем раскладам на любовь, судьбу и карьеру'
+  },
+  {
+    id: 4,
+    name: 'Хранитель Тайн',
+    tier: 'РАНГ IV · МАСТЕР ТЕНЕЙ',
+    icon: '👁️',
+    minReadings: 15,
+    quote: 'Глубокое видение арканов, баланса 4 стихий и теневых карт дна колоды.',
+    reward: 'Расчёт квинтэссенции и теневой пласт раскладов'
+  },
+  {
+    id: 5,
+    name: 'Адепт Таро',
+    tier: 'РАНГ V · ВЫСШИЙ СОВЕТ',
+    icon: '⚡',
+    minReadings: 30,
+    quote: 'Мудрость 78 арканов направляет любое ваше жизненное решение.',
+    reward: 'Неограниченные персональные темы раскладов'
+  },
+  {
+    id: 6,
+    name: 'Верховный Магистр',
+    tier: 'РАНГ VI · ВЕЛИКИЙ АРКАНУМ',
+    icon: '👑',
+    minReadings: 50,
+    quote: 'Высшая ступень интуитивного прозрения и владения колодой.',
+    reward: 'Золотая аура профиля и статус мастера карт'
+  }
+];
+
+function getTotalReadingsCount() {
+  const saved = parseInt(localStorage.getItem('klim_tarot_total_readings') || '0', 10);
+  const hist = (typeof loadHistory === 'function' ? loadHistory() : []).length;
+  return Math.max(saved, hist);
+}
+
+function getUserRank(count) {
+  let rank = TAROT_RANKS[0];
+  for (let i = TAROT_RANKS.length - 1; i >= 0; i--) {
+    if (count >= TAROT_RANKS[i].minReadings) {
+      rank = TAROT_RANKS[i];
+      break;
+    }
+  }
+  return rank;
+}
+
+function getNextUserRank(count) {
+  const current = getUserRank(count);
+  const idx = TAROT_RANKS.findIndex((r) => r.id === current.id);
+  if (idx >= 0 && idx < TAROT_RANKS.length - 1) {
+    return TAROT_RANKS[idx + 1];
+  }
+  return null;
+}
+
+function getDailyStreak() {
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const lastActive = localStorage.getItem('klim_tarot_last_active_date');
+  let streak = parseInt(localStorage.getItem('klim_tarot_streak_count') || '1', 10);
+
+  if (!lastActive) {
+    localStorage.setItem('klim_tarot_last_active_date', today);
+    localStorage.setItem('klim_tarot_streak_count', '1');
+    return 1;
+  }
+
+  if (lastActive === today) {
+    return Math.max(1, streak);
+  }
+
+  const lastParts = lastActive.split('-').map(Number);
+  const lastDate = new Date(lastParts[0], lastParts[1] - 1, lastParts[2]);
+  const curDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((curDate - lastDate) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 1) {
+    streak += 1;
+  } else if (diffDays > 1) {
+    streak = 1;
+  }
+
+  localStorage.setItem('klim_tarot_last_active_date', today);
+  localStorage.setItem('klim_tarot_streak_count', String(streak));
+  return streak;
+}
+
+const TAROT_RANKS_V2 = [
+  { id: 1, name: 'Искатель Знаков', icon: '⭐', min: 0, req: '< 10 раскл.', desc: 'Первые шаги и знаки карт' },
+  { id: 2, name: 'Хранитель Тайн', icon: '🌙', min: 10, req: '10–50 раскл.', desc: 'Интуиция и скрытые течения' },
+  { id: 3, name: 'Оракул Эфира', icon: '🔮', min: 50, req: '50–200 раскл.', desc: 'Глубокое видение всех 78 арканов' },
+  { id: 4, name: 'Архитектор Судеб', icon: '⚡', min: 200, req: '200–500 раскл.', desc: 'Полное владение энергиями колоды' },
+  { id: 5, name: 'Верховный Демиург', icon: '👑', min: 500, req: '500+ раскл.', desc: 'Высшая ступень и создатель пространства' },
+];
+
+function calculateUserRank(readingsCount, isOwner) {
+  if (isOwner) {
+    return {
+      current: TAROT_RANKS_V2[4],
+      next: null,
+      progressPercent: 100,
+      timelinePercent: 100,
+      remaining: 0,
+      text: 'Максимальный ранг достигнут',
+      sub: 'Создатель KLIM TAROT · Абсолютная власть'
+    };
+  }
+
+  let curIdx = 0;
+  for (let i = TAROT_RANKS_V2.length - 1; i >= 0; i--) {
+    if (readingsCount >= TAROT_RANKS_V2[i].min) {
+      curIdx = i;
+      break;
+    }
+  }
+
+  const current = TAROT_RANKS_V2[curIdx];
+  const next = curIdx < TAROT_RANKS_V2.length - 1 ? TAROT_RANKS_V2[curIdx + 1] : null;
+
+  let progressPercent = 100;
+  let remaining = 0;
+  if (next) {
+    const span = next.min - current.min;
+    const done = Math.max(0, readingsCount - current.min);
+    progressPercent = Math.min(100, Math.round((done / Math.max(1, span)) * 100));
+    remaining = Math.max(1, next.min - readingsCount);
+  }
+
+  const stepPercent = (curIdx / (TAROT_RANKS_V2.length - 1)) * 100;
+  const intraPercent = next ? (progressPercent / 100) * (100 / (TAROT_RANKS_V2.length - 1)) : 0;
+  const timelinePercent = Math.min(100, Math.round(stepPercent + intraPercent));
+
+  return {
+    current,
+    next,
+    progressPercent,
+    timelinePercent,
+    remaining,
+    text: next ? `${readingsCount} из ${next.min} раскладов` : `${readingsCount} раскладов сделано`,
+    sub: next ? `До «${next.name}»: ещё ${remaining}` : 'Высшая ступень достигнута! 👑'
+  };
+}
+
+function updateProfileUI() {
+  const user = getTelegramUser();
+  const isOwner = isAppOwner();
+  const readingsCount = getTotalReadingsCount();
+  const streak = getDailyStreak();
+  const shards = parseInt(localStorage.getItem('klim_tarot_shards') || '0', 10);
+  const proDays = (typeof getRemainingProDays === 'function') ? getRemainingProDays() : 0;
+
+  // Name, Username & ID
+  let displayName = user?.first_name || (isOwner ? 'Клим' : 'Путник');
+  if (user?.last_name) displayName += ` ${user.last_name}`;
+  const username = user?.username ? `@${user.username}` : (isOwner ? '@im_klim' : '@user');
+  const uid = user?.id || (isOwner ? OWNER_TELEGRAM_ID : '7446803539');
+
+  const nameEl = document.getElementById('profile-user-name');
+  if (nameEl) nameEl.textContent = displayName;
+
+  const userTagEl = document.getElementById('profile-username');
+  if (userTagEl) userTagEl.textContent = username;
+
+  const idEl = document.getElementById('profile-user-id');
+  if (idEl) idEl.textContent = String(uid);
+
+  const ownerTag = document.getElementById('profile-owner-tag');
+  if (ownerTag) {
+    if (isOwner) ownerTag.classList.remove('hidden');
+    else ownerTag.classList.add('hidden');
+  }
+
+  // Avatars
+  const avatarImg = document.getElementById('profile-avatar-img');
+  const avatarFallback = document.getElementById('profile-avatar-fallback');
+  const topbarThumb = document.getElementById('topbar-avatar-thumb');
+  const initial = (displayName.trim()[0] || '🔮').toUpperCase();
+
+  if (user?.photo_url) {
+    if (avatarImg) {
+      avatarImg.src = user.photo_url;
+      avatarImg.classList.remove('hidden');
+    }
+    if (avatarFallback) avatarFallback.classList.add('hidden');
+    if (topbarThumb) topbarThumb.innerHTML = `<img src="${user.photo_url}" class="topbar-thumb-img" alt="" />`;
+  } else {
+    if (avatarImg) avatarImg.classList.add('hidden');
+    if (avatarFallback) {
+      avatarFallback.textContent = initial;
+      avatarFallback.classList.remove('hidden');
+    }
+    if (topbarThumb) topbarThumb.textContent = initial;
+  }
+
+  // 🏆 1. Горизонтальная линейная система рангов («вдоль»)
+  const rankInfo = calculateUserRank(readingsCount, isOwner);
+
+  const pill = document.getElementById('ranks-current-pill');
+  if (pill) {
+    pill.textContent = `${rankInfo.current.icon} ${rankInfo.current.name}`;
+  }
+
+  const lineFill = document.getElementById('ranks-timeline-line-fill');
+  if (lineFill) {
+    lineFill.style.width = `${rankInfo.timelinePercent}%`;
+  }
+
+  const stepsContainer = document.getElementById('ranks-timeline-steps');
+  if (stepsContainer) {
+    stepsContainer.innerHTML = TAROT_RANKS_V2.map((r) => {
+      const isCur = (!isOwner && r.id === rankInfo.current.id);
+      const isPast = isOwner || (readingsCount >= r.min && r.id < rankInfo.current.id);
+      const isMaxOwner = isOwner && (r.id === 5);
+      let stateClass = 'locked';
+      if (isCur || isMaxOwner) stateClass = 'current';
+      else if (isPast) stateClass = 'unlocked';
+
+      return `
+        <div class="rank-step-node ${stateClass}">
+          <div class="rank-step-icon-wrap">
+            <span class="rank-step-num">${r.id}</span>
+            <span>${r.icon}</span>
+          </div>
+          <span class="rank-step-name">${r.name}</span>
+          <span class="rank-step-req">${r.req}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  const progressLabel = document.getElementById('ranks-progress-label');
+  if (progressLabel) progressLabel.textContent = `Прогресс: ${rankInfo.text}`;
+
+  const progressNext = document.getElementById('ranks-progress-next');
+  if (progressNext) progressNext.textContent = rankInfo.sub;
+
+  const progressFill = document.getElementById('ranks-progress-fill');
+  if (progressFill) progressFill.style.width = `${rankInfo.progressPercent}%`;
+
+  const startLabel = document.getElementById('ranks-start-label');
+  if (startLabel) startLabel.textContent = `${rankInfo.current.name} (${rankInfo.current.min})`;
+
+  const targetLabel = document.getElementById('ranks-target-label');
+  if (targetLabel) {
+    targetLabel.textContent = rankInfo.next ? `${rankInfo.next.name} (${rankInfo.next.min})` : 'Верховный Демиург (500+)';
+  }
+
+  // 🔮 2. Осколки Судьбы и Магический Инвентарь
+  renderShardsUI();
+
+  // 3. Stats Grid
+  const statReadings = document.getElementById('profile-stat-readings');
+  if (statReadings) statReadings.textContent = String(readingsCount);
+
+  const statStreak = document.getElementById('profile-stat-streak');
+  if (statStreak) statStreak.textContent = `${streak} дн.`;
+
+  const statPro = document.getElementById('profile-stat-pro-days');
+  if (statPro) {
+    if (isOwner || proDays === Infinity) statPro.textContent = '👑 Бессрочно';
+    else if (proDays > 0) statPro.textContent = `${proDays} дн.`;
+    else statPro.textContent = '0 дн.';
+  }
+
+  // 4. Update VIP widget on top card
+  if (typeof updateProDaysUI === 'function') updateProDaysUI();
+
+  // 5. Render history in profile
+  if (typeof renderHistory === 'function') renderHistory();
+}
+
+// Profile & Action button listeners
+document.getElementById('btn-topbar-profile')?.addEventListener('click', () => {
+  sound.playTap();
+  haptic('light');
+  navigateTo('profile');
+});
+
+document.getElementById('btn-profile-vip-extend')?.addEventListener('click', () => {
+  sound.playTap();
+  haptic('light');
+  navigateTo('plans');
+});
+
+document.getElementById('btn-profile-clear-history')?.addEventListener('click', () => {
+  sound.playTap();
+  haptic('medium');
+  localStorage.removeItem('klim_tarot_history');
+  updateHistoryCounter();
+  renderHistory();
+  showToast('История гаданий очищена');
+});
+
+document.getElementById('btn-profile-forge-shards')?.addEventListener('click', forgeShardsAction);
+
+updateProDaysUI();
+renderShardsUI();
+updateProfileUI();
+CloudSync.initSync();
+
+document.getElementById('btn-exit-to-home')?.addEventListener('click', () => {
+  sound.playTap();
+  haptic('light');
+  navigateTo('home');
+});

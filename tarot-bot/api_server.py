@@ -96,6 +96,8 @@ async def security_and_cors_middleware(request: web.Request, handler):
 
 
 def _user_pro_status(user_id: int) -> tuple[bool, str | None]:
+    if not payments.PAYMENTS_ENABLED:
+        return True, None
     if user_id in config.ADMIN_IDS:
         return True, None
     sub = payments.get_subscription(user_id, config.STATS_DB_PATH)

@@ -14,6 +14,9 @@ function resolveApiBase() {
     } catch (_) {}
     const meta = document.querySelector('meta[name="api-base"]')?.getAttribute('content');
     if (meta) return meta.replace(/\/+$/, '');
+    if (window.location.hostname.endsWith('github.io')) {
+      return 'https://klim-tarot-bot.onrender.com';
+    }
   }
   return '';
 }
