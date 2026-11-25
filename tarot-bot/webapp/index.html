@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css?v=44" />
+  <link rel="stylesheet" href="./css/styles.css?v=45" />
   <!-- Preload Burst SFX & Key Tarot Cards for Instant Zero-Lag Transition -->
   <link rel="preload" href="./assets/transition-burst.mp3" as="fetch" crossorigin="anonymous" />
   <link rel="preload" href="./assets/cards/m17.webp" as="image" type="image/webp" />
@@ -916,6 +916,97 @@
             </div>
           </div>
 
+                    <!-- 🏆 Горизонтальная линейная система рангов («вдоль») -->
+          <div class="profile-ranks-card" id="profile-ranks-card">
+            <div class="ranks-card-head">
+              <div class="ranks-head-left">
+                <span class="ranks-head-icon">🏆</span>
+                <span class="ranks-head-title">Путь Таролога</span>
+              </div>
+              <span class="ranks-current-pill" id="ranks-current-pill">⭐ Искатель Знаков</span>
+            </div>
+
+            <!-- Горизонтальная линия ступеней -->
+            <div class="ranks-timeline-wrap">
+              <div class="ranks-timeline-line">
+                <div class="ranks-timeline-line-fill" id="ranks-timeline-line-fill" style="width: 0%;"></div>
+              </div>
+              <div class="ranks-timeline-steps" id="ranks-timeline-steps">
+                <!-- Dynamically rendered in app.js -->
+              </div>
+            </div>
+
+            <!-- Нижняя шкала прогресса до следующего ранга -->
+            <div class="ranks-progress-box">
+              <div class="ranks-progress-info">
+                <span class="ranks-progress-label" id="ranks-progress-label">Прогресс: 0 из 10 раскладов</span>
+                <span class="ranks-progress-next" id="ranks-progress-next">До «Хранителя Тайн»: ещё 10</span>
+              </div>
+              <div class="ranks-progress-track">
+                <div class="ranks-progress-fill" id="ranks-progress-fill" style="width: 0%;"></div>
+              </div>
+              <div class="ranks-progress-ends">
+                <span id="ranks-start-label">Искатель Знаков (0)</span>
+                <span id="ranks-target-label">Хранитель Тайн (10)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 🔮 Магический инвентарь & Осколки Судьбы -->
+          <div class="profile-inventory-card" id="profile-inventory-card">
+            <div class="inventory-card-head">
+              <div class="inventory-head-left">
+                <span class="inventory-head-icon">🔮</span>
+                <span class="inventory-head-title">Осколки Судьбы & Предметы</span>
+              </div>
+              <span class="inventory-count-pill" id="profile-shards-badge"><span id="profile-shards-num">0</span> / 5</span>
+            </div>
+
+            <!-- Слоты осколков с кнопкой обмена -->
+            <div class="inventory-shards-row">
+              <div class="inventory-shards-slots" id="profile-shards-slots">
+                <div class="shard-slot" data-index="1">✦</div>
+                <div class="shard-slot" data-index="2">✦</div>
+                <div class="shard-slot" data-index="3">✦</div>
+                <div class="shard-slot" data-index="4">✦</div>
+                <div class="shard-slot" data-index="5">✦</div>
+              </div>
+              <button type="button" class="btn-profile-forge disabled" id="btn-profile-forge-shards">✨ Собрать (+2 дня PRO)</button>
+            </div>
+
+            <!-- Предметы и дары из Колеса Фортуны -->
+            <div class="inventory-items-grid" id="profile-inventory-grid">
+              <div class="inventory-item-badge" id="inv-item-talisman">
+                <span class="inv-item-icon">🍀</span>
+                <div class="inv-item-meta">
+                  <span class="inv-item-name">Талисман Удачи</span>
+                  <span class="inv-item-status" id="inv-status-talisman">В Колесе Фортуны</span>
+                </div>
+              </div>
+              <div class="inventory-item-badge" id="inv-item-shadow">
+                <span class="inv-item-icon">🌑</span>
+                <div class="inv-item-meta">
+                  <span class="inv-item-name">Теневой Аркан</span>
+                  <span class="inv-item-status" id="inv-status-shadow">Дно колоды</span>
+                </div>
+              </div>
+              <div class="inventory-item-badge" id="inv-item-elements">
+                <span class="inv-item-icon">🌊</span>
+                <div class="inv-item-meta">
+                  <span class="inv-item-name">Баланс Стихий</span>
+                  <span class="inv-item-status" id="inv-status-elements">Квинтэссенция</span>
+                </div>
+              </div>
+              <div class="inventory-item-badge" id="inv-item-discount">
+                <span class="inv-item-icon">🏷️</span>
+                <div class="inv-item-meta">
+                  <span class="inv-item-name">Скидка 25%</span>
+                  <span class="inv-item-status" id="inv-status-discount">Не активирована</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Сетка персональной статистики (4 Bento-карточки) -->
           <div class="section-head">
             <h3>Статистика практики</h3>
@@ -1092,6 +1183,6 @@
   <!-- Audio preload for zero-latency burst sound -->
   <audio id="snd-transition-burst" preload="auto" src="./assets/transition-burst.mp3" style="display:none;"></audio>
 
-  <script type="module" src="./js/app.js?v=44"></script>
+  <script type="module" src="./js/app.js?v=45"></script>
 </body>
 </html>

@@ -3828,23 +3828,111 @@ function setShardsCount(cnt) {
 
 function renderShardsUI() {
   const cnt = getShardsCount();
-  const numEl = document.getElementById('shards-num');
-  if (numEl) numEl.textContent = cnt;
+  const isOwner = isAppOwner();
+  const hasPro = hasProAccess();
 
-  const slots = document.querySelectorAll('#shards-slots .shard-slot');
-  slots.forEach((slot, idx) => {
+  // 1. Wheel view
+  const wheelNumEl = document.getElementById('shards-num');
+  if (wheelNumEl) wheelNumEl.textContent = cnt;
+
+  const wheelSlots = document.querySelectorAll('#shards-slots .shard-slot');
+  wheelSlots.forEach((slot, idx) => {
     slot.classList.toggle('filled', idx < cnt);
   });
 
-  const forgeBtn = document.getElementById('btn-forge-shards');
-  if (forgeBtn) {
+  const wheelForgeBtn = document.getElementById('btn-forge-shards');
+  if (wheelForgeBtn) {
     if (cnt >= 5) {
-      forgeBtn.classList.remove('disabled');
-      forgeBtn.textContent = '✨ Собрать 5 осколков (+2 дня PRO)!';
+      wheelForgeBtn.classList.remove('disabled');
+      wheelForgeBtn.textContent = '✨ Собрать 5 осколков (+2 дня PRO)!';
     } else {
-      forgeBtn.classList.add('disabled');
-      forgeBtn.textContent = `✨ Собрать 5 осколков (нужно ещё ${5 - cnt})`;
+      wheelForgeBtn.classList.add('disabled');
+      wheelForgeBtn.textContent = `✨ Собрать 5 осколков (нужно ещё ${5 - cnt})`;
     }
+  }
+
+  // 2. Profile view (Осколки и Инвентарь для всех пользователей)
+  const profileNumEl = document.getElementById('profile-shards-num');
+  if (profileNumEl) profileNumEl.textContent = cnt;
+
+  const profileSlots = document.querySelectorAll('#profile-shards-slots .shard-slot');
+  profileSlots.forEach((slot, idx) => {
+    slot.classList.toggle('filled', idx < cnt);
+  });
+
+  const profileForgeBtn = document.getElementById('btn-profile-forge-shards');
+  if (profileForgeBtn) {
+    if (cnt >= 5) {
+      profileForgeBtn.classList.remove('disabled');
+      profileForgeBtn.textContent = '✨ Собрать (+2 дня PRO)';
+    } else {
+      profileForgeBtn.classList.add('disabled');
+      profileForgeBtn.textContent = `Собрать (${cnt}/5)`;
+    }
+  }
+
+  // 3. Profile Stats Grid Shards Box
+  const statShards = document.getElementById('profile-stat-shards');
+  if (statShards) statShards.textContent = `${cnt} / 5`;
+
+  // 4. Profile Inventory Items
+  const talisExp = parseInt(localStorage.getItem('klim_tarot_item_talisman') || '0', 10);
+  const hasTalisman = talisExp > Date.now();
+  const talismanBadge = document.getElementById('inv-item-talisman');
+  const talismanStatus = document.getElementById('inv-status-talisman');
+  if (talismanBadge && talismanStatus) {
+    talismanBadge.classList.toggle('active', hasTalisman);
+    talismanStatus.textContent = hasTalisman ? 'Активен сегодня ✨' : 'В Колесе Фортуны';
+  }
+
+  const hasShadow = isOwner || hasPro || localStorage.getItem('klim_tarot_item_shadow') === 'true';
+  const shadowBadge = document.getElementById('inv-item-shadow');
+  const shadowStatus = document.getElementById('inv-status-shadow');
+  if (shadowBadge && shadowStatus) {
+    shadowBadge.classList.toggle('active', hasShadow);
+    shadowStatus.textContent = hasShadow ? 'Открыт (Дно колоды)' : 'Закрыт';
+  }
+
+  const hasElements = isOwner || hasPro || localStorage.getItem('klim_tarot_item_elements') === 'true';
+  const elementsBadge = document.getElementById('inv-item-elements');
+  const elementsStatus = document.getElementById('inv-status-elements');
+  if (elementsBadge && elementsStatus) {
+    elementsBadge.classList.toggle('active', hasElements);
+    elementsStatus.textContent = hasElements ? 'Открыт (4 стихии)' : 'Закрыт';
+  }
+
+  const promoDiscount = localStorage.getItem('klim_tarot_promo_discount');
+  const discountBadge = document.getElementById('inv-item-discount');
+  const discountStatus = document.getElementById('inv-status-discount');
+  if (discountBadge && discountStatus) {
+    const hasDiscount = !!promoDiscount;
+    discountBadge.classList.toggle('active', hasDiscount);
+    discountStatus.textContent = hasDiscount ? `Скидка ${promoDiscount}% активна` : 'В Колесе Фортуны';
+  }
+}
+
+function forgeShardsAction() {
+  const cnt = getShardsCount();
+  if (cnt >= 5) {
+    setShardsCount(cnt - 5);
+    localStorage.setItem('klim_tarot_pro_granted', 'true');
+    localStorage.setItem('klim_tarot_pro_mode', 'true');
+    state.isProMode = true;
+    state.proDays = (state.proDays || 0) + 2;
+    if (state.proExpiresAt && state.proExpiresAt > Date.now()) {
+      state.proExpiresAt += 2 * 86400000;
+    } else {
+      state.proExpiresAt = Date.now() + 2 * 86400000;
+    }
+    CloudSync.set('klim_tarot_pro_days', state.proDays);
+    CloudSync.set('klim_tarot_pro_exp', state.proExpiresAt);
+    CloudSync.postProGrant(2);
+    updateProDaysUI();
+    renderShardsUI();
+    if (typeof updateProfileUI === 'function') updateProfileUI();
+    sound.playShuffle();
+    haptic('success');
+    showToast('🎉 5 осколков объединены! Вам начислено +2 дня режима PRO!');
   }
 }
 
@@ -4055,14 +4143,19 @@ function applyWheelReward(prize) {
     showToast(`🏷️ Вы выиграли Скидку 25%! Промокод: ${prize.code} сохранён в разделе Тарифы`);
     localStorage.setItem('klim_tarot_promo_discount', '25');
   } else if (prize.type === 'talisman') {
-    showToast('🍀 Вы выиграли Талисман Удачи! Судьба благоволит вашим начинаниям');
+    localStorage.setItem('klim_tarot_item_talisman', String(Date.now() + 86400000));
+    showToast('🍀 Вы выиграли Талисман Удачи! Добавлен в инвентарь профиля');
   } else if (prize.type === 'wisdom') {
+    localStorage.setItem('klim_tarot_item_wisdom', 'true');
     showToast('🌟 Вы выиграли Мудрость Старших Арканов! Совет Высших сил открыт');
   } else if (prize.type === 'feature_shadow') {
+    localStorage.setItem('klim_tarot_item_shadow', 'true');
     showToast('🌑 Вы выиграли Теневую карту колоды (Дно колоды)!');
   } else if (prize.type === 'feature_elements') {
+    localStorage.setItem('klim_tarot_item_elements', 'true');
     showToast('🌊 Вы выиграли Баланс 4 стихий и Квинтэссенцию раскладов!');
   }
+  renderShardsUI();
 }
 
 function initFortuneWheel() {
@@ -4073,28 +4166,8 @@ function initFortuneWheel() {
 
   document.getElementById('btn-spin-wheel')?.addEventListener('click', spinWheel);
 
-  document.getElementById('btn-forge-shards')?.addEventListener('click', () => {
-    const cnt = getShardsCount();
-    if (cnt >= 5) {
-      setShardsCount(cnt - 5);
-      localStorage.setItem('klim_tarot_pro_granted', 'true');
-      localStorage.setItem('klim_tarot_pro_mode', 'true');
-      state.isProMode = true;
-      state.proDays = (state.proDays || 0) + 2;
-      if (state.proExpiresAt && state.proExpiresAt > Date.now()) {
-        state.proExpiresAt += 2 * 86400000;
-      } else {
-        state.proExpiresAt = Date.now() + 2 * 86400000;
-      }
-      CloudSync.set('klim_tarot_pro_days', state.proDays);
-      CloudSync.set('klim_tarot_pro_exp', state.proExpiresAt);
-      CloudSync.postProGrant(2);
-      updateProDaysUI();
-      sound.playShuffle();
-      haptic('success');
-      showToast('🎉 Осколки объединены! Вам начислено +2 дня режима PRO!');
-    }
-  });
+  document.getElementById('btn-forge-shards')?.addEventListener('click', forgeShardsAction);
+  document.getElementById('btn-profile-forge-shards')?.addEventListener('click', forgeShardsAction);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -4296,6 +4369,62 @@ function getDailyStreak() {
   return streak;
 }
 
+const TAROT_RANKS_V2 = [
+  { id: 1, name: 'Искатель Знаков', icon: '⭐', min: 0, req: '< 10 раскл.', desc: 'Первые шаги и знаки карт' },
+  { id: 2, name: 'Хранитель Тайн', icon: '🌙', min: 10, req: '10–50 раскл.', desc: 'Интуиция и скрытые течения' },
+  { id: 3, name: 'Оракул Эфира', icon: '🔮', min: 50, req: '50–200 раскл.', desc: 'Глубокое видение всех 78 арканов' },
+  { id: 4, name: 'Архитектор Судеб', icon: '⚡', min: 200, req: '200–500 раскл.', desc: 'Полное владение энергиями колоды' },
+  { id: 5, name: 'Верховный Демиург', icon: '👑', min: 500, req: '500+ раскл.', desc: 'Высшая ступень и создатель пространства' },
+];
+
+function calculateUserRank(readingsCount, isOwner) {
+  if (isOwner) {
+    return {
+      current: TAROT_RANKS_V2[4],
+      next: null,
+      progressPercent: 100,
+      timelinePercent: 100,
+      remaining: 0,
+      text: 'Максимальный ранг достигнут',
+      sub: 'Создатель KLIM TAROT · Абсолютная власть'
+    };
+  }
+
+  let curIdx = 0;
+  for (let i = TAROT_RANKS_V2.length - 1; i >= 0; i--) {
+    if (readingsCount >= TAROT_RANKS_V2[i].min) {
+      curIdx = i;
+      break;
+    }
+  }
+
+  const current = TAROT_RANKS_V2[curIdx];
+  const next = curIdx < TAROT_RANKS_V2.length - 1 ? TAROT_RANKS_V2[curIdx + 1] : null;
+
+  let progressPercent = 100;
+  let remaining = 0;
+  if (next) {
+    const span = next.min - current.min;
+    const done = Math.max(0, readingsCount - current.min);
+    progressPercent = Math.min(100, Math.round((done / Math.max(1, span)) * 100));
+    remaining = Math.max(1, next.min - readingsCount);
+  }
+
+  const stepPercent = (curIdx / (TAROT_RANKS_V2.length - 1)) * 100;
+  const intraPercent = next ? (progressPercent / 100) * (100 / (TAROT_RANKS_V2.length - 1)) : 0;
+  const timelinePercent = Math.min(100, Math.round(stepPercent + intraPercent));
+
+  return {
+    current,
+    next,
+    progressPercent,
+    timelinePercent,
+    remaining,
+    text: next ? `${readingsCount} из ${next.min} раскладов` : `${readingsCount} раскладов сделано`,
+    sub: next ? `До «${next.name}»: ещё ${remaining}` : 'Высшая ступень достигнута! 👑'
+  };
+}
+
 function updateProfileUI() {
   const user = getTelegramUser();
   const isOwner = isAppOwner();
@@ -4347,15 +4476,68 @@ function updateProfileUI() {
     if (topbarThumb) topbarThumb.textContent = initial;
   }
 
-  // Stats Grid
+  // 🏆 1. Горизонтальная линейная система рангов («вдоль»)
+  const rankInfo = calculateUserRank(readingsCount, isOwner);
+
+  const pill = document.getElementById('ranks-current-pill');
+  if (pill) {
+    pill.textContent = `${rankInfo.current.icon} ${rankInfo.current.name}`;
+  }
+
+  const lineFill = document.getElementById('ranks-timeline-line-fill');
+  if (lineFill) {
+    lineFill.style.width = `${rankInfo.timelinePercent}%`;
+  }
+
+  const stepsContainer = document.getElementById('ranks-timeline-steps');
+  if (stepsContainer) {
+    stepsContainer.innerHTML = TAROT_RANKS_V2.map((r) => {
+      const isCur = (!isOwner && r.id === rankInfo.current.id);
+      const isPast = isOwner || (readingsCount >= r.min && r.id < rankInfo.current.id);
+      const isMaxOwner = isOwner && (r.id === 5);
+      let stateClass = 'locked';
+      if (isCur || isMaxOwner) stateClass = 'current';
+      else if (isPast) stateClass = 'unlocked';
+
+      return `
+        <div class="rank-step-node ${stateClass}">
+          <div class="rank-step-icon-wrap">
+            <span class="rank-step-num">${r.id}</span>
+            <span>${r.icon}</span>
+          </div>
+          <span class="rank-step-name">${r.name}</span>
+          <span class="rank-step-req">${r.req}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  const progressLabel = document.getElementById('ranks-progress-label');
+  if (progressLabel) progressLabel.textContent = `Прогресс: ${rankInfo.text}`;
+
+  const progressNext = document.getElementById('ranks-progress-next');
+  if (progressNext) progressNext.textContent = rankInfo.sub;
+
+  const progressFill = document.getElementById('ranks-progress-fill');
+  if (progressFill) progressFill.style.width = `${rankInfo.progressPercent}%`;
+
+  const startLabel = document.getElementById('ranks-start-label');
+  if (startLabel) startLabel.textContent = `${rankInfo.current.name} (${rankInfo.current.min})`;
+
+  const targetLabel = document.getElementById('ranks-target-label');
+  if (targetLabel) {
+    targetLabel.textContent = rankInfo.next ? `${rankInfo.next.name} (${rankInfo.next.min})` : 'Верховный Демиург (500+)';
+  }
+
+  // 🔮 2. Осколки Судьбы и Магический Инвентарь
+  renderShardsUI();
+
+  // 3. Stats Grid
   const statReadings = document.getElementById('profile-stat-readings');
   if (statReadings) statReadings.textContent = String(readingsCount);
 
   const statStreak = document.getElementById('profile-stat-streak');
   if (statStreak) statStreak.textContent = `${streak} дн.`;
-
-  const statShards = document.getElementById('profile-stat-shards');
-  if (statShards) statShards.textContent = `${shards} / 5`;
 
   const statPro = document.getElementById('profile-stat-pro-days');
   if (statPro) {
@@ -4364,10 +4546,10 @@ function updateProfileUI() {
     else statPro.textContent = '0 дн.';
   }
 
-  // Update VIP widget on top card
+  // 4. Update VIP widget on top card
   if (typeof updateProDaysUI === 'function') updateProDaysUI();
 
-  // Render history in profile
+  // 5. Render history in profile
   if (typeof renderHistory === 'function') renderHistory();
 }
 
@@ -4393,6 +4575,9 @@ document.getElementById('btn-profile-clear-history')?.addEventListener('click', 
   showToast('История гаданий очищена');
 });
 
+document.getElementById('btn-profile-forge-shards')?.addEventListener('click', forgeShardsAction);
+
 updateProDaysUI();
+renderShardsUI();
 updateProfileUI();
 CloudSync.initSync();

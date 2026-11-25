@@ -5577,3 +5577,401 @@ body.is-pro-mode .top-bar {
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   }
 }
+
+
+/* ── Horizontal Rank System (Линейная шкала рангов «вдоль») ──── */
+.profile-ranks-card {
+  position: relative;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(28, 22, 60, 0.92), rgba(14, 11, 32, 0.96));
+  border: 1px solid rgba(245, 201, 105, 0.28);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.ranks-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.ranks-head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ranks-head-icon {
+  font-size: 18px;
+}
+
+.ranks-head-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+.ranks-current-pill {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, rgba(245, 201, 105, 0.25), rgba(168, 85, 247, 0.25));
+  border: 1px solid rgba(245, 201, 105, 0.6);
+  color: #fef08a;
+  box-shadow: 0 0 10px rgba(245, 201, 105, 0.2);
+}
+
+.ranks-timeline-wrap {
+  position: relative;
+  margin: 12px 0 16px;
+  padding: 0 2px;
+}
+
+.ranks-timeline-line {
+  position: absolute;
+  top: 22px;
+  left: 20px;
+  right: 20px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 99px;
+  z-index: 1;
+}
+
+.ranks-timeline-line-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #f5c969, #c084fc);
+  box-shadow: 0 0 10px rgba(245, 201, 105, 0.6);
+  transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.ranks-timeline-steps {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.rank-step-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+  min-width: 52px;
+  max-width: 72px;
+  transition: transform 0.2s ease;
+}
+
+.rank-step-icon-wrap {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(20, 16, 44, 0.95);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  margin-bottom: 6px;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.rank-step-num {
+  position: absolute;
+  top: -6px;
+  left: -4px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+  font-size: 9.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rank-step-name {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  line-height: 1.15;
+  margin-bottom: 2px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.rank-step-req {
+  font-size: 8.5px;
+  color: var(--text-faint);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+/* State: Unlocked / Past */
+.rank-step-node.unlocked .rank-step-icon-wrap {
+  border-color: rgba(168, 85, 247, 0.6);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(20, 16, 44, 0.95));
+}
+.rank-step-node.unlocked .rank-step-num {
+  background: rgba(168, 85, 247, 0.85);
+  color: #fff;
+}
+.rank-step-node.unlocked .rank-step-name {
+  color: #f3e8ff;
+}
+
+/* State: Current Active */
+.rank-step-node.current .rank-step-icon-wrap {
+  border-color: #f5c969;
+  background: linear-gradient(135deg, rgba(245, 201, 105, 0.35), rgba(168, 85, 247, 0.35));
+  box-shadow: 0 0 18px rgba(245, 201, 105, 0.55);
+  transform: scale(1.08);
+}
+.rank-step-node.current .rank-step-num {
+  background: #f5c969;
+  color: #1a162b;
+  box-shadow: 0 0 6px rgba(245, 201, 105, 0.8);
+}
+.rank-step-node.current .rank-step-name {
+  color: #fef08a;
+  font-weight: 800;
+}
+.rank-step-node.current .rank-step-req {
+  color: #fef08a;
+  opacity: 0.9;
+}
+
+/* State: Locked */
+.rank-step-node.locked {
+  opacity: 0.45;
+}
+
+/* Bottom Progress Track */
+.ranks-progress-box {
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ranks-progress-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  margin-bottom: 6px;
+}
+
+.ranks-progress-label {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.ranks-progress-next {
+  color: #fef08a;
+  font-weight: 700;
+}
+
+.ranks-progress-track {
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.ranks-progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #eab308, #f5c969, #c084fc);
+  box-shadow: 0 0 10px rgba(245, 201, 105, 0.5);
+  transition: width 0.5s ease;
+}
+
+.ranks-progress-ends {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-top: 4px;
+}
+
+/* ── Profile Inventory & Shards Card ─────────────────────────── */
+.profile-inventory-card {
+  position: relative;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(26, 20, 52, 0.9), rgba(14, 11, 30, 0.96));
+  border: 1px solid rgba(168, 85, 247, 0.28);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  margin-bottom: 18px;
+}
+
+.inventory-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.inventory-head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inventory-head-icon {
+  font-size: 18px;
+}
+
+.inventory-head-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.inventory-count-pill {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.25), rgba(245, 201, 105, 0.25));
+  border: 1px solid rgba(168, 85, 247, 0.6);
+  color: #f3e8ff;
+  font-variant-numeric: tabular-nums;
+}
+
+.inventory-shards-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.inventory-shards-slots {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inventory-shards-slots .shard-slot {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px dashed rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.inventory-shards-slots .shard-slot.filled {
+  border: 1.5px solid #c084fc;
+  background: linear-gradient(135deg, rgba(192, 132, 252, 0.35), rgba(245, 201, 105, 0.25));
+  color: #fef08a;
+  box-shadow: 0 0 10px rgba(192, 132, 252, 0.5);
+  transform: scale(1.05);
+}
+
+.btn-profile-forge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #a855f7, #eab308);
+  border: none;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-profile-forge:active {
+  transform: scale(0.96);
+}
+
+.btn-profile-forge.disabled {
+  opacity: 0.5;
+  filter: grayscale(0.8);
+  pointer-events: none;
+}
+
+.inventory-items-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.inventory-item-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: border-color 0.2s ease;
+}
+
+.inventory-item-badge.active {
+  border-color: rgba(245, 201, 105, 0.45);
+  background: rgba(245, 201, 105, 0.06);
+}
+
+.inv-item-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.inv-item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.inv-item-name {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inv-item-status {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inventory-item-badge.active .inv-item-status {
+  color: #fef08a;
+  font-weight: 600;
+}
