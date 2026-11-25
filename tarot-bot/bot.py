@@ -19,15 +19,9 @@ import time
 import random
 import logging
 import json
-import sqlite3
-import threading
 import asyncio
-import urllib.parse
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, date, timedelta, timezone
-from collections import defaultdict
 from pathlib import Path
-import math
 
 import httpx
 from telegram import (
@@ -59,7 +53,11 @@ from telegram.constants import ParseMode
 from telegram.error import BadRequest, TelegramError
 from telegram.request import HTTPXRequest
 
+import api_server
+import config
+import database
 import payments
+import tarot_engine
 
 # ─────────────────────────────────────────────────────────
 #  ЛОГИРОВАНИЕ
@@ -782,72 +780,30 @@ CATEGORIES = {
 }
 
 # ─────────────────────────────────────────────────────────
-#  ХРАНЕНИЕ ИСТОРИИ (в памяти; для постоянного хранения —
-#  подключите базу данных)
+#  ХРАНЕНИЕ ИСТОРИИ, КАРТЫ ДНЯ И КУЛДАУНОВ В SQLite
 # ─────────────────────────────────────────────────────────
 
-user_history: dict[int, list[dict]] = defaultdict(list)
-user_card_of_day: dict[int, tuple[str, dict, bool]] = {}
-user_cooldowns: dict[tuple[int, str], float] = {}
-
-MSK_TZ = timezone(timedelta(hours=3))
-COOLDOWNS_SEC = {
-    "spread": 15 * 60,  # 15 минут между раскладами
-    "oracle": 5 * 60,   # 5 минут между вопросами Да/Нет
-    "friend": 10 * 60,  # 10 минут между гаданиями для друга
-}
+MSK_TZ = config.MSK_TZ
+COOLDOWNS_SEC = config.COOLDOWNS_SEC
 
 
 def get_msk_day_night_period() -> dict:
     """Определяет текущий период по МСК: день (06:00–21:00) или ночь (21:00–06:00)."""
-    now_msk = datetime.now(MSK_TZ)
-    h, m = now_msk.hour, now_msk.minute
-    is_day = 6 <= h < 21
-
-    anchor_date = now_msk.date()
-    if h < 6:
-        anchor_date = anchor_date - timedelta(days=1)
-    period_key = f"{anchor_date.isoformat()}-{'day' if is_day else 'night'}"
-
-    cur_mins = h * 60 + m
-    target_mins = 21 * 60 if is_day else (30 * 60 if h >= 21 else 6 * 60)
-    diff_mins = max(1, target_mins - cur_mins)
-    rem_h, rem_m = divmod(diff_mins, 60)
-    rem_text = f"{rem_h} ч {rem_m} мин" if rem_h else f"{rem_m} мин"
-
-    return {
-        "is_day": is_day,
-        "period_key": period_key,
-        "date_str": now_msk.strftime("%d.%m.%Y"),
-        "time_str": now_msk.strftime("%H:%M МСК"),
-        "rem_short": f"⏳ {rem_h}ч {rem_m:02d}м" if rem_h else f"⏳ {rem_m}м",
-        "title": "🌅 Карта дня" if is_day else "🌙 Карта этой ночи",
-        "message_label": "Послание дня" if is_day else "Послание этой ночи",
-        "already_note": (
-            "_Это ваша карта на этот день — она не меняется до 21:00 МСК._"
-            if is_day
-            else "_Это ваша карта на эту ночь — она не меняется до 06:00 МСК._"
-        ),
-        "next_note": (
-            f"🌙 Карта этой ночи откроется в 21:00 МСК (через {rem_text})."
-            if is_day
-            else f"🌅 Карта дня откроется в 06:00 МСК (через {rem_text})."
-        ),
-    }
+    p = tarot_engine.get_day_night_period(None)
+    p["period_key"] = p["periodKey"]
+    p["date_str"] = p["dateStr"]
+    p["time_str"] = p["timeStr"]
+    p["rem_short"] = p["remShort"]
+    return p
 
 
 def check_cooldown(uid: int, kind: str) -> int:
     """Возвращает оставшиеся секунды перерыва (0, если можно гадать)."""
-    limit = COOLDOWNS_SEC.get(kind, 0)
-    if not limit:
-        return 0
-    last_ts = user_cooldowns.get((uid, kind), 0.0)
-    rem = int(limit - (time.time() - last_ts))
-    return rem if rem > 0 else 0
+    return database.check_cooldown(uid, kind)
 
 
 def mark_cooldown(uid: int, kind: str) -> None:
-    user_cooldowns[(uid, kind)] = time.time()
+    database.mark_cooldown(uid, kind)
 
 
 def format_cooldown(seconds: int) -> str:
@@ -900,20 +856,17 @@ def yes_no_verdict(card: dict, reversed_card: bool) -> tuple[str, str]:
 #  КЛАВИАТУРЫ И МЕДИА ПРИВЕТСТВИЯ
 # ─────────────────────────────────────────────────────────
 
-BASE_DIR = Path(__file__).resolve().parent
-STATS_DB_PATH = BASE_DIR / "stats.db"
-PROMO_SHARE_PATH = BASE_DIR / "assets" / "promo-share.mp4"
-PROMO_VIDEO_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-share.mp4"
-PROMO_POSTER_PUBLIC_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/assets/promo-poster.jpg"
-DEFAULT_WEBAPP_URL = "https://klimitai.github.io/KlimTarotsBot/tarot-bot/webapp/?v=47"
-WEBAPP_URL = os.environ.get("WEBAPP_URL", DEFAULT_WEBAPP_URL).strip()
+BASE_DIR = config.BASE_DIR
+STATS_DB_PATH = config.STATS_DB_PATH
+PROMO_SHARE_PATH = config.PROMO_SHARE_PATH
+PROMO_VIDEO_PUBLIC_URL = config.PROMO_VIDEO_PUBLIC_URL
+PROMO_POSTER_PUBLIC_URL = config.PROMO_POSTER_PUBLIC_URL
+DEFAULT_WEBAPP_URL = config.DEFAULT_WEBAPP_URL
+WEBAPP_URL = config.WEBAPP_URL
 _welcome_file_id_cache: dict[tuple[str, float], str] = {}
 _promo_video_file_id: str | None = None
 
-# Админ-доступ к /admin, /stats и /logs (по умолчанию владелец бота)
-_raw_admins = os.environ.get("ADMIN_USER_IDS", "7446803539")
-ADMIN_IDS: set[int] = {int(x.strip()) for x in _raw_admins.split(",") if x.strip().isdigit()}
-ADMIN_IDS.add(7446803539)
+ADMIN_IDS: set[int] = config.ADMIN_IDS
 
 
 def user_has_pro(uid: int | None) -> bool:
@@ -928,288 +881,30 @@ def user_has_pro(uid: int | None) -> bool:
         return False
 
 
-def get_user_webapp_url(uid: int | None = None, is_trial: bool = False) -> str:
-    """Возвращает персональный URL WebApp: передает PRO, UID, остаток дней и серверные таймеры для синхронизации."""
-    if not WEBAPP_URL:
-        return ""
-    params = []
-    has_pro = user_has_pro(uid) if uid is not None else False
-    if has_pro:
-        params.append("pro=1")
-    if is_trial:
-        params.append("trial=1")
-    if uid is not None:
-        params.append(f"uid={uid}")
-        try:
-            if uid in ADMIN_IDS:
-                params.append("pdays=9999")
-            else:
-                sub = payments.get_subscription(uid, STATS_DB_PATH)
-                if sub and sub.get("expires_at"):
-                    now = datetime.now(MSK_TZ)
-                    exp = sub["expires_at"]
-                    if exp > now:
-                        days_left = max(1, math.ceil((exp - now).total_seconds() / 86400))
-                        if days_left >= 365:
-                            params.append("pdays=9999")
-                            params.append("vip=1")
-                        else:
-                            params.append(f"pdays={days_left}")
-                        params.append(f"pexp={int(exp.timestamp())}")
-            with sqlite3.connect(STATS_DB_PATH) as conn:
-                ref_cnt = conn.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (uid,)).fetchone()[0]
-                if ref_cnt:
-                    params.append(f"refc={ref_cnt}")
-                    params.append(f"refd={ref_cnt * 2}")
-                row = conn.execute(
-                    "SELECT wheel_last, shards, daily_card_key FROM user_cloud_sync WHERE user_id = ?",
-                    (uid,),
-                ).fetchone()
-                if row:
-                    wl, sh, dk = row
-                    if wl:
-                        params.append(f"wl={wl}")
-                    if sh is not None:
-                        params.append(f"sh={sh}")
-                    if dk:
-                        params.append(f"dk={urllib.parse.quote(str(dk))}")
-        except Exception:
-            pass
-    if params:
-        sep = "&" if "?" in WEBAPP_URL else "?"
-        return f"{WEBAPP_URL}{sep}{'&'.join(params)}"
+def get_user_webapp_url(uid: int | None = None) -> str:
+    """Возвращает URL WebApp (статус PRO проверяется на сервере через initData)."""
     return WEBAPP_URL
 
 
 # ─────────────────────────────────────────────────────────
-#  БАЗА ДАННЫХ СТАТИСТИКИ И ЛОГОВ (SQLite) + АВТО-БЭКАП
+#  БАЗА ДАННЫХ СТАТИСТИКИ И ЛОГОВ (SQLite)
 # ─────────────────────────────────────────────────────────
 
-BACKUP_JSON_PATH = BASE_DIR / "data" / "stats_backup.json"
-
-
-def dump_stats_to_json() -> bool:
-    """Экспорт текущей базы в JSON-бэкап (для надежного сохранения истории между обновлениями)."""
-    try:
-        BACKUP_JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
-        backup = {}
-        with sqlite3.connect(STATS_DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            cur = conn.cursor()
-            for table in ["users", "subscriptions", "payments", "trial_claims", "referrals", "events", "user_cloud_sync"]:
-                try:
-                    cur.execute(f"SELECT * FROM {table}")
-                    backup[table] = [dict(r) for r in cur.fetchall()]
-                except Exception:
-                    pass
-        with open(BACKUP_JSON_PATH, "w", encoding="utf-8") as f:
-            json.dump(backup, f, ensure_ascii=False, indent=2)
-        logger.info("💾 Резервная копия базы сохранена в %s", BACKUP_JSON_PATH)
-        return True
-    except Exception as exc:
-        logger.warning("Не удалось сохранить бэкап: %s", exc)
-        return False
-
-
-def restore_stats_from_json() -> int:
-    """Восстановление пользователей и подписок из JSON-бэкапа."""
-    if not BACKUP_JSON_PATH.exists():
-        return 0
-    try:
-        with open(BACKUP_JSON_PATH, "r", encoding="utf-8") as f:
-            backup = json.load(f)
-        restored = 0
-        with sqlite3.connect(STATS_DB_PATH) as conn:
-            for u in backup.get("users", []):
-                conn.execute(
-                    """
-                    INSERT INTO users (user_id, username, first_name, first_seen, last_seen, total_events, is_banned, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(user_id) DO UPDATE SET
-                        username = excluded.username,
-                        first_name = excluded.first_name,
-                        last_seen = excluded.last_seen,
-                        total_events = MAX(users.total_events, excluded.total_events)
-                    """,
-                    (
-                        u.get("user_id"),
-                        u.get("username", ""),
-                        u.get("first_name", ""),
-                        u.get("first_seen", ""),
-                        u.get("last_seen", ""),
-                        u.get("total_events", 1),
-                        u.get("is_banned", 0),
-                        u.get("notes", ""),
-                    ),
-                )
-                restored += 1
-
-            for s in backup.get("subscriptions", []):
-                conn.execute(
-                    """
-                    INSERT INTO subscriptions (user_id, plan_id, expires_at, updated_at)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT(user_id) DO UPDATE SET
-                        expires_at = excluded.expires_at,
-                        updated_at = excluded.updated_at
-                    """,
-                    (s.get("user_id"), s.get("plan_id"), s.get("expires_at"), s.get("updated_at")),
-                )
-
-            for ev in backup.get("events", []):
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO events (id, ts, user_id, username, first_name, action, detail)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        ev.get("id"),
-                        ev.get("ts"),
-                        ev.get("user_id"),
-                        ev.get("username"),
-                        ev.get("first_name"),
-                        ev.get("action"),
-                        ev.get("detail", ""),
-                    ),
-                )
-
-            for tr in backup.get("trial_claims", []):
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO trial_claims (user_id, claimed_at)
-                    VALUES (?, ?)
-                    """,
-                    (tr.get("user_id"), tr.get("claimed_at")),
-                )
-
-            for r in backup.get("referrals", []):
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO referrals (id, referrer_id, referred_user_id, created_at)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (r.get("id"), r.get("referrer_id"), r.get("referred_user_id"), r.get("created_at")),
-                )
-
-            for c in backup.get("user_cloud_sync", []):
-                conn.execute(
-                    """
-                    INSERT INTO user_cloud_sync (user_id, wheel_last, shards, daily_card_key, updated_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT(user_id) DO UPDATE SET
-                        wheel_last = MAX(user_cloud_sync.wheel_last, excluded.wheel_last),
-                        shards = MAX(user_cloud_sync.shards, excluded.shards),
-                        updated_at = excluded.updated_at
-                    """,
-                    (c.get("user_id"), c.get("wheel_last", 0), c.get("shards", 0), c.get("daily_card_key", ""), c.get("updated_at", "")),
-                )
-            conn.commit()
-        logger.info("✨ База успешно восстановлена из бэкапа: %d пользователей", restored)
-        return restored
-    except Exception as exc:
-        logger.error("Ошибка восстановления базы: %s", exc)
-        return 0
-
-
-def check_and_restore_database() -> None:
-    """Проверяет базу и при необходимости автоматически восстанавливает из бэкапа."""
-    try:
-        with sqlite3.connect(STATS_DB_PATH) as conn:
-            cnt = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-            if cnt == 0:
-                logger.info("ℹ️ База пользователей пуста. Запускаем автоматическое восстановление...")
-                restored = restore_stats_from_json()
-                logger.info("✅ Авто-восстановление завершено. Загружено пользователей: %d", restored)
-            else:
-                logger.info("📊 База содержит %d пользователей. Обновляем актуальный бэкап...", cnt)
-                dump_stats_to_json()
-    except Exception as exc:
-        logger.warning("Ошибка проверки/восстановления базы: %s", exc)
-
-
 def init_stats_db() -> None:
-    with sqlite3.connect(STATS_DB_PATH) as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                user_id INTEGER PRIMARY KEY,
-                username TEXT,
-                first_name TEXT,
-                first_seen TEXT,
-                last_seen TEXT,
-                total_events INTEGER DEFAULT 0,
-                is_banned INTEGER DEFAULT 0,
-                notes TEXT DEFAULT ''
-            )
-            """
-        )
-        cur = conn.cursor()
-        cur.execute("PRAGMA table_info(users)")
-        existing_cols = [c[1] for c in cur.fetchall()]
-        if "is_banned" not in existing_cols:
-            conn.execute("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0")
-        if "notes" not in existing_cols:
-            conn.execute("ALTER TABLE users ADD COLUMN notes TEXT DEFAULT ''")
-
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ts TEXT,
-                user_id INTEGER,
-                username TEXT,
-                first_name TEXT,
-                action TEXT,
-                detail TEXT
-            )
-            """
-        )
-
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS user_cloud_sync (
-                user_id INTEGER PRIMARY KEY,
-                wheel_last INTEGER DEFAULT 0,
-                shards INTEGER DEFAULT 0,
-                daily_card_key TEXT DEFAULT '',
-                updated_at TEXT
-            )
-            """
-        )
-        conn.commit()
+    database.init_db(STATS_DB_PATH)
 
 
 def log_user_event(user, action: str, detail: str = "") -> None:
     if not user:
         return
-    now_iso = datetime.now(MSK_TZ).strftime("%Y-%m-%d %H:%M:%S")
-    uid = user.id
-    username = user.username or ""
-    first_name = user.first_name or "Без имени"
-    try:
-        with sqlite3.connect(STATS_DB_PATH) as conn:
-            conn.execute(
-                """
-                INSERT INTO users (user_id, username, first_name, first_seen, last_seen, total_events)
-                VALUES (?, ?, ?, ?, ?, 1)
-                ON CONFLICT(user_id) DO UPDATE SET
-                    username = excluded.username,
-                    first_name = excluded.first_name,
-                    last_seen = excluded.last_seen,
-                    total_events = users.total_events + 1
-                """,
-                (uid, username, first_name, now_iso, now_iso),
-            )
-            conn.execute(
-                """
-                INSERT INTO events (ts, user_id, username, first_name, action, detail)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (now_iso, uid, username, first_name, action, detail[:200]),
-            )
-            conn.commit()
-    except Exception as exc:
-        logger.warning("Ошибка записи в stats.db: %s", exc)
+    database.log_user_event(
+        user_id=user.id,
+        username=user.username or "",
+        first_name=user.first_name or "Без имени",
+        action=action,
+        detail=detail,
+        db_path=STATS_DB_PATH,
+    )
 
 
 def _describe_callback(data: str) -> tuple[str, str]:
@@ -1268,7 +963,7 @@ def build_stats_report() -> str:
     day_ago = (now_msk - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
     week_ago = (now_msk - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
 
-    with sqlite3.connect(STATS_DB_PATH) as conn:
+    with database.get_conn(STATS_DB_PATH) as conn:
         total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         active_today = conn.execute(
             "SELECT COUNT(*) FROM users WHERE last_seen LIKE ?", (f"{today_prefix}%",)
@@ -1335,7 +1030,7 @@ def build_stats_report() -> str:
 
 def build_logs_report(limit: int = 20) -> str:
     limit = max(5, min(40, limit))
-    with sqlite3.connect(STATS_DB_PATH) as conn:
+    with database.get_conn(STATS_DB_PATH) as conn:
         rows = conn.execute(
             """
             SELECT ts, first_name, username, action, detail
@@ -1368,7 +1063,7 @@ def is_user_banned(user_id: int) -> bool:
     if user_id in ADMIN_IDS:
         return False
     try:
-        with sqlite3.connect(STATS_DB_PATH) as conn:
+        with database.get_conn(STATS_DB_PATH) as conn:
             row = conn.execute("SELECT is_banned FROM users WHERE user_id = ?", (user_id,)).fetchone()
             return bool(row and row[0] == 1)
     except Exception:
@@ -1379,7 +1074,7 @@ def set_user_ban_status(user_id: int, banned: bool) -> bool:
     if user_id in ADMIN_IDS and banned:
         return False
     try:
-        with sqlite3.connect(STATS_DB_PATH) as conn:
+        with database.get_conn(STATS_DB_PATH) as conn:
             conn.execute(
                 "UPDATE users SET is_banned = ? WHERE user_id = ?",
                 (1 if banned else 0, user_id),
@@ -1393,7 +1088,7 @@ def set_user_ban_status(user_id: int, banned: bool) -> bool:
 
 def get_user_card_data(user_id: int) -> dict | None:
     try:
-        with sqlite3.connect(STATS_DB_PATH) as conn:
+        with database.get_conn(STATS_DB_PATH) as conn:
             u_row = conn.execute(
                 "SELECT user_id, username, first_name, first_seen, last_seen, total_events, is_banned FROM users WHERE user_id = ?",
                 (user_id,),
@@ -1427,44 +1122,13 @@ def get_user_card_data(user_id: int) -> dict | None:
 
 
 def get_users_page_data(page: int = 0, per_page: int = 6) -> tuple[list[dict], int, int]:
-    try:
-        with sqlite3.connect(STATS_DB_PATH) as conn:
-            total = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-            total_pages = max(1, (total + per_page - 1) // per_page)
-            page = max(0, min(page, total_pages - 1))
-            offset = page * per_page
-            rows = conn.execute(
-                """
-                SELECT user_id, username, first_name, last_seen, total_events, is_banned
-                FROM users
-                ORDER BY last_seen DESC
-                LIMIT ? OFFSET ?
-                """,
-                (per_page, offset),
-            ).fetchall()
-            users = []
-            for r in rows:
-                sub = payments.get_subscription(r[0], STATS_DB_PATH)
-                users.append({
-                    "user_id": r[0],
-                    "username": r[1] or "",
-                    "first_name": r[2] or "Без имени",
-                    "last_seen": r[3] or "—",
-                    "total_events": r[4] or 0,
-                    "is_banned": bool(r[5]),
-                    "is_pro": sub is not None,
-                    "pro_expires": sub["expires_str"] if sub else None,
-                })
-            return users, page, total_pages
-    except Exception as exc:
-        logger.warning("Ошибка get_users_page_data: %s", exc)
-        return [], 0, 1
+    return database.get_users_page_data(page=page, per_page=per_page, db_path=STATS_DB_PATH)
 
 
 def build_admin_dashboard_text() -> str:
     now_msk = datetime.now(MSK_TZ)
     today_prefix = now_msk.strftime("%Y-%m-%d")
-    with sqlite3.connect(STATS_DB_PATH) as conn:
+    with database.get_conn(STATS_DB_PATH) as conn:
         total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         new_today = conn.execute(
             "SELECT COUNT(*) FROM users WHERE first_seen LIKE ?", (f"{today_prefix}%",)
@@ -1586,7 +1250,6 @@ def admin_main_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("💳 Тест оплаты", callback_data="admin_paytest"),
         ],
         [
-            InlineKeyboardButton("💾 Скачать бэкап базы", callback_data="admin_export_backup"),
             InlineKeyboardButton("🔄 Обновить сводку", callback_data="admin_dashboard"),
         ],
     ])
@@ -1699,14 +1362,13 @@ async def cmd_pro(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_uid = int(context.args[0])
     days = int(context.args[1]) if len(context.args) > 1 and context.args[1].isdigit() else 30
     exp = payments.grant_subscription(target_uid, "manual_vip", days, STATS_DB_PATH)
-    dump_stats_to_json()
     pro_url = get_user_webapp_url(target_uid)
 
     notified = False
     try:
         await context.bot.set_chat_menu_button(
             chat_id=target_uid,
-            menu_button=MenuButtonWebApp(text="🔮 Таро PRO", web_app=WebAppInfo(url=pro_url)),
+            menu_button=MenuButtonWebApp(text="⚡ KLIM TAROT PRO", web_app=WebAppInfo(url=pro_url)),
         )
         await context.bot.send_message(
             chat_id=target_uid,
@@ -1717,7 +1379,7 @@ async def cmd_pro(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Нажмите кнопку ниже, чтобы запустить приложение:"
             ),
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔮 Войти в KLIM TAROT ✨", web_app=WebAppInfo(url=pro_url))]
+                [InlineKeyboardButton("⚡ Открыть KLIM TAROT (PRO)", web_app=WebAppInfo(url=pro_url))]
             ]),
             parse_mode=ParseMode.MARKDOWN,
         )
@@ -1813,7 +1475,7 @@ async def cmd_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = " ".join(context.args)
     status_msg = await update.message.reply_text("⏳ Начинаю рассылку сообщений пользователям...")
 
-    with sqlite3.connect(STATS_DB_PATH) as conn:
+    with database.get_conn(STATS_DB_PATH) as conn:
         users = conn.execute("SELECT user_id FROM users WHERE is_banned = 0").fetchall()
 
     sent = 0
@@ -1925,7 +1587,7 @@ def start_keyboard(uid: int | None = None):
     user_url = get_user_webapp_url(uid)
     if user_url:
         has_pro = user_has_pro(uid)
-        btn_label = "🔮 Войти в KLIM TAROT ✨" if has_pro else "🔮 Открыть KLIM TAROT ✨"
+        btn_label = "⚡ Открыть KLIM TAROT (PRO)" if has_pro else "🔮 Открыть KLIM TAROT (Mini App)"
         rows.append([
             InlineKeyboardButton(
                 btn_label,
@@ -1955,7 +1617,7 @@ def main_menu_keyboard(uid: int | None = None):
     daily_label = "🌗 Карта дня и ночи"
     if uid is not None:
         period = get_msk_day_night_period()
-        if uid in user_card_of_day and user_card_of_day[uid][0] == period["period_key"]:
+        if database.get_daily_card(uid, period["period_key"]):
             daily_label = f"🌗 Карта дня и ночи ({period['rem_short']})"
     rows.extend([
         [InlineKeyboardButton(daily_label,             callback_data="quick_card_of_day"),
@@ -1965,8 +1627,7 @@ def main_menu_keyboard(uid: int | None = None):
          InlineKeyboardButton("📖 Словарь карт",      callback_data="menu_dict")],
         [InlineKeyboardButton("📜 Моя история",       callback_data="menu_history"),
          InlineKeyboardButton("🎁 Гадаю для друга",   callback_data="menu_friend")],
-        [InlineKeyboardButton("💎 Тарифы подписки",  callback_data="menu_plans"),
-         InlineKeyboardButton("💌 Пригласить (+2 дня)", callback_data="menu_ref")],
+        [InlineKeyboardButton("💎 Тарифы подписки",  callback_data="menu_plans")],
     ])
     if uid is not None and uid in ADMIN_IDS:
         rows.append([InlineKeyboardButton("👑 Режим Администратора", callback_data="admin_dashboard")])
@@ -2058,15 +1719,16 @@ def persistent_reply_keyboard(uid: int | None = None) -> ReplyKeyboardMarkup:
     """Нижняя постоянная панель кнопок для мгновенного ввода команд без ручного набора."""
     user_url = get_user_webapp_url(uid)
     has_pro = user_has_pro(uid)
-    btn_label = "🔮 Войти в KLIM TAROT ✨" if has_pro else "🔮 Открыть KLIM TAROT ✨"
+    btn_label = "⚡ Открыть KLIM TAROT (PRO)" if has_pro else "🔮 Открыть KLIM TAROT"
     btn_webapp = KeyboardButton(btn_label, web_app=WebAppInfo(url=user_url)) if user_url else KeyboardButton("/start")
     rows = [
         [btn_webapp],
         [KeyboardButton("🏠 Меню"), KeyboardButton("🎁 Гадание для друга")],
-        [KeyboardButton("💌 Пригласить друга (+2 дня)"), KeyboardButton("💎 Тарифы")],
     ]
     if uid is not None and uid in ADMIN_IDS:
-        rows.append([KeyboardButton("👑 Админ-панель")])
+        rows.append([KeyboardButton("💎 Тарифы"), KeyboardButton("👑 Админ-панель")])
+    else:
+        rows.append([KeyboardButton("💎 Тарифы")])
     return ReplyKeyboardMarkup(rows, resize_keyboard=True, is_persistent=True)
 
 
@@ -2077,72 +1739,41 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     context.user_data.pop("friend_name", None)
 
-    # 1. Обработка перехода на оплату тарифа (?start=pay_<plan_key> или ?start=pay_stars_<plan_key>)
-    if context.args:
-        arg = context.args[0].strip()
-        if arg.startswith("pay_"):
-            plan_arg = arg[4:]
-            if plan_arg.startswith("stars_"):
-                plan_key = plan_arg[6:]
-                if plan_key in payments.PLANS:
-                    await payments.send_plan_invoice_to_chat(uid, context.bot, plan_key, method="stars")
-                    return ConversationHandler.END
-            else:
-                plan_key = plan_arg
-                if plan_key in payments.PLANS:
-                    await payments.send_plan_invoice_to_chat(uid, context.bot, plan_key, method="rub")
-                    return ConversationHandler.END
-
-        # Обработка реферального перехода (?start=ref_<id>)
-        if arg.startswith("ref_") and arg[4:].isdigit():
-            referrer_id = int(arg[4:])
-            ref_ok, ref_exp = payments.process_referral(referrer_id, uid, bonus_days=2, db_path=STATS_DB_PATH)
-            if ref_ok and ref_exp:
+    # Обработка реферальной ссылки (/start ref_<id>)
+    if uid and context.args:
+        arg0 = context.args[0].strip()
+        if arg0.startswith("ref_") and arg0[4:].isdigit():
+            ref_uid = int(arg0[4:])
+            if database.register_referral(uid, ref_uid):
+                exp = payments.grant_subscription(ref_uid, "referral", config.REFERRAL_PRO_DAYS, STATS_DB_PATH)
+                database.log_user_event(
+                    ref_uid, "", "", "Реферал", f"Пригласил {uid} (+{config.REFERRAL_PRO_DAYS}д PRO)"
+                )
                 try:
-                    ref_pro_url = get_user_webapp_url(referrer_id)
                     await context.bot.send_message(
-                        chat_id=referrer_id,
+                        chat_id=ref_uid,
                         text=(
-                            f"🎉 *Ваш друг присоединился по вашей ссылке!*\n\n"
-                            f"🎁 Вам начислено *+2 дня бесплатного режима PRO*!\n"
-                            f"⏳ Доступ активен до: `{ref_exp.strftime('%d.%m.%Y %H:%M МСК')}`.\n\n"
-                            f"Спасибо, что делитесь KLIM TAROT! 🔮"
+                            f"🎁 *Друг перешёл по вашей ссылке!*\n"
+                            f"Вам начислено *+{config.REFERRAL_PRO_DAYS} дня PRO* "
+                            f"(активен до `{exp.strftime('%d.%m.%Y %H:%M МСК')}`)."
                         ),
-                        reply_markup=InlineKeyboardMarkup([
-                            [InlineKeyboardButton("🔮 Войти в KLIM TAROT ✨", web_app=WebAppInfo(url=ref_pro_url))]
-                        ]),
                         parse_mode=ParseMode.MARKDOWN,
                     )
-                except Exception as exc:
-                    logger.debug("Не удалось отправить уведомление рефереру %s: %s", referrer_id, exc)
-
-    # 2. Подарок при первом входе: 3 дня бесплатного PRO-режима
-    trial_granted, trial_exp = payments.claim_trial_if_eligible(uid, days=3, db_path=STATS_DB_PATH)
+                except Exception:
+                    pass
 
     # Синхронизируем персональный MenuButton в Telegram для пользователей с PRO
     if uid:
         try:
-            user_url = get_user_webapp_url(uid, is_trial=trial_granted)
+            user_url = get_user_webapp_url(uid)
             has_pro = user_has_pro(uid)
-            menu_btn_text = "🔮 Таро PRO" if has_pro else "🔮 Таро"
+            menu_btn_text = "⚡ KLIM TAROT PRO" if has_pro else "🔮 Таро"
             await context.bot.set_chat_menu_button(
                 chat_id=uid,
                 menu_button=MenuButtonWebApp(text=menu_btn_text, web_app=WebAppInfo(url=user_url)),
             )
         except Exception:
             pass
-
-    welcome_caption = WELCOME_TEXT
-    if trial_granted and trial_exp:
-        welcome_caption = (
-            f"🎁 *ВАМ ПОДАРОК: 3 ДНЯ РЕЖИМА PRO БЕСПЛАТНО!* 🎁\n\n"
-            f"Вам открыт полный доступ ко всем закрытым функциям Таро до `{trial_exp.strftime('%d.%m.%Y %H:%M МСК')}`:\n"
-            f"• ⚡ Баланс 4 стихий, теневая карта (дно колоды) и квинтэссенция\n"
-            f"• 🃏 Выбор колоды (Старшие/Младшие арканы) и перевёрнутые карты\n"
-            f"• 🎯 Неограниченные расклады и персональный вопрос Оракулу\n\n"
-            f"💌 *Хотите ещё?* Пригласите друга и получите ещё *+2 дня PRO*!\n\n"
-            + WELCOME_TEXT
-        )
 
     media_type, media_path = find_welcome_media()
     markup = start_keyboard(uid)
@@ -2154,7 +1785,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if cached_id:
                 await update.message.reply_animation(
                     animation=cached_id,
-                    caption=welcome_caption,
+                    caption=WELCOME_TEXT,
                     reply_markup=markup,
                     parse_mode=ParseMode.MARKDOWN,
                 )
@@ -2164,7 +1795,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 with open(media_path, "rb") as f:
                     sent = await update.message.reply_animation(
                         animation=f,
-                        caption=welcome_caption,
+                        caption=WELCOME_TEXT,
                         reply_markup=markup,
                         parse_mode=ParseMode.MARKDOWN,
                     )
@@ -2182,7 +1813,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with open(media_path, "rb") as f:
                 await update.message.reply_photo(
                     photo=f,
-                    caption=welcome_caption,
+                    caption=WELCOME_TEXT,
                     reply_markup=markup,
                     parse_mode=ParseMode.MARKDOWN,
                 )
@@ -2192,7 +1823,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.warning("Не удалось отправить photo в cmd_start: %s, перехожу на текст", exc)
 
     await update.message.reply_text(
-        welcome_caption,
+        WELCOME_TEXT,
         reply_markup=markup,
         parse_mode=ParseMode.MARKDOWN,
     )
@@ -2225,47 +1856,6 @@ async def cmd_friend(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.MARKDOWN,
     )
     return WAITING_FRIEND_NAME
-
-async def cmd_ref(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Команда /ref — персональная ссылка для приглашения друзей (+2 дня PRO)."""
-    uid = update.effective_user.id if update.effective_user else 0
-    ref_link = f"https://t.me/MysticalTarotKlimBot?start=ref_{uid}"
-    share_msg = "✨ Дарю тебе 3 дня бесплатного PRO-доступа в KLIM TAROT! 78 карт, Карта дня и расклады тут 👇"
-    share_url = f"https://t.me/share/url?url={ref_link}&text={urllib.parse.quote(share_msg)}"
-    text = (
-        f"💌 *Пригласите друга — получите +2 дня PRO!*\n\n"
-        f"Ваша персональная ссылка:\n`{ref_link}`\n\n"
-        f"🎁 *Как это работает:*\n"
-        f"• Ваш друг переходит по ссылке и получает *3 дня режима PRO в подарок*!\n"
-        f"• Вы сразу получаете *+2 дня бесплатного PRO* к вашей подписке!\n\n"
-        f"✨ Приглашайте друзей без ограничений — дни суммируются!"
-    )
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📤 Отправить ссылку другу в Telegram", url=share_url)],
-        [InlineKeyboardButton("🏠 Главное меню", callback_data="main_menu")],
-    ])
-    await update.message.reply_text(text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN)
-
-
-async def show_referral_menu(query):
-    uid = query.from_user.id
-    ref_link = f"https://t.me/MysticalTarotKlimBot?start=ref_{uid}"
-    share_msg = "✨ Дарю тебе 3 дня бесплатного PRO-доступа в KLIM TAROT! 78 карт, Карта дня и расклады тут 👇"
-    share_url = f"https://t.me/share/url?url={ref_link}&text={urllib.parse.quote(share_msg)}"
-    text = (
-        f"💌 *Пригласите друга — получите +2 дня PRO!*\n\n"
-        f"Ваша персональная ссылка:\n`{ref_link}`\n\n"
-        f"🎁 *Как это работает:*\n"
-        f"• Ваш друг переходит по ссылке и получает *3 дня режима PRO в подарок*!\n"
-        f"• Вы сразу получаете *+2 бонусных дня PRO* к вашей подписке!\n\n"
-        f"✨ Приглашайте друзей без ограничений — дни суммируются!"
-    )
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📤 Отправить ссылку другу в Telegram", url=share_url)],
-        [InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")],
-    ])
-    await safe_edit(query, text, reply_markup=keyboard)
-
 
 # ─────────────────────────────────────────────────────────
 #  CALLBACK HANDLERS
@@ -2357,16 +1947,9 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "menu_plans":
         await safe_edit(query, payments.plans_text(query.from_user.id), reply_markup=payments.plans_keyboard())
 
-    elif data == "menu_ref":
-        await show_referral_menu(query)
-
-    elif data.startswith("pay_plan_") or data.startswith("pay_rub_"):
-        plan_key = data.replace("pay_plan_", "").replace("pay_rub_", "")
-        await payments.send_plan_invoice(query, plan_key, method="rub")
-
-    elif data.startswith("pay_stars_"):
-        plan_key = data[len("pay_stars_"):]
-        await payments.send_plan_invoice(query, plan_key, method="stars")
+    elif data.startswith("pay_plan_"):
+        plan_key = data[len("pay_plan_"):]
+        await payments.send_plan_invoice(query, plan_key)
 
     elif data.startswith("admin_"):
         if query.from_user.id not in ADMIN_IDS:
@@ -2409,37 +1992,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 target_uid = int(parts[2])
                 days = int(parts[3])
                 exp = payments.grant_subscription(target_uid, "manual_vip", days, STATS_DB_PATH)
-                dump_stats_to_json()
-                pro_url = get_user_webapp_url(target_uid)
-                is_forever = (days >= 365)
-                try:
-                    await context.bot.set_chat_menu_button(
-                        chat_id=target_uid,
-                        menu_button=MenuButtonWebApp(text="🔮 Таро PRO", web_app=WebAppInfo(url=pro_url)),
-                    )
-                except Exception:
-                    pass
-                try:
-                    await context.bot.send_message(
-                        chat_id=target_uid,
-                        text=(
-                            f"👑 *Вам выдан VIP-доступ к KLIM TAROT PRO навсегда!*\n\n"
-                            f"⚡ Все 35 экспертных раскладов, стихии, теневая карта (дно колоды) и квинтэссенция теперь открыты!\n\n"
-                            f"Нажмите кнопку ниже, чтобы запустить приложение:"
-                        ) if is_forever else (
-                            f"🎉 *Вам выдан доступ к KLIM TAROT PRO!*\n\n"
-                            f"⏳ Срок действия: *{days} дн.* (до `{exp.strftime('%d.%m.%Y')}`).\n"
-                            f"⚡ Все экспертные расклады и карты открыты!\n\n"
-                            f"Нажмите кнопку ниже, чтобы войти в приложение:"
-                        ),
-                        reply_markup=InlineKeyboardMarkup([
-                            [InlineKeyboardButton("🔮 Войти в KLIM TAROT PRO ✨", web_app=WebAppInfo(url=pro_url))]
-                        ]),
-                        parse_mode=ParseMode.MARKDOWN,
-                    )
-                except Exception:
-                    pass
-                await safe_answer(query, f"⚡ Выдан PRO {'навсегда' if is_forever else f'на {days} дн.'} (до {exp.strftime('%d.%m.%Y')})", show_alert=True)
+                await safe_answer(query, f"⚡ Выдан PRO на {days} дн. (до {exp.strftime('%d.%m.%Y')})", show_alert=True)
                 card = get_user_card_data(target_uid)
                 if card:
                     await safe_edit(
@@ -2451,15 +2004,6 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif data.startswith("admin_unpro_"):
             target_uid = int(data.split("_")[2])
             payments.revoke_subscription(target_uid, STATS_DB_PATH)
-            dump_stats_to_json()
-            try:
-                normal_url = get_user_webapp_url(target_uid)
-                await context.bot.set_chat_menu_button(
-                    chat_id=target_uid,
-                    menu_button=MenuButtonWebApp(text="🔮 KLIM TAROT", web_app=WebAppInfo(url=normal_url)),
-                )
-            except Exception:
-                pass
             await safe_answer(query, f"❌ Режим PRO забран у {target_uid}", show_alert=True)
             card = get_user_card_data(target_uid)
             if card:
@@ -2549,34 +2093,6 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ]),
             )
 
-        elif data == "admin_export_backup":
-            await safe_answer(query, "⏳ Готовлю бэкап базы...")
-            dump_stats_to_json()
-            try:
-                cnt = 0
-                with sqlite3.connect(STATS_DB_PATH) as conn:
-                    cnt = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-                with open(STATS_DB_PATH, "rb") as db_f:
-                    await context.bot.send_document(
-                        chat_id=query.from_user.id,
-                        document=db_f,
-                        filename=f"stats_{datetime.now(MSK_TZ).strftime('%Y%m%d_%H%M')}.db",
-                        caption=f"💾 *Резервная копия SQLite (stats.db)*\nПользователей в базе: *{cnt}*",
-                        parse_mode="Markdown",
-                    )
-                if BACKUP_JSON_PATH.exists():
-                    with open(BACKUP_JSON_PATH, "rb") as json_f:
-                        await context.bot.send_document(
-                            chat_id=query.from_user.id,
-                            document=json_f,
-                            filename="stats_backup.json",
-                            caption="📄 *JSON-зеркало базы данных*\nАвтоматически восстанавливает людей при обновлениях на Render.",
-                            parse_mode="Markdown",
-                        )
-            except Exception as exc:
-                logger.error("Ошибка отправки бэкапа: %s", exc)
-                await query.message.reply_text(f"❌ Ошибка выгрузки: {exc}")
-
     elif data == "noop":
         await safe_answer(query)
 
@@ -2659,12 +2175,15 @@ async def do_friend_spread(query, spread_key: str, friend_name: str, reader_firs
     safe_friend = escape_md(friend_name)
     safe_reader = escape_md(reader_first_name)
 
-    # Save to history
-    user_history[uid].append({
-        "type": f"Для {safe_friend}: {spread['name']}",
-        "cards": [c["name"] for c, _ in cards],
-        "time": datetime.now().strftime("%d.%m %H:%M"),
-    })
+    # Save to persistent history
+    database.save_reading(
+        user_id=uid,
+        spread_key=spread_key,
+        spread_name=f"Для {friend_name}: {spread['name']}",
+        cards=[{"id": c["id"], "reversed": rev} for c, rev in cards],
+        friend_name=friend_name,
+        source="bot",
+    )
 
     # Build reading text
     compact = n > 5
@@ -2748,13 +2267,14 @@ async def do_yesno(query):
         f"🎯 *Совет:* {card.get('advice', '')}"
     )
 
-    # Сохранить в историю
-    user_history[uid].append({
-        "type": "Да/Нет",
-        "card": card["name"],
-        "reversed": rev,
-        "time": datetime.now(MSK_TZ).strftime("%d.%m %H:%M"),
-    })
+    # Сохранить в историю (SQLite)
+    database.save_reading(
+        user_id=uid,
+        spread_key="oracle_yesno",
+        spread_name=f"Да / Нет → {verdict.replace('*', '').strip()}",
+        cards=[{"id": card["id"], "reversed": rev}],
+        source="bot",
+    )
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔄 Ещё вопрос", callback_data="do_yesno")],
@@ -2774,19 +2294,22 @@ async def do_card_of_day(query):
     pkey = period["period_key"]
 
     # Одна карта на дневной период (06:00–21:00 МСК) и одна на ночной (21:00–06:00 МСК)
-    if uid in user_card_of_day and user_card_of_day[uid][0] == pkey:
-        card, rev = user_card_of_day[uid][1], user_card_of_day[uid][2]
+    saved_daily = database.get_daily_card(uid, pkey)
+    if saved_daily and saved_daily["card_id"] in tarot_engine.CARD_BY_ID:
+        card = tarot_engine.CARD_BY_ID[saved_daily["card_id"]]
+        rev = saved_daily["reversed"]
         already = True
     else:
         card, rev = draw_cards(1)[0]
-        user_card_of_day[uid] = (pkey, card, rev)
+        database.save_daily_card(uid, pkey, card["id"], rev)
         already = False
-        user_history[uid].append({
-            "type": period["title"],
-            "card": card["name"],
-            "reversed": rev,
-            "time": datetime.now(MSK_TZ).strftime("%d.%m %H:%M"),
-        })
+        database.save_reading(
+            user_id=uid,
+            spread_key="card_of_day",
+            spread_name=period["title"],
+            cards=[{"id": card["id"], "reversed": rev}],
+            source="bot",
+        )
 
     orientation = "🔄 перевёрнутая" if rev else "⬆️ прямая"
     meaning = card["reversed"] if rev else card["upright"]
@@ -3000,12 +2523,14 @@ async def do_spread(query, spread_key: str):
     n = len(spread["positions"])
     cards = draw_cards(n)
 
-    # Сохранить в историю
-    user_history[uid].append({
-        "type": spread["name"],
-        "cards": [c["name"] for c, _ in cards],
-        "time": datetime.now(MSK_TZ).strftime("%d.%m %H:%M"),
-    })
+    # Сохранить в историю (SQLite)
+    database.save_reading(
+        user_id=uid,
+        spread_key=spread_key,
+        spread_name=spread["name"],
+        cards=[{"id": c["id"], "reversed": rev} for c, rev in cards],
+        source="bot",
+    )
 
     # ── Строим текст результата ──────────────────────────
     compact = n > 5  # для больших раскладов — компактный формат карт
@@ -3140,21 +2665,22 @@ async def show_card_detail(query, card_id: str):
 
 async def show_history(query):
     uid = query.from_user.id
-    history = user_history.get(uid, [])
+    history = database.get_user_history(uid, limit=10)
     if not history:
         text = "📜 *Ваша история гаданий*\n\nВы ещё не делали ни одного расклада. Начните прямо сейчас!"
     else:
-        last = history[-10:][::-1]
         lines = ["📜 *Последние гадания:*\n"]
-        for entry in last:
-            if "cards" in entry:
-                cards_str = ", ".join(entry["cards"][:3])
-                if len(entry["cards"]) > 3:
-                    cards_str += f" +{len(entry['cards'])-3}"
-                lines.append(f"🕐 _{entry['time']}_ — {entry['type']}\n   📋 {cards_str}")
-            else:
-                rev = " (🔄)" if entry.get("reversed") else ""
-                lines.append(f"🕐 _{entry['time']}_ — {entry['type']}\n   🃏 {entry['card']}{rev}")
+        for entry in history:
+            cards = entry.get("cards") or []
+            card_names = []
+            for item in cards[:3]:
+                cid = item.get("id") if isinstance(item, dict) else item
+                c_obj = tarot_engine.CARD_BY_ID.get(cid)
+                card_names.append(c_obj["name"] if c_obj else str(cid))
+            cards_str = ", ".join(card_names)
+            if len(cards) > 3:
+                cards_str += f" +{len(cards) - 3}"
+            lines.append(f"🕐 _{entry['time']}_ — {escape_md(entry['spreadName'])}\n   📋 {escape_md(cards_str)}")
         text = "\n\n".join(lines)
 
     keyboard = InlineKeyboardMarkup([
@@ -3181,9 +2707,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if raw in ["💎 Тарифы", "💎 Тарифы подписки", "тарифы", "подписка", "/pay", "/plans"]:
         await cmd_plans(update, context)
-        return
-    if raw in ["💌 Пригласить друга (+2 дня)", "пригласить друга", "пригласить", "/ref", "/invite"]:
-        await cmd_ref(update, context)
         return
 
     text = update.message.text.lower()
@@ -3391,6 +2914,8 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 # ─────────────────────────────────────────────────────────
 
 async def post_init(app):
+    app.bot_data["api_runner"] = await api_server.start_api_server(telegram_bot=app.bot)
+
     public_cmds = [
         BotCommand("start", "🔮 Запустить бот / Mini App"),
         BotCommand("menu", "🏠 Открыть меню"),
@@ -3425,191 +2950,20 @@ async def post_init(app):
             logger.warning("Не удалось установить MenuButtonWebApp: %s", exc)
 
 
-def start_health_server() -> None:
-    """Мини-HTTP сервер для Render Free Web Service + API синхронизации таймеров между устройствами."""
-    port_raw = os.environ.get("PORT", "10000").strip()
-    port = int(port_raw) if port_raw.isdigit() else 10000
-
-    try:
-        class _HealthHandler(BaseHTTPRequestHandler):
-            def _send_cors(self):
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-                self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-            def do_OPTIONS(self):
-                self.send_response(200)
-                self._send_cors()
-                self.end_headers()
-
-            def do_GET(self):
-                parsed = urllib.parse.urlparse(self.path)
-                if parsed.path == "/api/sync_state":
-                    qs = urllib.parse.parse_qs(parsed.query)
-                    uid_raw = qs.get("uid", ["0"])[0]
-                    uid = int(uid_raw) if uid_raw.isdigit() else 0
-                    res = {
-                        "status": "ok",
-                        "uid": uid,
-                        "wheel_last": 0,
-                        "shards": 0,
-                        "daily_card_key": "",
-                        "is_pro": False,
-                        "is_owner": (uid in ADMIN_IDS) if uid else False,
-                        "pro_days": 0,
-                        "pro_expires_at": "",
-                        "pro_expires_str": "",
-                        "referral_count": 0,
-                        "referral_bonus_days": 0,
-                    }
-                    if uid > 0:
-                        try:
-                            if uid in ADMIN_IDS:
-                                res["is_pro"] = True
-                                res["pro_days"] = 9999
-                                res["pro_expires_str"] = "Навсегда (VIP Владелец)"
-                            else:
-                                sub = payments.get_subscription(uid, STATS_DB_PATH)
-                                if sub and sub.get("expires_at"):
-                                    now = datetime.now(MSK_TZ)
-                                    exp = sub["expires_at"]
-                                    if exp > now:
-                                        res["is_pro"] = True
-                                        days_left = max(1, math.ceil((exp - now).total_seconds() / 86400))
-                                        if days_left >= 365:
-                                            res["pro_days"] = 9999
-                                            res["is_forever"] = True
-                                            res["pro_expires_str"] = "Навсегда (VIP)"
-                                        else:
-                                            res["pro_days"] = days_left
-                                            res["pro_expires_str"] = sub.get("expires_str", "")
-                                        res["pro_expires_at"] = exp.isoformat()
-                            with sqlite3.connect(STATS_DB_PATH) as conn:
-                                ref_cnt = conn.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (uid,)).fetchone()[0]
-                                res["referral_count"] = ref_cnt or 0
-                                res["referral_bonus_days"] = (ref_cnt or 0) * 2
-                                row = conn.execute(
-                                    "SELECT wheel_last, shards, daily_card_key FROM user_cloud_sync WHERE user_id = ?",
-                                    (uid,),
-                                ).fetchone()
-                                if row:
-                                    res["wheel_last"] = row[0] or 0
-                                    res["shards"] = row[1] or 0
-                                    res["daily_card_key"] = row[2] or ""
-                        except Exception:
-                            pass
-                    payload = json.dumps(res, ensure_ascii=False).encode("utf-8")
-                    self.send_response(200)
-                    self.send_header("Content-Type", "application/json; charset=utf-8")
-                    self._send_cors()
-                    self.send_header("Content-Length", str(len(payload)))
-                    self.end_headers()
-                    self.wfile.write(payload)
-                    return
-
-                self.send_response(200)
-                self.send_header("Content-Type", "text/plain; charset=utf-8")
-                self._send_cors()
-                self.end_headers()
-                self.wfile.write(b"OK - KLIM TAROT BOT")
-
-            def do_POST(self):
-                parsed = urllib.parse.urlparse(self.path)
-                if parsed.path == "/api/sync_state":
-                    try:
-                        length = int(self.headers.get("Content-Length", 0))
-                        body = self.rfile.read(length)
-                        data = json.loads(body.decode("utf-8"))
-                        uid = int(data.get("uid") or data.get("user_id") or 0)
-                        resp_data = {"status": "ok"}
-                        if uid > 0:
-                            # 1. Начисление бонусных дней PRO при обмене осколков
-                            grant_days = int(data.get("grant_pro_days") or 0)
-                            if 0 < grant_days <= 14:
-                                try:
-                                    exp = payments.grant_subscription(uid, "shards_reward", grant_days, STATS_DB_PATH)
-                                    resp_data["granted_pro_days"] = grant_days
-                                    resp_data["pro_expires_str"] = exp.strftime("%d.%m.%Y %H:%M МСК")
-                                except Exception:
-                                    pass
-                            wl = int(data.get("wheel_last") or 0)
-                            sh = int(data.get("shards") or 0)
-                            dk = str(data.get("daily_card_key") or "")
-                            now_iso = datetime.now(MSK_TZ).strftime("%Y-%m-%d %H:%M:%S")
-                            with sqlite3.connect(STATS_DB_PATH) as conn:
-                                conn.execute(
-                                    """
-                                    INSERT INTO user_cloud_sync (user_id, wheel_last, shards, daily_card_key, updated_at)
-                                    VALUES (?, ?, ?, ?, ?)
-                                    ON CONFLICT(user_id) DO UPDATE SET
-                                        wheel_last = CASE WHEN excluded.wheel_last > user_cloud_sync.wheel_last THEN excluded.wheel_last ELSE user_cloud_sync.wheel_last END,
-                                        shards = CASE WHEN excluded.shards > user_cloud_sync.shards THEN excluded.shards ELSE user_cloud_sync.shards END,
-                                        daily_card_key = CASE WHEN excluded.daily_card_key != '' THEN excluded.daily_card_key ELSE user_cloud_sync.daily_card_key END,
-                                        updated_at = excluded.updated_at
-                                    """,
-                                    (uid, wl, sh, dk, now_iso),
-                                )
-                                conn.commit()
-                            dump_stats_to_json()
-                        resp = json.dumps(resp_data).encode("utf-8")
-                        self.send_response(200)
-                        self.send_header("Content-Type", "application/json; charset=utf-8")
-                        self._send_cors()
-                        self.send_header("Content-Length", str(len(resp)))
-                        self.end_headers()
-                        self.wfile.write(resp)
-                        return
-                    except Exception as e:
-                        resp = json.dumps({"status": "error", "error": str(e)}).encode("utf-8")
-                        self.send_response(400)
-                        self.send_header("Content-Type", "application/json; charset=utf-8")
-                        self._send_cors()
-                        self.end_headers()
-                        self.wfile.write(resp)
-                        return
-
-                self.send_response(404)
-                self.end_headers()
-
-            def do_HEAD(self):
-                self.send_response(200)
-                self.end_headers()
-
-            def log_message(self, format, *args):
-                return
-
-        server = ThreadingHTTPServer(("0.0.0.0", port), _HealthHandler)
-        t = threading.Thread(target=server.serve_forever, daemon=True)
-        t.start()
-        logger.info("🌐 Health-сервер и API синхронизации запущены на порту %s", port)
-    except Exception as exc:
-        logger.warning("Не удалось запустить health-сервер: %s", exc)
+async def post_shutdown(app):
+    runner = app.bot_data.get("api_runner")
+    if runner:
+        await runner.cleanup()
 
 
 def main():
-    start_health_server()
     init_stats_db()
     payments.init_payments_db(STATS_DB_PATH)
-    check_and_restore_database()
-    # Загрузка локального .env если переменные не заданы в системе
-    for env_path in [Path(".env"), Path(__file__).resolve().parent / ".env", Path(__file__).resolve().parent.parent / ".env"]:
-        if env_path.exists():
-            try:
-                for line in env_path.read_text(encoding="utf-8").splitlines():
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        k, v = k.strip(), v.strip().strip("\"'")
-                        if k and k not in os.environ:
-                            os.environ[k] = v
-            except Exception:
-                pass
 
-    token = (
-        os.environ.get("TELEGRAM_BOT_TOKEN")
-        or os.environ.get("BOT_TOKEN")
-        or "9210053625:AAHLc9jFQIRkgVN-QPYeKXsUrCKjTyFZk7U"
-    ).strip()
+    token = config.BOT_TOKEN
+    if not token:
+        logger.error("❌ Не задан TELEGRAM_BOT_TOKEN / BOT_TOKEN! Укажите токен в .env или переменных окружения.")
+        sys.exit(1)
 
     # Устойчивые HTTP-клиенты: короткий keep-alive предотвращает зависания сокетов на Windows
     api_request = HTTPXRequest(
@@ -3650,6 +3004,7 @@ def main():
         .get_updates_request(polling_request)
         .concurrent_updates(True)
         .post_init(post_init)
+        .post_shutdown(post_shutdown)
         .build()
     )
 
@@ -3694,8 +3049,6 @@ def main():
     app.add_handler(CommandHandler("grant", cmd_grant))
     app.add_handler(CommandHandler("pay", cmd_plans))
     app.add_handler(CommandHandler("plans", cmd_plans))
-    app.add_handler(CommandHandler("ref", cmd_ref))
-    app.add_handler(CommandHandler("invite", cmd_ref))
     app.add_handler(PreCheckoutQueryHandler(payments.handle_pre_checkout))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, payments.handle_successful_payment))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data))
