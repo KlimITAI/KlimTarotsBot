@@ -203,7 +203,9 @@ button {
 }
 
 @keyframes chromeFadeIn {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -5856,14 +5858,16 @@ body.is-pro-mode .top-bar {
 
 .inventory-shards-row {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .inventory-shards-slots {
@@ -5974,4 +5978,63 @@ body.is-pro-mode .top-bar {
 .inventory-item-badge.active .inv-item-status {
   color: #fef08a;
   font-weight: 600;
+}
+
+
+/* ── Floating Exit to Home Button («✕» ниже настроек) ────────── */
+.btn-exit-to-home {
+  position: fixed;
+  top: calc(56px + var(--safe-top));
+  right: 14px;
+  z-index: 9998;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(20, 15, 42, 0.94);
+  border: 1.5px solid rgba(245, 201, 105, 0.55);
+  color: #fef08a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 12px rgba(245, 201, 105, 0.25);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  padding: 0;
+}
+
+.btn-exit-to-home svg {
+  width: 18px;
+  height: 18px;
+}
+
+.btn-exit-to-home:hover {
+  transform: scale(1.1);
+  border-color: #f5c969;
+  background: rgba(36, 27, 72, 0.98);
+  box-shadow: 0 6px 22px rgba(245, 201, 105, 0.45);
+}
+
+.btn-exit-to-home:active {
+  transform: scale(0.92);
+}
+
+/* ── Fixed Bottom Dock Global Fix ────────────────────────────── */
+.bottom-dock {
+  position: fixed !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  bottom: calc(12px + var(--safe-bottom)) !important;
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.8), 0 0 18px rgba(245, 201, 105, 0.15) !important;
+}
+
+.btn-profile-forge {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 10px 14px !important;
+  text-align: center !important;
 }

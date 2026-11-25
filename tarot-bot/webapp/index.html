@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="./css/styles.css?v=45" />
+  <link rel="stylesheet" href="./css/styles.css?v=46" />
   <!-- Preload Burst SFX & Key Tarot Cards for Instant Zero-Lag Transition -->
   <link rel="preload" href="./assets/transition-burst.mp3" as="fetch" crossorigin="anonymous" />
   <link rel="preload" href="./assets/cards/m17.webp" as="image" type="image/webp" />
@@ -225,6 +225,14 @@
           </button>
         </div>
       </header>
+
+            <!-- Кнопка быстрого выхода в главное меню («✕» под настройками) -->
+      <button class="btn-exit-to-home hidden" id="btn-exit-to-home" aria-label="В главное меню" title="В главное меню">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+          <line x1="18" y1="6" x2="6" y2="18" stroke-linecap="round"/>
+          <line x1="6" y1="6" x2="18" y2="18" stroke-linecap="round"/>
+        </svg>
+      </button>
 
       <!-- Scrollable Viewport -->
       <main id="views-container">
@@ -1183,6 +1191,6 @@
   <!-- Audio preload for zero-latency burst sound -->
   <audio id="snd-transition-burst" preload="auto" src="./assets/transition-burst.mp3" style="display:none;"></audio>
 
-  <script type="module" src="./js/app.js?v=45"></script>
+  <script type="module" src="./js/app.js?v=46"></script>
 </body>
 </html>

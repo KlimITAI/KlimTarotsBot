@@ -1,3 +1,8 @@
+function isAppOwner() {
+  const uid = getTelegramUserId();
+  return uid === OWNER_TELEGRAM_ID || (typeof state !== 'undefined' && state && !!state.isOwner);
+}
+
 import { ALL_CARDS, MAJOR_IDS, SPREADS, CATEGORIES, POSITION_LEADS } from './tarot-data.js?v=15';
 import { PSYCH_CATEGORIES, PSYCH_GUIDES } from './psychology-data.js?v=8';
 import { ZODIAC_SIGNS, ELEMENT_LABELS, calculateCompatibility } from './zodiac-data.js?v=8';
@@ -1453,6 +1458,12 @@ function navigateTo(viewName, { push = true } = {}) {
   if (tg?.BackButton) {
     if (showBack) tg.BackButton.show();
     else tg.BackButton.hide();
+  }
+
+  // Floating Exit to Home button («✕» ниже настроек)
+  const exitBtn = document.getElementById('btn-exit-to-home');
+  if (exitBtn) {
+    exitBtn.classList.toggle('hidden', viewName === 'home' || viewName === 'hero');
   }
 
   if (viewName !== 'psychology') stopBreathing();
@@ -4581,3 +4592,9 @@ updateProDaysUI();
 renderShardsUI();
 updateProfileUI();
 CloudSync.initSync();
+
+document.getElementById('btn-exit-to-home')?.addEventListener('click', () => {
+  sound.playTap();
+  haptic('light');
+  navigateTo('home');
+});
